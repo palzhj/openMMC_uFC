@@ -35,7 +35,7 @@
 #define AMC_BOARD_MANUFACTURING_TIME 15254640               /* Amount of minutes since 0:00 1/1/96 */
 #define AMC_BOARD_MANUFACTURER      "IHEP"
 #define AMC_BOARD_NAME              "FMC Carrier for AMC"
-#define AMC_BOARD_SN                "TA02"
+#define AMC_BOARD_SN                "TA00"
 #define AMC_BOARD_PN                "TAO"
 
 /*********************************************
