@@ -85,11 +85,11 @@ Build [BootCommander](https://github.com/feaser/openblt) and flash:
 ```sh
 # application (base address 0x08004000 is encoded in the file)
 BootCommander -s=xcp -t=xcp_rs232 -d=/dev/ttyUSB0 -b=115200 \
-              -t6=500 -t1=500 out/openMMC.srec
+              -t6=500 -t1=500 build-ufc/out/openMMC.srec
 
 # newboot goes to 0x08002000
 BootCommander -s=xcp -t=xcp_rs232 -d=/dev/ttyUSB0 -b=115200 \
-              -t6=500 -t1=500 out/newboot.srec
+              -t6=500 -t1=500 build-ufc/out/newboot.srec
 ```
 
 If the backdoor entry times out, power‑cycle the board while BootCommander is
@@ -100,29 +100,36 @@ connecting.
 > checksum (word at `0x080021D0` must stay `0x55AA11EE`). Do not relocate the
 > newboot or erase its checksum slot.
 
-### Bootloader over SWD (J-Link)
+### newboot / application over SWD (J-Link)
 
-The OpenBLT bootloader at `0x08000000` is programmed once with SWD:
+The repository ships a J-Link script that loads newboot and the application
+without touching the bootloader region:
 
 ```sh
-JLinkExe -device STM32F100CB -if SWD -speed 4000 \
-  -CommanderScript flash_bootloader.jlink
+cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
 ```
 
-with a script containing:
+It is equivalent to:
 
 ```
-r
-h
-loadbin openblt_stm32f100.bin, 0x08000000
+device STM32F100CB
+si SWD
+speed 1000
+VTREF 3300
+connect
+loadfile uart-debug/newboot.bin 0x08002000
+loadfile uart-debug/openMMC.bin 0x08004000
 r
 g
 q
 ```
 
+`VTREF 3300` only takes effect after a J-Link power cycle (or with the J-Link
+VTref pin wired to the board's 3.3 V).
+
 > [!CAUTION]
 > Never erase or reprogram `0x08000000–0x08001FFF` during normal firmware
-> updates — it holds the bootloader.
+> updates — it holds the OpenBLT bootloader.
 
 ## Debugging
 
