@@ -73,8 +73,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DTARGET_CONTROLLER=${TARGET_CONTROLLER} -DT
 # Get Git information
 git_describe(GIT_TAG "--tags")
 get_git_head_revision(GIT_REFSPEC GIT_SHA1)
-configure_file("${CMAKE_SOURCE_DIR}/modules/GitSHA1.c.in" "${CMAKE_SOURCE_DIR}/modules/GitSHA1.c" @ONLY)
-list(APPEND PROJ_SRCS "${CMAKE_SOURCE_DIR}/modules/GitSHA1.c" "${CMAKE_SOURCE_DIR}/modules/GitSHA1.h")
+# Generate GitSHA1.c into the build tree so configuring never dirties the source tree
+configure_file("${CMAKE_SOURCE_DIR}/modules/GitSHA1.c.in" "${CMAKE_BINARY_DIR}/GitSHA1.c" @ONLY)
+list(APPEND PROJ_SRCS "${CMAKE_BINARY_DIR}/GitSHA1.c" "${CMAKE_SOURCE_DIR}/modules/GitSHA1.h")
 
 # Libraries path
 link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
