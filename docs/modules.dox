@@ -1,0 +1,5 @@
+// Some Doxygen commands to order the final documentation
+
+/**
+ * @defgroup PERIPH_IC Peripheral ICs
+ */

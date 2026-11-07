@@ -1,0 +1,169 @@
+set(MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+
+set(PROJ_HDRS ${PROJ_HDRS} ${MODULE_PATH} )
+
+set(PROJ_SRCS ${PROJ_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/main.c)
+set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/utils.c)
+set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/i2c.c)
+set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/led.c)
+set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/ipmb.c ${MODULE_PATH}/ipmi.c)
+set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/printf-stdarg.c)
+set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/mmc_error.c)
+
+message(STATUS "Selected modules to compile: ${TARGET_MODULES}")
+
+if (";${TARGET_MODULES};" MATCHES ";UART_DEBUG;")
+
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_UART_DEBUG")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";FRU;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/fru.c )
+  if (";${TARGET_MODULES};" MATCHES ";FRU_READ_ONLY;")
+    # No FRU write path at all (smallest image)
+    set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_READ_ONLY")
+  elseif (";${TARGET_MODULES};" MATCHES ";FRU_NO_BUILDER;")
+    # Online-writable FRU: keep read/write, drop the runtime image builder
+    set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_NO_BUILDER")
+  else()
+    set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/amc_fru.c )
+    set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/fru_editor.c )
+  endif()
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_FRU")
+ endif()
+
+if (";${TARGET_MODULES};" MATCHES ";CLOCK_CONFIG;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/clock_config.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_CLOCK_CONFIG")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";EEPROM_AT24MAC;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/at24mac.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_EEPROM_AT24MAC")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";EEPROM_24XX02;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/eeprom_24xx02.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_EEPROM_24XX02")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";EEPROM_24XX64;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/eeprom_24xx64.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_EEPROM_24XX64")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";EEPROM_24XX512;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/eeprom_24xx512.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_EEPROM_24XX512")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";SDR;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/sdr.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_SDR")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";SCANSTA1101;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/scansta1101.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_SCANSTA1101")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";ADN4604;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/adn4604.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_ADN4604")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";IDT_8V54816;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/idt_8v54816.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_IDT_8V54816")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";FPGA_SPI;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/fpga_spi.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_FPGA_SPI")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";DAC_AD84XX;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/ad84xx.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_DAC_AD84XX")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";VIO_TPL0102;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/tpl0102.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_VIO_TPL0102")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";WATCHDOG;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/watchdog.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_WATCHDOG")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";HPM;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/hpm.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_HPM")
+  if (";${TARGET_MODULES};" MATCHES ";FLASH_SPI;")
+    set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/flash_spi.c )
+    set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_FLASH_SPI")
+  endif()
+ endif()
+
+if (";${TARGET_MODULES};" MATCHES ";PCA9554;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/pca9554.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_PCA9554")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";CDCE906;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/cdce906.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_CDCE906")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";SYSUTILS;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/sys_utils.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_SYSUTILS")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";MCP23016;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/mcp23016.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_MCP23016")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";MAX116XX;")
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/max116xx.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_MAX116XX")
+endif()
+
+if (";${TARGET_MODULES};" MATCHES ";RTM;")
+  if (NOT BOARD_RTM)
+    message( FATAL_ERROR "${BoldRed}RTM Module included but no RTM Board specified${ColourReset}")
+  else()
+    set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/rtm.c )
+    if (";${TARGET_MODULES};" MATCHES ";FRU;")
+      set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/rtm_fru.c )
+    endif()
+    set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_RTM")
+  endif()
+endif()
+
+if (";${TARGET_MODULES};" MATCHES "SENSOR")
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_SENSORS")
+  add_subdirectory(sensors)
+endif()
+
+#Modules dependencies check
+if(${TARGET_BOARD_NAME} MATCHES "^(AFC)")
+  if (("${MODULES_FLAGS}" MATCHES "-DMODULE_PAYLOAD") AND NOT ("${MODULES_FLAGS}" MATCHES "-DMODULE_DAC_AD84XX"))
+    message(WARNING "${Red}[AFC] Payload module is being used but the DAC_AD84XX was not included in this build. The VADJ reference will not be configured! ${ColourReset}")
+  endif()
+endif()
+
+# if(NOT ("${MODULES_FLAGS}" MATCHES "-DMODULE_HOTSWAP"))
+#   message(FATAL_ERROR "${Red}[ERROR] Mandatory Hotswap sensor module not included!${ColourReset}")
+# endif()
+
+if (RENODE_TEST)
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/fru_test.c )
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DRENODE_TEST")
+endif()
+
+set(PROJ_SRCS ${PROJ_SRCS} PARENT_SCOPE)
+set(PROJ_HDRS ${PROJ_HDRS} PARENT_SCOPE)
+set(MODULES_FLAGS ${MODULES_FLAGS} PARENT_SCOPE)

@@ -1,0 +1,68 @@
+##Include selected board files
+message(STATUS "Selected Board: ${BOARD}")
+if(NOT BOARD)
+  message(FATAL_ERROR "${BoldRed}Target board was not selected! You must pass the flag -DBOARD=<board_name>${ColourReset}")
+endif()
+
+if(${BOARD} MATCHES "^(afc-v4)$" )
+  add_subdirectory(afc-v4)
+
+elseif(${BOARD} MATCHES "^(afc)$")
+
+  if(NOT VERSION)
+    message(FATAL_ERROR "${BoldRed}AFC board version was not selected! You must pass the flag -DVERSION=<major>.<minor>${ColourReset}")
+  endif()
+
+  message(STATUS "Selected Board version: ${VERSION}")
+  if(${VERSION} MATCHES "(3.0)")
+    message(FATAL_ERROR "${BoldRed}AFCv3.0 is not supported anymore. Use -DVERSION=3.1 instead.${ColourReset}")
+  elseif(${VERSION} MATCHES "(3.1)")
+    add_subdirectory(afc-v3)
+  elseif(${VERSION} MATCHES "(4.0)")
+    add_subdirectory(afc-v4)
+  endif()
+
+elseif(${BOARD} MATCHES "^(u4fcp-v2)$" )
+  add_subdirectory(u4fcp-v2)
+elseif(${BOARD} MATCHES "^(ufc-v2)$" )
+  add_subdirectory(ufc-v2)
+
+else()
+  message(FATAL_ERROR "${BoldRed}Selected board \"${BOARD}\" is not implemented!${ColourReset}")
+endif()
+
+if(${BOARD} MATCHES "^(afc)")
+  add_subdirectory(afc-common)
+elseif(${BOARD} MATCHES "^(u)")
+  add_subdirectory(ufc-common)
+endif()
+
+#RTM Board
+if(BOARD_RTM AND (";${TARGET_MODULES};" MATCHES ";RTM;"))
+  message(STATUS "Selected RTM Board support: ${BOARD_RTM}")
+  if(${BOARD_RTM} MATCHES "(8sfp)")
+    add_subdirectory(rtm-8sfp)
+  elseif(${BOARD_RTM} MATCHES "(lamp)")
+    add_subdirectory(rtm-lamp)
+  else()
+    message(FATAL_ERROR "${BoldRed}Selected RTM board \"${BOARD_RTM}\" is not implemented!${ColourReset}")
+  endif()
+endif()
+
+#Normalize strings to upper case
+string(TOUPPER "${TARGET_CONTROLLER}" TARGET_CONTROLLER_UPPER)
+set(TARGET_CONTROLLER "${TARGET_CONTROLLER_UPPER}" CACHE STRING "Target Controller")
+string(TOUPPER "${TARGET_BOARD_NAME}" TARGET_BOARD_UPPER)
+set(TARGET_BOARD_NAME "${TARGET_BOARD_UPPER}" CACHE STRING "Target Board Name")
+
+# uFC-v2 has a tight flash budget: optimize the release build for size
+if(${BOARD} MATCHES "^(ufc-v2)$")
+  set(CMAKE_C_FLAGS_RELEASE "-Os -ffunction-sections -fdata-sections" PARENT_SCOPE)
+endif()
+
+#Set the modified variables in the main scope
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}" PARENT_SCOPE)
+set(PROJ_SRCS ${PROJ_SRCS} PARENT_SCOPE)
+set(PROJ_HDRS ${PROJ_HDRS} PARENT_SCOPE)
+set(TARGET_MODULES ${TARGET_MODULES} PARENT_SCOPE)
+set(MODULES_FLAGS ${MODULES_FLAGS} PARENT_SCOPE)

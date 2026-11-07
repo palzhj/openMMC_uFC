@@ -1,0 +1,29 @@
+# ---- in-source build tree (keep only the build guide) ----
+/build/*
+!/build/readme.md
+
+# ---- out-of-tree build / staging dirs ----
+/.hw2/
+/out/
+*.log
+
+# ---- build artifacts ----
+*.o
+*.d
+*.su
+*.elf
+*.bin
+*.srec
+*.hex
+*.map
+*.lst
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# ---- third-party documents: vendor/CERN copies, not redistributable ----
+/docs/datasheets/
+/docs/specs/
+
+# ---- local Renode home ----
+/.renode-home/
