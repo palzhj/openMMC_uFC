@@ -10,16 +10,13 @@ Firmware build and flashing notes for the **uFC‑v2** MMC
 | Tool | Version used / notes |
 |---|---|
 | `arm-none-eabi-gcc` | 14.2.1 (`gcc-arm-none-eabi`) |
-| `cmake` | 4.2.3 (project declares 3.0.0 — see below) |
+| `cmake` | 4.2.3 (project requires ≥ 3.10) |
 | `make` | GNU make |
 | `openocd` or `st-flash` | only for programming/debugging |
 
-Because the project declares `cmake_minimum_required(VERSION 3.0.0)`,
-CMake ≥ 4 refuses to configure. Either:
-
-- pass `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` on every configure (used below), **or**
-- change line 2 of the top-level `CMakeLists.txt` to
-  `cmake_minimum_required(VERSION 3.5)` once.
+The top-level `CMakeLists.txt` declares `cmake_minimum_required(VERSION 3.10)`,
+so CMake 4.x configures without any extra flags (the old
+`-DCMAKE_POLICY_VERSION_MINIMUM=3.5` workaround is no longer needed).
 
 ---
 
@@ -32,8 +29,7 @@ cd openMMC_uFC
 mkdir -p build && cd build
 
 cmake .. \
-  -DBOARD=ufc-v2 \
-  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  -DBOARD=ufc-v2
 ```
 
 Notes:
@@ -148,7 +144,7 @@ Notes:
 Build a test image:
 
 ```bash
-cmake .. -DBOARD=ufc-v2 -DRENODE_TEST=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake .. -DBOARD=ufc-v2 -DRENODE_TEST=ON
 make -j
 ```
 
