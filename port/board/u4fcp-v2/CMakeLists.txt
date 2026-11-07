@@ -1,6 +1,6 @@
 #Select which microcontroller and board are being used
 if (NOT TARGET_CONTROLLER)
-  set(TARGET_CONTROLLER "STM32F103C8T6" CACHE STRING "Target MMC Controller")
+  set(TARGET_CONTROLLER "STM32F103CBT6" CACHE STRING "Target MMC Controller")
 endif()
 
 if (NOT TARGET_BOARD_NAME)
