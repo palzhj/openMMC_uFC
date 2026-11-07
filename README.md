@@ -26,6 +26,7 @@ under `port/board/ufc-v2/`.
    * [Debugging](#debugging)
    * [FRU information](#fru-information)
    * [IPMI custom commands](#ipmi-custom-commands)
+   * [License](#license)
 
 ## Memory map
 
@@ -192,3 +193,18 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
 Clock switch configuration is **not used** on the uFC‑v2: the 8V54816 and
 SI5345A clock devices are mapped on the I2C mux but the board firmware does not
 program a clock crosspoint.
+
+## License
+
+This project is distributed under the **GNU General Public License v3.0 or
+later** — see [LICENSE](LICENSE).
+
+It is a **research fork** of
+[lnls-dig/openMMC](https://github.com/lnls-dig/openMMC); the uFC‑v2 board port
+(`port/board/ufc-v2/`), the newboot/EEPROM/mux fixes and the FRU changes are
+modifications made in 2026 for scientific use. Modifications are tracked in the
+git history and noted where they are not obvious.
+
+Bundled third‑party components (FreeRTOS, STM32 StdPeriph, CMSIS) keep their own
+licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The OpenBLT
+bootloader is a separate program and is not included in this repository.

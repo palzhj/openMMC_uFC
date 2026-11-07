@@ -1,3 +1,29 @@
+/*
+ *   openMMC -- Open Source modular IPM Controller firmware
+ *
+ *   Part of the openMMC project (https://github.com/lnls-dig/openMMC).
+ *
+ *   Copyright (C) 2026  IHEP  -- uFC-v2 changes: the Zone 3 Interface
+ *                               Compatibility record is optional and the
+ *                               end-of-list bit is retagged on the P2P
+ *                               record when it is omitted.
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *   @license GPL-3.0+ <http://spdx.org/licenses/GPL-3.0+>
+ */
+
 #include "port.h"
 #include "user_amc_fru.h"
 #include "utils.h"
