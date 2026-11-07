@@ -51,15 +51,14 @@ sudo apt install gcc-arm-none-eabi cmake
 
 ## Compilation
 
-Configure out of the source tree (CMake ≥ 3.5 policy, needed for CMake 4.x):
+Configure out of the source tree (requires **CMake ≥ 3.10**; CMake 4.x works as-is):
 
 ```sh
 cmake -S . -B build-ufc \
       -DBOARD=ufc-v2 \
       -DTARGET_CONTROLLER=STM32F100CBT6 \
       -DUART_DEBUG=ON \
-      -DCMAKE_BUILD_TYPE=Debug \
-      -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+      -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-ufc -j
 ```
 
@@ -71,7 +70,7 @@ Options:
 | `-DTARGET_CONTROLLER=STM32F100CBT6` | MCU and linker scripts |
 | `-DUART_DEBUG=ON` | printf console on USART1 |
 | `-DFRU_BUILD=ON` | one‑time FRU builder + EEPROM write (see [FRU](#fru-information)) |
-| `-DDISABLE_WATCHDOG=ON` | disable the IWDG (default: enabled) |
+| `-DDISABLE_WATCHDOG=OFF` | enable the IWDG (default in CMake is *disabled*, to aid debugging) |
 
 Outputs: `build-ufc/out/openMMC.{elf,bin,srec}` and `newboot.{elf,bin,srec}`.
 The image embeds the git tag and commit (`Version:` / `SHA1:` on the console).
