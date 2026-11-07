@@ -26,6 +26,7 @@ under `port/board/ufc-v2/`.
    * [Debugging](#debugging)
    * [FRU information](#fru-information)
    * [IPMI custom commands](#ipmi-custom-commands)
+   * [Documentation](#documentation)
    * [License](#license)
 
 ## Memory map
@@ -192,6 +193,14 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
 Clock switch configuration is **not used** on the uFC‑v2: the 8V54816 and
 SI5345A clock devices are mapped on the I2C mux but the board firmware does not
 program a clock crosspoint.
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | Hardware, build, flashing, FRU, IPMI, troubleshooting, recovery |
+| [docs/DEBUGGING.md](docs/DEBUGGING.md) | Bring-up log: every failure, root cause and fix |
+| [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party components and their licenses |
 
 ## License
 
