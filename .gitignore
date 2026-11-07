@@ -30,3 +30,6 @@ cmake_install.cmake
 
 # ---- release archives ----
 /dist/
+
+# ---- generated release metadata ----
+/firmware/ufc-v2/BUILD_INFO.txt
