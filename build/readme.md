@@ -312,7 +312,7 @@ knows `lpc17xx` and aborts configuration for STM32, so the
 | Command | Board | MCU |
 |---|---|---|
 | `-DBOARD=ufc-v2` | **ufc-v2** | STM32F100CBT6 |
-| `-DBOARD=u4fcp-v2` | u4fcp-v2 (legacy) | STM32F103C8T6 |
+| `-DBOARD=u4fcp-v2` | u4fcp-v2 (legacy) | STM32F103CBT6 |
 
 Select the uFC board by its name; there is no `-DVERSION` flag for it.
 
