@@ -27,3 +27,6 @@ cmake_install.cmake
 
 # ---- local Renode home ----
 /.renode-home/
+
+# ---- release archives ----
+/dist/
