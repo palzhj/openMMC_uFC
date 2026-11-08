@@ -343,7 +343,7 @@ class FruEditor(tk.Tk):
         hdr = ttk.Frame(tbl)
         hdr.pack(fill="x", pady=(2, 2))
         for text, w in (("port / signal", 22), ("dir", 4), ("source", 8), ("term", 4),
-                        ("polarity", 6), ("byte", 5)):
+                        ("pol", 5), ("byte", 5)):
             ttk.Label(hdr, text=text, style="Hint.TLabel", width=w, anchor="w").pack(side="left")
 
         self.clock_matrix = bytearray(16)
@@ -351,11 +351,21 @@ class FruEditor(tk.Tk):
         self.port_vars = []
         for i in range(16):
             port, name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
+            # hardware directions: CLK9-11 are the only outputs, CLK7/CLK8 inputs,
+            # everything else is bidirectional
+            if i in (9, 10, 11):
+                allowed = ("out",)
+            elif i in (7, 8):
+                allowed = ("in",)
+            else:
+                allowed = ("in", "out")
             rowf = ttk.Frame(tbl)
             rowf.pack(fill="x", pady=0)
             ttk.Label(rowf, text="%s %s" % (port, name), width=22, anchor="w",
                       font=(UI_FONT, 9)).pack(side="left")
             d = tk.StringVar(value="in")
+            # show the actual register value, but only the hardware-legal
+            # directions can be selected (allowed)
             ttk.Combobox(rowf, textvariable=d, values=("in", "out"), width=4,
                          state="readonly").pack(side="left", padx=(0, 6))
             src = tk.StringVar(value="-")
@@ -368,7 +378,7 @@ class FruEditor(tk.Tk):
             byte = tk.StringVar(value="0x00")
             ttk.Label(rowf, textvariable=byte, width=5, font=(MONO_FONT, 9)).pack(side="left")
             entry = {"dir": d, "src": src, "srcbox": srcbox, "term": term, "pol": pol,
-                     "byte": byte, "frame": rowf}
+                     "byte": byte, "frame": rowf, "allowed": allowed}
             self.port_vars.append(entry)
             d.trace_add("write", lambda *_a, idx=i: self._port_dir_changed(idx))
             src.trace_add("write", lambda *_a, idx=i: self._port_apply(idx))
@@ -411,6 +421,11 @@ class FruEditor(tk.Tk):
         if self.clock_loading:
             return
         d = self.port_vars[i]
+        if d["dir"].get() not in d["allowed"]:
+            self.clock_loading = True
+            d["dir"].set(d["allowed"][0])
+            self.clock_loading = False
+            return
         if d["dir"].get() == "out" and not d["pol"].get():
             d["pol"].set(True)
         self._port_apply(i)
@@ -489,8 +504,8 @@ class FruEditor(tk.Tk):
         lines.append("  }")
         lines.append('  subgraph cluster_dst { label="destinations"; fontsize=9; color="#FAF9F5";')
         lines.append('    SI [label="Si5345 (0x69)\nPLL 4:10\nGTX_CLK0-3 · FPGA_CLK0"];')
-        lines.append('    FMC0 [label="FMC0\nGBTCLK0 · M2C_CLK0"];')
-        lines.append('    FMC1 [label="FMC1\nGBTCLK1 · M2C_CLK1"];')
+        lines.append('    FMC0 [label="FMC0\nGBTCLK0 · M2C_CLK0\n(bidirectional)"];')
+        lines.append('    FMC1 [label="FMC1\nGBTCLK1 · M2C_CLK1\n(bidirectional)"];')
         lines.append('    S7 [label="Spartan 7\nS7_CLK"]; K7 [label="Kintex 7\nMGTCLK / Bank14"];')
         lines.append('    WR [label="WR\n125 MHz"];')
         lines.append('    VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];')
@@ -504,7 +519,8 @@ class FruEditor(tk.Tk):
             lines.append('  %s -> n%d [color="#C9CFC9"%s];' % (blk, idx, style))
         for port, blk in dest_block.items():
             idx = 9 + [p for (p, _n) in self.CLOCK_OUTPUTS].index(port)
-            lines.append('  n%d -> %s [color="#C9CFC9"];' % (idx, blk))
+            style = ', dir="both"' if blk in ("FMC0", "FMC1") else ""
+            lines.append('  n%d -> %s [color="#C9CFC9"%s];' % (idx, blk, style))
         lines.append('  SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];')
         lines.append('  SI -> SI [style=invis];')
         lines.append('  FMC0 -> K7 [label="GBTCLK0/M2C0"];')

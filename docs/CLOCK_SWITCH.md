@@ -51,15 +51,15 @@ Reset default is `0x00` for every port (all inputs, termination off).
 | CLK4 | 31/32 | `AMC_FCLKA_P/N` | **bidirectional** (FCLKA can be received or driven) |
 | CLK5 | 35/36 | `S7_CLK_INOUT_P/N` | **bidirectional** |
 | CLK6 | 40/41 | `FPGA_CLK_INOUT_P/N` | **bidirectional** |
-| CLK7 | 44/45 | `156M_P/N` (570BAB000544DG) | input |
-| CLK8 | 56/57 | `PLL_OUT_P/N` (Si5345 output) | input |
-| CLK9 | 60/61 | `PLL_IN_P2` (to Si5345 IN2) | **output** |
+| CLK7 | 44/45 | `156M_P/N` (570BAB000544DG) | input (oscillator) |
+| CLK8 | 56/57 | `PLL_OUT_P/N` (Si5345 output) | input (from the Si5345) |
+| CLK9 | 60/61 | `PLL_IN_P2` (to Si5345 IN2) | **output** (only outputs) |
 | CLK10 | 65/66 | `PLL_IN_P1` (to Si5345 IN1) | **output** |
 | CLK11 | 69/70 | `PLL_IN_P0` (to Si5345 IN0) | **output** |
-| CLK12 | 81/82 | `FMC0_GBTCLK_M2C_P/N` | **output** |
-| CLK13 | 85/86 | `FMC0_CLK_M2C_P/N` | **output** |
+| CLK12 | 81/82 | `FMC0_GBTCLK_M2C_P/N` | **bidirectional** |
+| CLK13 | 85/86 | `FMC0_CLK_M2C_P/N` | **bidirectional** |
 | CLK14 | 90/91 | `FMC1_CLK_M2C_P/N` | **output** |
-| CLK15 | 94/95 | `FMC1_GBTCLK_M2C_P/N` | **output** |
+| CLK15 | 94/95 | `FMC1_GBTCLK_M2C_P/N` | **bidirectional** |
 
 So ports 0–8 are the available clock **sources**, ports 9–15 are the **outputs**
 (three Si5345 PLL inputs and four FMC clocks).
