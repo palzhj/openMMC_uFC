@@ -22,8 +22,9 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
   6-bit type/length field including the NUL) and the fields are rebuilt with
   whatever length is entered — the board/product areas are re-encoded, the
   common-header offsets recomputed and the multirecord area moved after them.
-- The whole FRU must fit the 24AA025E48 **writable 128-byte half**; the tool
-  refuses a write that would overflow and reports the required size.
+- The whole FRU must fit the configured **writable** region (128 bytes on the
+  uFC's 24AA025E48); the tool refuses a write that would overflow and reports
+  the required size.
 - Board/product fields;
   writing rebuilds only those two areas with fresh checksums and verifies the
   result by reading it back
@@ -76,6 +77,16 @@ local copy when present.
 | `--target` | `0x7e` | MMC IPMB-L address (AMC7) |
 | `--bus` | `7` | IPMB-L bus (`-b`) |
 | `--transit` | `0x82` | carrier transit address (`-T`) |
+| `--eeprom-size` | `256` | EEPROM image size in bytes (max 65536) |
+| `--fru-limit` | `128` | writable FRU bytes (≤ EEPROM size) |
+
+The same two values can be edited in the application's **EEPROM size** /
+**FRU writable** fields before pressing *Read FRU*.
+
+The image size is limited to **64 KB** because the raw EEPROM command carries a
+16-bit address. Larger devices (e.g. 128 KB) would need a firmware command
+extension first; the tool is otherwise generic (any EEPROM whose firmware
+implements `0x32/0x12/0x13` with 16-bit addresses).
 
 ## Notes
 
