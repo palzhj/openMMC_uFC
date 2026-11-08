@@ -27,6 +27,12 @@ def validate(doc):
     errors, warnings = [], []
     points = {}
     devices = doc.get("devices", {})
+    boards = doc.get("boards", {})
+    for did, dev in devices.items():
+        if dev.get("parent") not in boards and dev.get("parent") not in devices:
+            errors.append("device %s: unknown parent %r" % (did, dev.get("parent")))
+        if dev.get("box") and len(dev["box"]) != 4:
+            errors.append("device %s: bad box %r" % (did, dev["box"]))
     for p in doc.get("points", []):
         pid = p.get("id")
         if not pid:
@@ -39,6 +45,8 @@ def validate(doc):
             errors.append("%s: bad dir %r" % (pid, p.get("dir")))
         if p.get("device") not in devices:
             errors.append("%s: unknown device %r" % (pid, p.get("device")))
+        if p.get("parent") not in devices:
+            errors.append("%s: unknown parent chip %r" % (pid, p.get("parent")))
 
     for link in doc.get("links", []):
         a, b = link.get("a"), link.get("b")
@@ -69,6 +77,29 @@ def validate(doc):
     return errors, warnings
 
 
+def groups(doc):
+    """Chips of a board with their points.
+
+    Hierarchy: board -> chip/connector/oscillator -> port (point).
+    """
+    boards = doc.get("boards", {})
+    devices = doc.get("devices", {})
+    result = []
+    for bid in boards:
+        chips = [did for did, dev in devices.items() if dev.get("parent") == bid]
+        chips.sort(key=lambda d: (devices[d].get("box", [0, 0, 0, 0])[1],
+                                  devices[d].get("box", [0, 0, 0, 0])[0], d))
+        entry = {"board": bid, "label": boards[bid].get("label", bid), "chips": []}
+        for did in chips:
+            dev = devices[did]
+            pts = [p for p in doc.get("points", []) if p.get("parent") == did]
+            entry["chips"].append({"id": did, "label": dev.get("label", did),
+                                   "part": dev.get("part"), "class": dev.get("class"),
+                                   "points": pts})
+        result.append(entry)
+    return result
+
+
 def matrix(doc):
     """Return the 16-byte 8V54816A configuration for the routing section."""
     points = {p["id"]: p for p in doc["points"]}
@@ -94,19 +125,27 @@ def matrix(doc):
 
 
 def dot(doc):
-    """Render the file as a Graphviz diagram."""
+    """Render the file as a Graphviz diagram, one cluster per parent."""
     points = {p["id"]: p for p in doc["points"]}
     out = ["digraph clocking {", '  rankdir=LR;',
            '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
            '        color="#E4DED2", fontname="Helvetica", fontsize=8];',
            '  edge [fontname="Helvetica", fontsize=7];']
-    for pid, p in points.items():
-        pin = p.get("pin")
-        label = "%s %s" % (pid, p["dir"])
-        if pin:
-            label += "\\npin %s" % pin
-        shape = ", shape=note" if p.get("device") == MUX_DEVICE else ""
-        out.append('  "%s" [label="%s"%s];' % (pid, label, shape))
+    for board in groups(doc):
+        out.append('  subgraph "cluster_board_%s" { label="board %s"; fontsize=10; color="#EDEAE2";'
+                   % (board["board"], board["label"]))
+        for chip in board["chips"]:
+            out.append('    subgraph "cluster_%s" { label="%s"; fontsize=9; color="#FAF9F5";'
+                       % (chip["id"], chip["label"]))
+            for p in chip["points"]:
+                pin = p.get("pin")
+                label = "%s %s" % (p["name"], p["dir"])
+                if pin:
+                    label += "\\npin %s" % pin
+                shape = ", shape=note" if p.get("device") == MUX_DEVICE else ""
+                out.append('      "%s" [label="%s"%s];' % (p["id"], label, shape))
+            out.append("    }")
+        out.append("  }")
     for link in doc.get("links", []):
         a, b = link["a"], link["b"]
         color = "#0E6B5E" if link.get("kind") == "bidir" else "#8A8A80"
@@ -141,6 +180,14 @@ def main():
         return 0
     if cmd == "dot":
         sys.stdout.write(dot(doc))
+        return 0
+    if cmd == "tree":
+        for board in groups(doc):
+            print("board %s — %s" % (board["board"], board["label"]))
+            for chip in board["chips"]:
+                print("  %-8s %-22s %-10s %d ports"
+                      % (chip["id"], chip["label"] or chip["part"] or "",
+                         chip["class"] or "", len(chip["points"])))
         return 0
     print("unknown command", cmd)
     return 2

@@ -529,7 +529,104 @@ class FruEditor(tk.Tk):
     CLK_GREY = "#8A8A80"
     CLK_EDGE = "#5B6152"
 
+    CLOCKING_CANDIDATES = (
+        "clocking/ufc-clocking.json",
+        "../clocking/ufc-clocking.json",
+        "../../clocking/ufc-clocking.json",
+        "tools/clocking/ufc-clocking.json",
+    )
+
+    def _load_clocking(self):
+        import os, json
+        bases = [os.path.dirname(os.path.abspath(__file__)), os.getcwd()]
+        for cand in self.CLOCKING_CANDIDATES:
+            for base in bases:
+                path = os.path.abspath(os.path.join(base, cand))
+                if os.path.exists(path):
+                    try:
+                        with open(path) as f:
+                            return json.load(f)
+                    except Exception:
+                        pass
+        return None
+
     def _clocking_draw(self, c, w, h):
+        doc = self._load_clocking()
+        if not doc or "devices" not in doc:
+            return self._clocking_draw_builtin(c, w, h)
+        devices = doc.get("devices", {})
+        if not all("box" in d for d in devices.values()):
+            return self._clocking_draw_builtin(c, w, h)
+        points = {p["id"]: p for p in doc.get("points", [])}
+        ed = self.CLK_EDGE
+        c.delete("all")
+
+        # board box wraps the chip boxes
+        xs = [d["box"][0] for d in devices.values()]
+        ys = [d["box"][1] for d in devices.values()]
+        x2 = [d["box"][0] + d["box"][2] for d in devices.values()]
+        y2 = [d["box"][1] + d["box"][3] for d in devices.values()]
+        bx0, by0, bx1, by1 = min(xs) - 12, min(ys) - 34, max(x2) + 12, max(y2) + 12
+        board = next(iter(doc.get("boards", {}).values()), {"label": "uFC"})
+        c.create_rectangle(bx0, by0, bx1, by1, outline="#C9C2B2", width=1, dash=(4, 3))
+        c.create_text(bx0 + 8, by0 + 10, text="board %s" % board.get("label", "uFC"),
+                      anchor="w", font=(UI_FONT, 9, "bold"), fill=ed)
+
+        coords = {}
+        fills = {"chip": self.CLK_BLUE, "oscillator": self.CLK_GREEN,
+                 "connector": self.CLK_SALMON}
+        for did, dev in devices.items():
+            x, y, bw, bh = dev["box"]
+            c.create_rectangle(x, y, x + bw, y + bh,
+                               fill=fills.get(dev.get("class"), "#FFFFFF"),
+                               outline=ed, width=1)
+            c.create_text(x + bw / 2, y + 9, text=dev.get("label", did),
+                          font=(UI_FONT, 8, "bold"), fill=ed)
+            pts = [p for p in doc.get("points", []) if p.get("parent") == did]
+            ins = [p for p in pts if p["dir"] in ("in", "inout")]
+            outs = [p for p in pts if p["dir"] == "out"]
+            columns = [(ins, x + 6, "w"), (outs, x + bw - 6, "e")] if did == "mux" and outs \
+                else [(pts, x + 6, "w")]
+            for col, cx, anch in columns:
+                if not col:
+                    continue
+                rh = (bh - 22) / max(1, len(col))
+                for i, p in enumerate(col):
+                    cy = y + 18 + rh * (i + 0.5)
+                    label = p["name"] + (" · " + p["pin"] if p.get("pin") else "")
+                    t = c.create_text(cx, cy, text=label, anchor=anch,
+                                      font=(UI_FONT, 7), fill=ed)
+                    c.create_rectangle(*c.bbox(t),
+                                       fill=fills.get(dev.get("class"), "#FFFFFF"),
+                                       outline="")
+                    c.tag_raise(t)
+                    coords[p["id"]] = (cx, cy)
+
+        def line(a, b, color, width=1, dash=None, arrow=False):
+            if a not in coords or b not in coords:
+                return
+            c.create_line(*coords[a], *coords[b], fill=color, width=width,
+                          dash=dash, arrow=tk.LAST if arrow else None,
+                          arrowshape=(6, 8, 3))
+
+        for link in doc.get("links", []):
+            a, b = link["a"], link["b"]
+            if link.get("kind") == "bidir":
+                line(a, b, "#0E6B5E", 1)
+            elif link.get("verified") is False:
+                line(a, b, "#9A968C", 1, dash=(3, 2), arrow=True)
+            else:
+                line(a, b, "#9A968C", 1, arrow=True)
+        for pid, route in doc.get("routing", {}).items():
+            if route.get("source"):
+                line(route["source"], pid, "#B07A3A", 2)
+
+        content = "8V54816A @0x70 ch2  ·  Si5345 @0x69  ·  %d active route(s)" % \
+                  sum(1 for r in doc.get("routing", {}).values() if r.get("source"))
+        c.create_text(w - 10, h - 10, text=content, anchor="se",
+                      font=(UI_FONT, 8), fill=MUTED)
+
+    def _clocking_draw_builtin(self, c, w, h):
         c.delete("all")
         g, sa, bl = self.CLK_GREEN, self.CLK_SALMON, self.CLK_BLUE
         ed = self.CLK_EDGE
