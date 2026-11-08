@@ -13,7 +13,6 @@ import json
 import sys
 
 DIRS = ("in", "out", "inout")
-KINDS = ("forward", "bidir")
 MUX_DEVICE = "mux"
 
 
@@ -43,10 +42,8 @@ def validate(doc):
         points[pid] = p
         if p.get("dir") not in DIRS:
             errors.append("%s: bad dir %r" % (pid, p.get("dir")))
-        if p.get("device") not in devices:
-            errors.append("%s: unknown device %r" % (pid, p.get("device")))
         if p.get("parent") not in devices:
-            errors.append("%s: unknown parent chip %r" % (pid, p.get("parent")))
+            errors.append("%s: unknown parent device %r" % (pid, p.get("parent")))
         cap = p.get("capability")
         if cap is not None:
             for key in ("in", "out", "tristate"):
@@ -67,21 +64,19 @@ def validate(doc):
         for pid in (a, b):
             if pid not in points:
                 errors.append("link endpoint %r does not exist" % (pid,))
-        if link.get("kind") not in KINDS:
-            errors.append("link %s-%s: bad kind %r" % (a, b, link.get("kind")))
         if a in points and b in points:
             da, db = points[a]["dir"], points[b]["dir"]
-            if link.get("kind") == "forward":
-                if da not in ("out", "inout"):
-                    errors.append("forward link %s-%s: %s is %s" % (a, b, a, da))
-                if db not in ("in", "inout"):
-                    errors.append("forward link %s-%s: %s is %s" % (a, b, b, db))
-            if link.get("kind") == "bidir" and "inout" not in (da, db):
-                warnings.append("bidir link %s-%s: neither end is inout" % (a, b))
+            if da == db:
+                if da == "out":
+                    warnings.append("link %s-%s: both ends are outputs" % (a, b))
+                elif da == "in":
+                    warnings.append("link %s-%s: no driver (both inputs)" % (a, b))
         if link.get("verified") is False:
             warnings.append("unverified link %s-%s" % (a, b))
 
-    mux_ports = [pid for pid, p in points.items() if p.get("device") == MUX_DEVICE]
+    mux_ids = {did for did, dev in devices.items()
+               if did.upper() == "MUX" or str(dev.get("part", "")).startswith("8V54816A")}
+    mux_ports = [pid for pid, p in points.items() if p.get("parent") in mux_ids]
     for pid, route in doc.get("routing", {}).items():
         if pid not in mux_ports:
             errors.append("routing: %s is not a mux port" % pid)
@@ -89,6 +84,21 @@ def validate(doc):
         if src is not None and src not in mux_ports:
             errors.append("routing: %s source %r is not a mux port" % (pid, src))
     return errors, warnings
+
+
+def link_direction(points, link):
+    """Return 'a2b', 'b2a', 'both' or None, derived from the points' dir."""
+    a, b = points.get(link["a"]), points.get(link["b"])
+    if not a or not b:
+        return None
+    da, db = a["dir"], b["dir"]
+    if da == "out" and db == "in":
+        return "a2b"
+    if da == "in" and db == "out":
+        return "b2a"
+    if da == "inout" or db == "inout":
+        return "both"
+    return None
 
 
 def groups(doc):
@@ -116,21 +126,18 @@ def groups(doc):
 
 def matrix(doc):
     """Return the 16-byte 8V54816A configuration for the routing section."""
-    points = {p["id"]: p for p in doc["points"]}
-    inputs = [pid for pid in points
-              if points[pid].get("device") == MUX_DEVICE
-              and points[pid]["dir"] == "in" and pid.split(".")[1] < "CLK9"]
     data = bytearray(16)
     for port in range(16):
-        pid = "%s.CLK%d" % (MUX_DEVICE, port)
-        route = doc.get("routing", {}).get(pid)
+        pid = next((k for k in doc.get("routing", {})
+                    if k.split(".")[-1].upper() == "CLK%d" % port), None)
+        route = doc.get("routing", {}).get(pid) if pid else None
         if port < 9:
             data[port] = 0
             continue
         if not route or not route.get("source"):
             data[port] = 0
             continue
-        src = int(route["source"].split("CLK")[1])
+        src = int(route["source"].split("CLK")[-1])
         byte = 0x80 | (src & 0x0F) | (0x40 if route.get("term") else 0)
         if not route.get("inverted", False):
             byte |= 0x20
@@ -141,6 +148,9 @@ def matrix(doc):
 def dot(doc):
     """Render the file as a Graphviz diagram, one cluster per parent."""
     points = {p["id"]: p for p in doc["points"]}
+    devices = doc.get("devices", {})
+    mux_ids = {did for did, dev in devices.items()
+               if did.upper() == "MUX" or str(dev.get("part", "")).startswith("8V54816A")}
     out = ["digraph clocking {", '  rankdir=LR;',
            '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
            '        color="#E4DED2", fontname="Helvetica", fontsize=8];',
@@ -156,14 +166,18 @@ def dot(doc):
                 label = "%s %s" % (p["name"], p["dir"])
                 if pin:
                     label += "\\npin %s" % pin
-                shape = ", shape=note" if p.get("device") == MUX_DEVICE else ""
+                shape = ", shape=note" if p.get("parent") in mux_ids else ""
                 out.append('      "%s" [label="%s"%s];' % (p["id"], label, shape))
             out.append("    }")
         out.append("  }")
     for link in doc.get("links", []):
         a, b = link["a"], link["b"]
-        color = "#0E6B5E" if link.get("kind") == "bidir" else "#8A8A80"
-        style = ", dir=both" if link.get("kind") == "bidir" else ""
+        way = link_direction(points, link)
+        if way == "b2a":
+            a, b = b, a
+        color = "#0E6B5E" if way == "both" else "#8A8A80"
+        style = ", dir=both" if way == "both" else \
+                ", arrowhead=none" if way is None else ""
         dashed = ", style=dashed" if link.get("verified") is False else ""
         out.append('  "%s" -> "%s" [color="%s"%s%s];' % (a, b, color, style, dashed))
     for pid, route in doc.get("routing", {}).items():
