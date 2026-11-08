@@ -132,35 +132,21 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 
 ## Clock tab
 
-The 8V54816A is drawn as a crossbar: sources on the left (AMC TCLKA-D,
-FCLKA, S7/FPGA inputs, 156M, PLL_OUT) and destinations on the right
-(Si5345 PLL inputs, FMC0/FMC1 clocks). Click a source, then a destination
-to connect it; click a destination alone to disconnect. The 16-byte matrix
-updates live.
+The 8V54816A is configured port by port in a table: **direction** (in/out),
+**source** (CLK0…CLK8 for outputs), **100 Ω termination**, **non-inverted**
+polarity and the resulting **matrix byte** for each of the 16 ports. A port
+switched to output defaults to non-inverted. The matrix line below the table
+always shows the 16 bytes that are written to the device.
 
-- **Per-port table**: all 16 ports of the 8V54816A are listed with direction
-  (in/out), source (CLK0…CLK8), 100 Ω termination and non-inverted polarity;
-  every change updates the matrix byte and the drawing immediately (a port
-  switched to output defaults to non-inverted)
-- The crossbar drawing stays editable: click a source, then a destination
 - **Read clocks** / **Write now** — read/write the switch matrix over I²C
   (mux 0x70 ch2, 0x58)
-- **Export DOT** — save the current routing as a Graphviz diagram
-- **System diagram** — one merged view: the whole clocking (AMC, 156.25 MHz,
-  oscillators, Si5345, FMC0/1, Kintex/Spartan, WR/VCXO) **with every 8V54816A
-  port and its configuration** (in/out, source, termination, polarity, matrix
-  byte); the active routes are drawn in green, following
-  `uFCv2/readme/clocking.jpg`
 - **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
 - **Status** — command `0x17`
-- **Save to flash** — next step: the 19 KB FRU-format clock store
-  ([docs/CLOCK_CONFIG_FORMAT.md](../../docs/CLOCK_CONFIG_FORMAT.md))
-- **Status** — command `0x17`: idle / running / OK / error + failing register
-
-The table is the ClockBuilder Pro export
-(`uFCv2/template/CLK/Si5345-RevD-Registers.txt`), compiled into the firmware as
-`si5345_regs.h`. It programs RAM only (NVM untouched), so a power cycle restores
-the factory configuration.
+- **Export diagram** — save the merged clocking diagram as a Graphviz `.dot`
+- **System diagram** — renders the whole clocking (AMC, 156.25 MHz, oscillators,
+  Si5345, FMC0/1, Kintex/Spartan, WR/VCXO) with every 8V54816A port and its
+  configuration (in/out, source, termination, polarity, matrix byte); active
+  routes are drawn in green, following `uFCv2/readme/clocking.jpg`
 
 ## OTA update tab
 

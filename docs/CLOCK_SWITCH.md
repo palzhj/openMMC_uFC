@@ -3,10 +3,12 @@
 Source: `uFCv2/UFCV2.pdf`, sheet 5 (“Clock”), symbol `U67`.
 
 Routing can be described with **Graphviz DOT**: `docs/clock_switch.dot` renders
-the crossbar, and `docs/clocking.dot` the merged system view — every port of the
-8V54816A with its configuration (`in`/`out`, source, termination, polarity and
-the matrix byte) in the context of the whole clocking tree, the green edges
-being the active routes:
+the crossbar on its own, and `docs/clocking.dot` the merged system view used by
+the toolbox — every port of the 8V54816A with its configuration (`in`/`out`,
+source, termination, polarity and the matrix byte) in the context of the whole
+clocking tree, the green edges being the active routes, with the device
+addresses (`8V54816A @0x70 ch2`, `Si5345 @0x69`) and the active-route count in
+the title:
 
 ![clock switch routes](clock_switch.png)
 
