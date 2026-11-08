@@ -6,10 +6,13 @@ using the firmware's raw EEPROM commands (custom NetFn `0x32`):
 
 | Cmd | Meaning |
 |---|---|
-| `0x13` | read: `[addr_lo addr_hi length]` → data |
-| `0x12` | write: `[addr_lo addr_hi data…]` |
+| `0x13` | EEPROM read: `[addr_lo addr_hi length]` → data |
+| `0x12` | EEPROM write: `[addr_lo addr_hi data…]` |
+| `0x15` / `0x14` | same read/write with an explicit I²C address |
+| `0x20` | generic I²C transfer: `[bus n_mux (mux_addr mux_ch)… dev wlen wdata… rlen]` |
 
-The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
+The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
+**`-DI2C_ACCESS=ON`** (I²C transfer tab).
 
 ## Look
 
