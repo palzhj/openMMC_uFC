@@ -311,34 +311,111 @@ class FruEditor(tk.Tk):
         bottom.pack(fill="x")
         ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
 
+    CLOCK_INPUTS = [
+        ("CLK0", "AMC_TCLKD"), ("CLK1", "AMC_TCLKC"), ("CLK2", "AMC_TCLKA"),
+        ("CLK3", "AMC_TCLKB"), ("CLK4", "AMC_FCLKA"), ("CLK5", "S7_INOUT"),
+        ("CLK6", "FPGA_INOUT"), ("CLK7", "156M"), ("CLK8", "PLL_OUT"),
+    ]
+    CLOCK_OUTPUTS = [
+        ("CLK9", "PLL_IN_P2"), ("CLK10", "PLL_IN_P1"), ("CLK11", "PLL_IN_P0"),
+        ("CLK12", "FMC0_GBTCLK"), ("CLK13", "FMC0_CLK"),
+        ("CLK14", "FMC1_CLK"), ("CLK15", "FMC1_GBTCLK"),
+    ]
+
     def _build_clock_tab(self, parent):
         row = ttk.Frame(parent)
         row.pack(fill="x", pady=(0, 8))
-        ttk.Button(row, text="Program Si5345", style="Primary.TButton",
-                   command=self.clock_program).pack(side="left")
+        ttk.Button(row, text="Read clocks", style="Primary.TButton",
+                   command=self.clock_switch_read).pack(side="left")
+        ttk.Button(row, text="Write now", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
+        ttk.Button(row, text="Program Si5345", command=self.clock_program).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
-        ttk.Label(row, text="(firmware built with -DCLOCK_PROGRAM=ON)",
-                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
+        ttk.Label(row, text="click a source, then an output to connect; click an output alone to disconnect",
+                  style="Hint.TLabel").pack(side="left", padx=(16, 0))
+
+        self.clock_matrix = bytearray(16)
+        self.clock_selected = None
+        self.clock_canvas = tk.Canvas(parent, height=500, bg=BG, highlightthickness=1,
+                                      highlightbackground=LINE)
+        self.clock_canvas.pack(fill="both", expand=True, pady=(0, 8))
+        self.clock_canvas.bind("<Button-1>", self._clock_click)
+        self.clock_canvas.bind("<Configure>", lambda e: self._clock_redraw())
 
         srow = ttk.Frame(parent)
-        srow.pack(fill="x", pady=(0, 8))
-        ttk.Label(srow, text="8V54816A matrix (16 bytes hex)",
-                  style="FieldLabel.TLabel").pack(side="left")
+        srow.pack(fill="x", pady=(0, 6))
+        ttk.Label(srow, text="matrix", style="FieldLabel.TLabel").pack(side="left")
         self.switch_var = tk.StringVar(value="")
-        ttk.Entry(srow, textvariable=self.switch_var, width=52).pack(side="left", padx=(6, 8))
-        ttk.Button(srow, text="Read switch", command=self.clock_switch_read).pack(side="left")
-        ttk.Button(srow, text="Write switch", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
+        ttk.Entry(srow, textvariable=self.switch_var, width=52, state="readonly").pack(side="left", padx=(6, 10))
 
-        ttk.Label(parent,
-                  text="Writes the ClockBuilder register table (3 preamble + 518 + 5 postamble) "
-                       "into the Si5345 RAM, then a soft reset applies it. NVM is not touched, "
-                       "so a power cycle restores the factory configuration.",
-                  style="Hint.TLabel", wraplength=1000, justify="left").pack(anchor="w", pady=(0, 8))
-
-        self.clock_out = tk.Text(parent, height=8, font=(MONO_FONT, 9), state="disabled",
+        self.clock_out = tk.Text(parent, height=6, font=(MONO_FONT, 9), state="disabled",
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
+
+    def _clock_geometry(self):
+        w = self.clock_canvas.winfo_width() or 960
+        left = 20
+        right = w - 190
+        row_h = 46
+        y0 = 34
+        return left, right, row_h, y0
+
+    def _clock_redraw(self):
+        c = self.clock_canvas
+        c.delete("all")
+        left, right, row_h, y0 = self._clock_geometry()
+        box_w = 170
+
+        for i, (port, name) in enumerate(self.CLOCK_INPUTS):
+            y = y0 + i * row_h
+            sel = (self.clock_selected == i)
+            c.create_rectangle(left, y - 13, left + box_w, y + 13,
+                               fill=PANEL if not sel else "#E7F0ED",
+                               outline=ACCENT if sel else LINE, width=2 if sel else 1)
+            c.create_text(left + 8, y, text=port, anchor="w", fill=MUTED, font=(UI_FONT, 8))
+            c.create_text(left + 64, y, text=name, anchor="w", fill=INK, font=(UI_FONT, 9))
+
+        for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
+            y = y0 + j * row_h
+            cfg = self.clock_matrix[9 + j]
+            src = cfg & 0x0F if (cfg & 0x80) else None
+            c.create_rectangle(right, y - 13, right + box_w, y + 13,
+                               fill=PANEL, outline=LINE, width=1)
+            c.create_text(right + 8, y, text=port, anchor="w", fill=MUTED, font=(UI_FONT, 8))
+            c.create_text(right + 64, y, text=name, anchor="w", fill=INK, font=(UI_FONT, 9))
+            if src is not None and src < len(self.CLOCK_INPUTS):
+                sy = y0 + src * row_h
+                c.create_line(left + box_w + 5, sy, right - 5, y, fill=ACCENT, width=2,
+                              smooth=True)
+                c.create_oval(left + box_w + 2, sy - 3, left + box_w + 8, sy + 3, fill=ACCENT, outline="")
+                c.create_oval(right - 8, y - 3, right - 2, y + 3, fill=ACCENT, outline="")
+
+    def _clock_click(self, event):
+        left, right, row_h, y0 = self._clock_geometry()
+        box_w = 170
+        x, y = event.x, event.y
+        if left <= x <= left + box_w:
+            idx = int(round((y - y0) / row_h))
+            if 0 <= idx < len(self.CLOCK_INPUTS):
+                self.clock_selected = None if self.clock_selected == idx else idx
+                self._clock_redraw()
+                return
+        if right <= x <= right + box_w:
+            j = int(round((y - y0) / row_h))
+            if 0 <= j < len(self.CLOCK_OUTPUTS):
+                if self.clock_selected is None:
+                    self.clock_matrix[9 + j] = 0x00
+                    self._clock_log("%s disconnected" % self.CLOCK_OUTPUTS[j][1])
+                else:
+                    self.clock_matrix[9 + j] = 0x80 | self.clock_selected
+                    self._clock_log("%s <- %s" % (self.CLOCK_OUTPUTS[j][1],
+                                                  self.CLOCK_INPUTS[self.clock_selected][1]))
+                self._clock_selected = None
+                self._clock_sync()
+                self._clock_redraw()
+
+    def _clock_sync(self):
+        self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
 
     def _clock_log(self, text):
         self.clock_out.configure(state="normal")
@@ -349,20 +426,30 @@ class FruEditor(tk.Tk):
     def clock_switch_read(self):
         try:
             data = self._access().clock_switch_read()
-            self.switch_var.set(" ".join("%02x" % b for b in data))
-            self._clock_log("switch matrix: " + " ".join("%02x" % b for b in data))
+            self.clock_matrix = bytearray(data)
+            for i in range(16):
+                if i < 9:
+                    self.clock_matrix[i] = 0x00
+            self._clock_sync()
+            self._clock_redraw()
+            self._clock_log("switch matrix: " + " ".join("%02x" % b for b in self.clock_matrix))
         except Exception as e:
             self._clock_log("ERROR: %s" % e)
 
     def clock_switch_write(self):
         try:
-            data = self._hex_bytes(self.switch_var.get())
-            self._access().clock_switch_write(data)
-            self._clock_log("switch matrix written: " + " ".join("%02x" % b for b in data))
+            self._access().clock_switch_write(bytes(self.clock_matrix))
+            self._clock_log("switch matrix written: " + " ".join("%02x" % b for b in self.clock_matrix))
             self._status("Clock switch written", "ok")
         except Exception as e:
             self._status("Clock switch write failed", "error")
             self._clock_log("ERROR: %s" % e)
+
+    def _clock_log(self, text):
+        self.clock_out.configure(state="normal")
+        self.clock_out.insert("end", text + "\n")
+        self.clock_out.see("end")
+        self.clock_out.configure(state="disabled")
 
     def clock_program(self):
         try:

@@ -132,9 +132,18 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 
 ## Clock tab
 
-- **8V54816A matrix** — read/write the 16-byte clock-switch matrix (port map
-  from the uFC schematic: see [docs/CLOCK_SWITCH.md](../../docs/CLOCK_SWITCH.md))
+The 8V54816A is drawn as a crossbar: sources on the left (AMC TCLKA-D,
+FCLKA, S7/FPGA inputs, 156M, PLL_OUT) and destinations on the right
+(Si5345 PLL inputs, FMC0/FMC1 clocks). Click a source, then a destination
+to connect it; click a destination alone to disconnect. The 16-byte matrix
+updates live.
+
+- **Read clocks** / **Write now** — read/write the switch matrix over I²C
+  (mux 0x70 ch2, 0x58)
 - **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
+- **Status** — command `0x17`
+- **Save to flash** — next step: the 19 KB FRU-format clock store
+  ([docs/CLOCK_CONFIG_FORMAT.md](../../docs/CLOCK_CONFIG_FORMAT.md))
 - **Status** — command `0x17`: idle / running / OK / error + failing register
 
 The table is the ClockBuilder Pro export
