@@ -18,7 +18,9 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
 - **Manufacturing time is shown and edited as a UTC date** (`YYYY-MM-DD HH:MM`);
   the app converts it to/from the FRU 24-bit value (minutes since 1996-01-01).
   A **Now** button fills the current UTC time.
-- Board/product fields are fixed length (max shown next to each field);
+- Each string box is sized automatically to its field capacity, so the longest
+  legal value is always visible (the max is also shown next to the box);
+- Board/product fields are fixed length;
   writing rebuilds only those two areas with fresh checksums and verifies the
   result by reading it back
 - Status line and log pane
