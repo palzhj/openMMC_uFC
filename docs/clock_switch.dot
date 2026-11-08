@@ -1,0 +1,36 @@
+// uFC clock switch (8V54816A) routing — Graphviz DOT
+// Sources on the left (CLK0..CLK8), destinations on the right (CLK9..CLK15).
+// Edges = matrix entries 0x80|source written to the destination port.
+digraph ufc_clock {
+    graph [rankdir=LR, fontname="Helvetica", fontsize=10, splines=true, nodesep=0.25, ranksep=1.2];
+    node  [shape=box, style="rounded,filled", fillcolor="#FFFFFF", color="#E4DED2",
+           fontname="Helvetica", fontsize=9];
+    edge  [color="#0E6B5E", penwidth=1.6, arrowsize=0.7];
+
+    subgraph cluster_src {
+        label="sources"; fontsize=9; color="#FAF9F5"; style="rounded";
+        // declared bottom-to-top so Graphviz lays CLK0 first
+        n8  [label="CLK8  PLL_OUT"];
+        n7  [label="CLK7  156M"];   n6 [label="CLK6  FPGA_INOUT"];
+        n5  [label="CLK5  S7_INOUT"]; n4 [label="CLK4  AMC_FCLKA"];
+        n3  [label="CLK3  AMC_TCLKB"]; n2 [label="CLK2  AMC_TCLKA"];
+        n1  [label="CLK1  AMC_TCLKC"]; n0 [label="CLK0  AMC_TCLKD"];
+    }
+    subgraph cluster_dst {
+        label="destinations"; fontsize=9; color="#FAF9F5"; style="rounded";
+        d15 [label="CLK15  FMC1_GBTCLK"];
+        d14 [label="CLK14  FMC1_CLK"];
+        d13 [label="CLK13  FMC0_CLK"];
+        d12 [label="CLK12  FMC0_GBTCLK"];
+        d11 [label="CLK11  PLL_IN_P0"];
+        d10 [label="CLK10  PLL_IN_P1"];
+        d9  [label="CLK9   PLL_IN_P2"];
+    }
+
+    // example configuration (matrix: ... 00 87 88 00 00 00 00)
+    n7 -> d11 [label="0x87"];
+    n8 -> d12 [label="0x88"];
+
+    // uncomment to show all possible routes
+    // n0 -> {d9 d10 d11 d12 d13 d14 d15} [style=dashed, color="#C9CFC9", penwidth=0.6, arrowhead=none];
+}

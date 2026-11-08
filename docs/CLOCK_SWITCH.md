@@ -2,6 +2,11 @@
 
 Source: `uFCv2/UFCV2.pdf`, sheet 5 (“Clock”), symbol `U67`.
 
+Routing can be described with **Graphviz DOT** (`docs/clock_switch.dot`), which
+renders the crossbar from the same 16-byte matrix the firmware writes:
+
+![clock switch routes](clock_switch.png)
+
 ## The device
 
 Renesas **8V54816A** — a 16-port clock switch. It is **not** a register-indexed
