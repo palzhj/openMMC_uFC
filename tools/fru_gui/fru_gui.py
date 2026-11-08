@@ -17,7 +17,9 @@ Open http://127.0.0.1:8099 in a browser.
 
 import argparse
 import json
+import os
 import subprocess
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -31,6 +33,17 @@ FIELD_NAMES_PRODUCT = ["manufacturer", "product_name", "part_number", "version",
                        "serial", "asset_tag", "fru_file_id"]
 
 
+def ipmitool_cmd():
+    """Use a bundled ipmitool next to the program when present."""
+    name = "ipmitool.exe" if os.name == "nt" else "ipmitool"
+    try:
+        base = os.path.dirname(os.path.abspath(sys.argv[0]))
+    except Exception:
+        base = os.getcwd()
+    local = os.path.join(base, name)
+    return local if os.path.isfile(local) else "ipmitool"
+
+
 class FruAccess:
     def __init__(self, mch, target, transit, bus):
         self.mch = mch
@@ -38,7 +51,7 @@ class FruAccess:
                        "-T", transit, "-B", "0", "-t", target, "-b", bus]
 
     def _ipmi(self, *args):
-        out = subprocess.run(["ipmitool"] + self.bridge + ["raw"] + list(args),
+        out = subprocess.run([ipmitool_cmd()] + self.bridge + ["raw"] + list(args),
                              capture_output=True, text=True, timeout=20)
         if out.returncode != 0:
             raise RuntimeError((out.stderr or out.stdout).strip() or "ipmitool failed")
