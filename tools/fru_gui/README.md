@@ -134,7 +134,10 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 
 The 8V54816A is configured port by port in a table: **direction** (in/out),
 **source** (CLK0…CLK8 for outputs), **100 Ω termination**, **non-inverted**
-polarity and the resulting **matrix byte** for each of the 16 ports. A port
+polarity and the resulting **matrix byte** for each of the 16 ports. The
+hardware directions are enforced: **CLK9–CLK11 (PLL_IN_P2/P1/P0) are the only
+outputs**, **CLK7 (156M) and CLK8 (PLL_OUT) are inputs**, and the AMC
+TCLK/FCLK, S7/FPGA_INOUT and FMC clock ports are bidirectional. A port
 switched to output defaults to non-inverted. The matrix line below the table
 always shows the 16 bytes that are written to the device.
 

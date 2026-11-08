@@ -53,9 +53,11 @@ in  [0x00]"];
 PLL 4:10
 GTX_CLK0-3 · FPGA_CLK0"];
     FMC0 [label="FMC0
-GBTCLK0 · M2C_CLK0"];
+GBTCLK0 · M2C_CLK0
+(bidirectional)"];
     FMC1 [label="FMC1
-GBTCLK1 · M2C_CLK1"];
+GBTCLK1 · M2C_CLK1
+(bidirectional)"];
     S7 [label="Spartan 7
 S7_CLK"]; K7 [label="Kintex 7
 MGTCLK / Bank14"];
@@ -75,10 +77,10 @@ MGTCLK / Bank14"];
   n9 -> SI [color="#C9CFC9"];
   n10 -> SI [color="#C9CFC9"];
   n11 -> SI [color="#C9CFC9"];
-  n12 -> FMC0 [color="#C9CFC9"];
-  n13 -> FMC0 [color="#C9CFC9"];
-  n14 -> FMC1 [color="#C9CFC9"];
-  n15 -> FMC1 [color="#C9CFC9"];
+  n12 -> FMC0 [color="#C9CFC9", dir="both"];
+  n13 -> FMC0 [color="#C9CFC9", dir="both"];
+  n14 -> FMC1 [color="#C9CFC9", dir="both"];
+  n15 -> FMC1 [color="#C9CFC9", dir="both"];
   SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];
   SI -> SI [style=invis];
   FMC0 -> K7 [label="GBTCLK0/M2C0"];
