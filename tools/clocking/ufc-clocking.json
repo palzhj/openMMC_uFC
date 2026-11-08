@@ -16,7 +16,16 @@
   },
   "devices": {
     "amc": {
-      "part": "AMC backplane"
+      "part": "AMC backplane",
+      "parent": "ufc",
+      "class": "connector",
+      "box": [
+        20,
+        60,
+        100,
+        190
+      ],
+      "label": "AMC"
     },
     "mux": {
       "part": "8V54816A",
@@ -27,7 +36,16 @@
           2
         ]
       ],
-      "addr": 88
+      "addr": 88,
+      "parent": "ufc",
+      "class": "chip",
+      "box": [
+        190,
+        40,
+        280,
+        520
+      ],
+      "label": "MUX 8V54816A"
     },
     "pll": {
       "part": "Si5345A-D-GM",
@@ -38,76 +56,190 @@
           2
         ]
       ],
-      "addr": 105
+      "addr": 105,
+      "parent": "ufc",
+      "class": "chip",
+      "box": [
+        510,
+        270,
+        150,
+        140
+      ],
+      "label": "PLL Si5345A"
     },
     "fmc0": {
-      "part": "FMC0 connector"
+      "part": "FMC0 connector",
+      "parent": "ufc",
+      "class": "connector",
+      "box": [
+        510,
+        60,
+        120,
+        80
+      ],
+      "label": "FMC0"
     },
     "fmc1": {
-      "part": "FMC1 connector"
+      "part": "FMC1 connector",
+      "parent": "ufc",
+      "class": "connector",
+      "box": [
+        510,
+        160,
+        120,
+        80
+      ],
+      "label": "FMC1"
     },
     "k7": {
-      "part": "XC7K325T-2FFG900"
+      "part": "XC7K325T-2FFG900",
+      "parent": "ufc",
+      "class": "chip",
+      "box": [
+        820,
+        230,
+        170,
+        230
+      ],
+      "label": "FPGA Kintex 7"
     },
     "s7": {
-      "part": "XC7S25-1CSGA324C"
+      "part": "XC7S25-1CSGA324C",
+      "parent": "ufc",
+      "class": "chip",
+      "box": [
+        820,
+        40,
+        170,
+        160
+      ],
+      "label": "FPGA Spartan 7"
     },
     "osc156": {
       "part": "570BAB000544DG",
-      "freq": "156.25MHz"
+      "freq": "156.25MHz",
+      "parent": "ufc",
+      "class": "oscillator",
+      "label": "156.25 MHz",
+      "box": [
+        20,
+        300,
+        150,
+        44
+      ]
     },
     "osc200": {
-      "freq": "200MHz"
+      "freq": "200MHz",
+      "parent": "ufc",
+      "class": "oscillator",
+      "label": "200 MHz",
+      "box": [
+        20,
+        354,
+        150,
+        44
+      ]
     },
     "osc8": {
-      "freq": "8MHz"
+      "freq": "8MHz",
+      "parent": "ufc",
+      "class": "oscillator",
+      "label": "8 MHz",
+      "box": [
+        20,
+        408,
+        150,
+        44
+      ]
     },
     "vcxo": {
-      "freq": "20MHz"
+      "freq": "20MHz",
+      "parent": "ufc",
+      "class": "oscillator",
+      "label": "VCXO 20 MHz",
+      "box": [
+        20,
+        462,
+        150,
+        44
+      ]
     },
     "wr": {
-      "part": "White Rabbit"
+      "part": "White Rabbit",
+      "parent": "ufc",
+      "class": "chip",
+      "box": [
+        950,
+        400,
+        100,
+        60
+      ],
+      "label": "White Rabbit"
     },
     "lemo": {
-      "part": "LEMO clock in"
+      "part": "LEMO clock in",
+      "parent": "ufc",
+      "class": "connector",
+      "label": "LEMO_CLK_IN",
+      "box": [
+        20,
+        516,
+        150,
+        44
+      ]
     },
     "mcu": {
-      "part": "STM32F100 (MMC)"
+      "part": "STM32F100 (MMC)",
+      "parent": "ufc",
+      "class": "chip",
+      "box": [
+        950,
+        90,
+        100,
+        50
+      ],
+      "label": "MCU"
     }
   },
   "points": [
     {
       "id": "amc.TCLKA",
+      "parent": "amc",
       "device": "amc",
       "name": "TCLKA",
       "dir": "inout"
     },
     {
       "id": "amc.TCLKB",
+      "parent": "amc",
       "device": "amc",
       "name": "TCLKB",
       "dir": "inout"
     },
     {
       "id": "amc.TCLC",
+      "parent": "amc",
       "device": "amc",
       "name": "TCLC",
       "dir": "inout"
     },
     {
       "id": "amc.TCLKD",
+      "parent": "amc",
       "device": "amc",
       "name": "TCLKD",
       "dir": "inout"
     },
     {
       "id": "amc.FCLKA",
+      "parent": "amc",
       "device": "amc",
       "name": "FCLKA",
       "dir": "inout"
     },
     {
       "id": "mux.CLK0",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK0",
       "signal": "AMC_TCLKD",
@@ -116,6 +248,7 @@
     },
     {
       "id": "mux.CLK1",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK1",
       "signal": "AMC_TCLKC",
@@ -124,6 +257,7 @@
     },
     {
       "id": "mux.CLK2",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK2",
       "signal": "AMC_TCLKA",
@@ -132,6 +266,7 @@
     },
     {
       "id": "mux.CLK3",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK3",
       "signal": "AMC_TCLKB",
@@ -140,6 +275,7 @@
     },
     {
       "id": "mux.CLK4",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK4",
       "signal": "AMC_FCLKA",
@@ -148,6 +284,7 @@
     },
     {
       "id": "mux.CLK5",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK5",
       "signal": "S7_CLK_INOUT",
@@ -156,6 +293,7 @@
     },
     {
       "id": "mux.CLK6",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK6",
       "signal": "FPGA_CLK_INOUT",
@@ -164,6 +302,7 @@
     },
     {
       "id": "mux.CLK7",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK7",
       "signal": "156M",
@@ -172,6 +311,7 @@
     },
     {
       "id": "mux.CLK8",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK8",
       "signal": "PLL_OUT",
@@ -180,6 +320,7 @@
     },
     {
       "id": "mux.CLK9",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK9",
       "signal": "PLL_IN_P2",
@@ -188,6 +329,7 @@
     },
     {
       "id": "mux.CLK10",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK10",
       "signal": "PLL_IN_P1",
@@ -196,6 +338,7 @@
     },
     {
       "id": "mux.CLK11",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK11",
       "signal": "PLL_IN_P0",
@@ -204,6 +347,7 @@
     },
     {
       "id": "mux.CLK12",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK12",
       "signal": "FMC0_GBTCLK",
@@ -212,6 +356,7 @@
     },
     {
       "id": "mux.CLK13",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK13",
       "signal": "FMC0_CLK",
@@ -220,6 +365,7 @@
     },
     {
       "id": "mux.CLK14",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK14",
       "signal": "FMC1_CLK",
@@ -228,6 +374,7 @@
     },
     {
       "id": "mux.CLK15",
+      "parent": "mux",
       "device": "mux",
       "name": "CLK15",
       "signal": "FMC1_GBTCLK",
@@ -236,96 +383,112 @@
     },
     {
       "id": "pll.IN2",
+      "parent": "pll",
       "device": "pll",
       "name": "IN2",
       "dir": "in"
     },
     {
       "id": "pll.IN1",
+      "parent": "pll",
       "device": "pll",
       "name": "IN1",
       "dir": "in"
     },
     {
       "id": "pll.IN0",
+      "parent": "pll",
       "device": "pll",
       "name": "IN0",
       "dir": "in"
     },
     {
       "id": "pll.FB",
+      "parent": "pll",
       "device": "pll",
       "name": "FB (PLL_OUT)",
       "dir": "out"
     },
     {
       "id": "pll.GTX_CLK0",
+      "parent": "pll",
       "device": "pll",
       "name": "GTX_CLK0",
       "dir": "out"
     },
     {
       "id": "pll.GTX_CLK1",
+      "parent": "pll",
       "device": "pll",
       "name": "GTX_CLK1",
       "dir": "out"
     },
     {
       "id": "pll.GTX_CLK2",
+      "parent": "pll",
       "device": "pll",
       "name": "GTX_CLK2",
       "dir": "out"
     },
     {
       "id": "pll.GTX_CLK3",
+      "parent": "pll",
       "device": "pll",
       "name": "GTX_CLK3",
       "dir": "out"
     },
     {
       "id": "pll.FPGA_CLK0",
+      "parent": "pll",
       "device": "pll",
       "name": "FPGA_CLK0",
       "dir": "out"
     },
     {
       "id": "fmc0.GBTCLK_M2C",
+      "parent": "fmc0",
       "device": "fmc0",
       "name": "GBTCLK_M2C",
       "dir": "inout"
     },
     {
       "id": "fmc0.CLK_M2C",
+      "parent": "fmc0",
       "device": "fmc0",
       "name": "CLK_M2C",
       "dir": "inout"
     },
     {
       "id": "fmc0.CLK_C2M",
+      "parent": "fmc0",
       "device": "fmc0",
       "name": "CLK_C2M",
       "dir": "inout"
     },
     {
       "id": "fmc1.GBTCLK_M2C",
+      "parent": "fmc1",
       "device": "fmc1",
       "name": "GBTCLK_M2C",
       "dir": "inout"
     },
     {
       "id": "fmc1.CLK_M2C",
+      "parent": "fmc1",
       "device": "fmc1",
       "name": "CLK_M2C",
       "dir": "inout"
     },
     {
       "id": "fmc1.CLK_C2M",
+      "parent": "fmc1",
       "device": "fmc1",
       "name": "CLK_C2M",
       "dir": "inout"
     },
     {
       "id": "k7.REFCLK_P",
+      "parent": "k7",
       "device": "k7",
       "name": "REFCLK_P",
       "pin": "T26",
@@ -333,6 +496,7 @@
     },
     {
       "id": "k7.SRCC_P",
+      "parent": "k7",
       "device": "k7",
       "name": "SRCC_P",
       "pin": "R28",
@@ -340,6 +504,7 @@
     },
     {
       "id": "k7.MRCC_P0",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[0]",
       "pin": "AD23",
@@ -347,6 +512,7 @@
     },
     {
       "id": "k7.MRCC_P1",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[1]",
       "pin": "AB27",
@@ -354,6 +520,7 @@
     },
     {
       "id": "k7.MRCC_P2",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[2]",
       "pin": "AG29",
@@ -361,6 +528,7 @@
     },
     {
       "id": "k7.MRCC_P3",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[3]",
       "pin": "C25",
@@ -368,6 +536,7 @@
     },
     {
       "id": "k7.MRCC_P4",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[4]",
       "pin": "D27",
@@ -375,6 +544,7 @@
     },
     {
       "id": "k7.MRCC_P5",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[5]",
       "pin": "F20",
@@ -382,6 +552,7 @@
     },
     {
       "id": "k7.MRCC_P6",
+      "parent": "k7",
       "device": "k7",
       "name": "MRCC_P[6]",
       "pin": "D17",
@@ -389,6 +560,7 @@
     },
     {
       "id": "k7.LEMO_CLK_IN_P",
+      "parent": "k7",
       "device": "k7",
       "name": "LEMO_CLK_IN_P",
       "pin": "U27",
@@ -396,6 +568,7 @@
     },
     {
       "id": "k7.MGTCLK115_P0",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK115_P0",
       "pin": "R8",
@@ -403,6 +576,7 @@
     },
     {
       "id": "k7.MGTCLK116_P0",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK116_P0",
       "pin": "L8",
@@ -410,6 +584,7 @@
     },
     {
       "id": "k7.MGTCLK116_P1",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK116_P1",
       "pin": "N8",
@@ -417,6 +592,7 @@
     },
     {
       "id": "k7.MGTCLK117_P0",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK117_P0",
       "pin": "G8",
@@ -424,6 +600,7 @@
     },
     {
       "id": "k7.MGTCLK117_P1",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK117_P1",
       "pin": "J8",
@@ -431,6 +608,7 @@
     },
     {
       "id": "k7.MGTCLK118_P0",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK118_P0",
       "pin": "C8",
@@ -438,6 +616,7 @@
     },
     {
       "id": "k7.MGTCLK118_P1",
+      "parent": "k7",
       "device": "k7",
       "name": "MGTCLK118_P1",
       "pin": "E8",
@@ -445,12 +624,14 @@
     },
     {
       "id": "k7.FPGA_CLK_INOUT",
+      "parent": "k7",
       "device": "k7",
       "name": "FPGA_CLK_INOUT",
       "dir": "inout"
     },
     {
       "id": "s7.CLK_INOUT_P",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_INOUT_P",
       "pin": "F14",
@@ -458,6 +639,7 @@
     },
     {
       "id": "s7.CLK_IN_P0",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_IN_P[0]",
       "pin": "N15",
@@ -465,6 +647,7 @@
     },
     {
       "id": "s7.CLK_IN_P1",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_IN_P[1]",
       "pin": "D14",
@@ -472,6 +655,7 @@
     },
     {
       "id": "s7.CLK_OUT_P0",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_OUT_P[0]",
       "pin": "B16",
@@ -479,6 +663,7 @@
     },
     {
       "id": "s7.CLK_OUT_P1",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_OUT_P[1]",
       "pin": "B17",
@@ -486,6 +671,7 @@
     },
     {
       "id": "s7.CLK_OUT_P2",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_OUT_P[2]",
       "pin": "F18",
@@ -493,6 +679,7 @@
     },
     {
       "id": "s7.CLK_OUT_P3",
+      "parent": "s7",
       "device": "s7",
       "name": "CLK_OUT_P[3]",
       "pin": "C17",
@@ -500,6 +687,7 @@
     },
     {
       "id": "s7.FMC0_GTXCLK_M2C_P",
+      "parent": "s7",
       "device": "s7",
       "name": "FMC0_GTXCLK_M2C_P",
       "pin": "G16",
@@ -507,6 +695,7 @@
     },
     {
       "id": "s7.FMC0_CLK_M2C_P",
+      "parent": "s7",
       "device": "s7",
       "name": "FMC0_CLK_M2C_P",
       "pin": "D18",
@@ -514,6 +703,7 @@
     },
     {
       "id": "s7.FMC1_GTXCLK_M2C_P",
+      "parent": "s7",
       "device": "s7",
       "name": "FMC1_GTXCLK_M2C_P",
       "pin": "R14",
@@ -521,6 +711,7 @@
     },
     {
       "id": "s7.FMC1_CLK_M2C_P",
+      "parent": "s7",
       "device": "s7",
       "name": "FMC1_CLK_M2C_P",
       "pin": "P14",
@@ -528,6 +719,7 @@
     },
     {
       "id": "s7.FMC0_CLK_C2M_P",
+      "parent": "s7",
       "device": "s7",
       "name": "FMC0_CLK_C2M_P",
       "pin": "E16",
@@ -535,6 +727,7 @@
     },
     {
       "id": "s7.FMC1_CLK_C2M_P",
+      "parent": "s7",
       "device": "s7",
       "name": "FMC1_CLK_C2M_P",
       "pin": "R15",
@@ -542,6 +735,7 @@
     },
     {
       "id": "s7.FPGA_GTXCLK_P0",
+      "parent": "s7",
       "device": "s7",
       "name": "FPGA_GTXCLK_P[0]",
       "pin": "U17",
@@ -549,42 +743,49 @@
     },
     {
       "id": "osc156.OUT",
+      "parent": "osc156",
       "device": "osc156",
       "name": "OUT",
       "dir": "out"
     },
     {
       "id": "osc200.OUT",
+      "parent": "osc200",
       "device": "osc200",
       "name": "OUT",
       "dir": "out"
     },
     {
       "id": "osc8.OUT",
+      "parent": "osc8",
       "device": "osc8",
       "name": "OUT",
       "dir": "out"
     },
     {
       "id": "vcxo.OUT",
+      "parent": "vcxo",
       "device": "vcxo",
       "name": "OUT",
       "dir": "out"
     },
     {
       "id": "wr.OUT",
+      "parent": "wr",
       "device": "wr",
       "name": "125MHz",
       "dir": "out"
     },
     {
       "id": "lemo.OUT",
+      "parent": "lemo",
       "device": "lemo",
       "name": "CLK_IN",
       "dir": "out"
     },
     {
       "id": "mcu.CLK",
+      "parent": "mcu",
       "device": "mcu",
       "name": "CLK_IN",
       "dir": "in"
@@ -786,6 +987,12 @@
     },
     "mux.CLK15": {
       "source": null
+    }
+  },
+  "boards": {
+    "ufc": {
+      "label": "uFC v2.0",
+      "class": "board"
     }
   }
 }
