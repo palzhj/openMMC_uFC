@@ -307,16 +307,24 @@ class FruEditor(tk.Tk):
         self.i2c_dev = tk.StringVar(value="0x50")
         ttk.Entry(row, textvariable=self.i2c_dev, width=7).pack(side="left", padx=(6, 16))
 
+        ttk.Label(row, text="Write len", style="FieldLabel.TLabel").pack(side="left")
+        self.i2c_wlen = tk.StringVar(value="1")
+        ttk.Entry(row, textvariable=self.i2c_wlen, width=4).pack(side="left", padx=(6, 16))
+
         ttk.Label(row, text="Read len", style="FieldLabel.TLabel").pack(side="left")
         self.i2c_rlen = tk.StringVar(value="8")
         ttk.Entry(row, textvariable=self.i2c_rlen, width=4).pack(side="left", padx=(6, 16))
 
-        ttk.Label(row, text="Write data (hex, 1 byte each)", style="FieldLabel.TLabel").pack(side="left")
-        self.i2c_wdata = tk.StringVar(value="00")
-        ttk.Entry(row, textvariable=self.i2c_wdata, width=24).pack(side="left", padx=(6, 16))
-
         ttk.Button(row, text="Transfer", style="Primary.TButton",
                    command=self.i2c_transfer).pack(side="left")
+
+        datarow = ttk.Frame(parent)
+        datarow.pack(fill="x", pady=(0, 8))
+        ttk.Label(datarow, text="Write data (hex)", style="FieldLabel.TLabel").pack(side="left")
+        self.i2c_wdata = tk.StringVar(value="00")
+        ttk.Entry(datarow, textvariable=self.i2c_wdata, width=40).pack(side="left", padx=(6, 12))
+        ttk.Label(datarow, text="(Write len must match the number of bytes)",
+                  style="Hint.TLabel").pack(side="left")
 
         muxrow = ttk.Frame(parent)
         muxrow.pack(fill="x", pady=(0, 8))
@@ -333,12 +341,13 @@ class FruEditor(tk.Tk):
             self.mux_vars.append((a, c))
 
         ttk.Label(parent,
-                  text="empty write data = read only   ·   read length 0 = write only   ·   both = write then read",
+                  text="write len 0 = read only   ·   read len 0 = write only   ·   both >0 = write then read",
                   style="Hint.TLabel").pack(anchor="w")
         self.i2c_mode = tk.StringVar(value="")
-        tk.Label(parent, textvariable=self.i2c_mode, bg=BG, fg=ACCENT,
-                 font=(UI_FONT, 9)).pack(anchor="w", pady=(0, 8))
-        for var in (self.i2c_wdata, self.i2c_rlen):
+        self.i2c_mode_lbl = tk.Label(parent, textvariable=self.i2c_mode, bg=BG, fg=ACCENT,
+                                     font=(UI_FONT, 9))
+        self.i2c_mode_lbl.pack(anchor="w", pady=(0, 8))
+        for var in (self.i2c_wdata, self.i2c_rlen, self.i2c_wlen):
             var.trace_add("write", lambda *_: self._update_i2c_mode())
         self._update_i2c_mode()
 
@@ -361,11 +370,18 @@ class FruEditor(tk.Tk):
 
     def _update_i2c_mode(self):
         try:
-            w = len(self._hex_bytes(self.i2c_wdata.get()))
+            data = len(self._hex_bytes(self.i2c_wdata.get()))
+            w = int(self.i2c_wlen.get().strip() or 0)
             r = int(self.i2c_rlen.get().strip() or 0)
         except Exception:
+            self.i2c_mode_lbl.configure(fg=DANGER)
             self.i2c_mode.set("write ? B · read ? B")
             return
+        if w != data:
+            self.i2c_mode_lbl.configure(fg=DANGER)
+            self.i2c_mode.set("Write len %d does not match %d byte(s) of data" % (w, data))
+            return
+        self.i2c_mode_lbl.configure(fg=ACCENT)
         self.i2c_mode.set("write %d B  ·  read %d B  →  %s" % (
             w, r,
             "write then read" if w and r else ("read only" if r else ("write only" if w else "nothing to do"))))
@@ -397,7 +413,11 @@ class FruEditor(tk.Tk):
             muxes.append((self._hex_val(a.get()), self._hex_val(c.get())))
         dev = self._hex_val(self.i2c_dev.get())
         wdata = self._hex_bytes(self.i2c_wdata.get())
+        wlen = int(self.i2c_wlen.get().strip() or 0)
         rlen = int(self.i2c_rlen.get().strip() or 0)
+        if wlen != len(wdata):
+            raise ValueError("Write len is %d but the write data has %d byte(s)"
+                             % (wlen, len(wdata)))
         return bus, muxes, dev, wdata, rlen
 
     def i2c_transfer(self):
@@ -432,6 +452,7 @@ class FruEditor(tk.Tk):
                 a.set(""); c.set("")
         self.i2c_dev.set("0x%02x" % dev)
         self.i2c_wdata.set(" ".join("%02x" % b for b in wdata))
+        self.i2c_wlen.set(str(len(wdata)))
         self.i2c_rlen.set(str(rlen))
 
     def _preset_eeprom(self):
