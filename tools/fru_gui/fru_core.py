@@ -168,6 +168,16 @@ class FruAccess:
         data += bytes([dev & 0xFF, len(wdata)]) + bytes(wdata) + bytes([rlen])
         return self._ipmi("0x32", "0x20", *["0x%02x" % b for b in data])
 
+    def clock_switch_read(self):
+        """Read the 8V54816A 16-byte switch matrix (mux ch2, 0x58)."""
+        return self.xfer(1, [(0x70, 2)], 0x58, b"", 16)
+
+    def clock_switch_write(self, data):
+        """Write the 8V54816A 16-byte switch matrix."""
+        if len(data) != 16:
+            raise ValueError("the switch matrix is 16 bytes")
+        return self.xfer(1, [(0x70, 2)], 0x58, bytes(data), 0)
+
     def clock_program(self):
         """Trigger the Si5345 programming (firmware command 0x16)."""
         return self._ipmi("0x32", "0x16")
