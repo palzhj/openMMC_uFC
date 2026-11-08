@@ -11,7 +11,7 @@ speed 1000
 VTREF 3300
 connect
 loadfile uart-debug/newboot.bin 0x08000000
-loadfile uart-debug/openMMC.bin 0x08004000
+loadfile uart-debug/openMMC.bin 0x08002000
 r
 g
 q
