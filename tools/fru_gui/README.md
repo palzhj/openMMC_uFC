@@ -138,8 +138,12 @@ FCLKA, S7/FPGA inputs, 156M, PLL_OUT) and destinations on the right
 to connect it; click a destination alone to disconnect. The 16-byte matrix
 updates live.
 
+- Selecting a node shows its parameters: **Source** (for outputs), **100 Ω
+  termination**, **non-inverted** — changing any of them updates the matrix
+  immediately (a freshly connected output defaults to non-inverted)
 - **Read clocks** / **Write now** — read/write the switch matrix over I²C
   (mux 0x70 ch2, 0x58)
+- **Export DOT** — save the current routing as a Graphviz diagram
 - **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
 - **Status** — command `0x17`
 - **Save to flash** — next step: the 19 KB FRU-format clock store
