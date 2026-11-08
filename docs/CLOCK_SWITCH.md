@@ -63,8 +63,8 @@ Reset default is `0x00` for every port (all inputs, termination off).
 | CLK10 | 65/66 | `PLL_IN_P1` (to Si5345 IN1) | **output** |
 | CLK11 | 69/70 | `PLL_IN_P0` (to Si5345 IN0) | **output** |
 | CLK12 | 81/82 | `FMC0_GBTCLK_M2C_P/N` | **bidirectional** |
-| CLK13 | 85/86 | `FMC0_CLK_M2C_P/N` | **bidirectional** |
-| CLK14 | 90/91 | `FMC1_CLK_M2C_P/N` | **output** |
+| CLK13 | 85/86 | `FMC0_CLK_M2C_P/N` (➜ `FMC0_CLK1_M2C`) | **bidirectional** |
+| CLK14 | 90/91 | `FMC1_CLK_M2C_P/N` (➜ `FMC1_CLK1_M2C`) | **output** |
 | CLK15 | 94/95 | `FMC1_GBTCLK_M2C_P/N` | **bidirectional** |
 
 So ports 0–8 are the available clock **sources**, ports 9–15 are the **outputs**
@@ -122,3 +122,18 @@ From the FPGA constraint files (`uFCv2/template/S7/top.xdc`,
 | `MGTCLK117_P0/P1` | G8 / J8 | — |
 | `MGTCLK118_P0/P1` | C8 / E8 | — |
 | `MGTCLK115_P0` | R8 | — |
+
+## Schematic corrections
+
+The latest FMC specification names the FMC clock nets differently from the
+schematics; `ufc-clocking.json` uses the corrected names:
+
+| schematic | corrected name |
+|---|---|
+| `CLK0_C2M` | **`CLK1_M2C`** |
+| `CLK1_C2M` | **`CLK3_BIDIR`** |
+| `CLK1_M2C` | **`CLK2_BIDIR`** |
+
+So each FMC has `GBTCLK0_M2C`, `GBTCLK1_M2C`, `CLK1_M2C`, `CLK2_BIDIR` and
+`CLK3_BIDIR` clock points (the FPGA constraint files still use the
+schematic-era names such as `FMC0_CLK_M2C_P`).
