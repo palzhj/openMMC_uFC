@@ -13,8 +13,8 @@ Management Controller) runs **openMMC**, an open‑source IPMI/IPMB firmware.
 |---|---|
 | MCU | **STM32F100CBT6** — Cortex‑M3 value line, 128 KB flash, 8 KB SRAM |
 | Bootloader | **newboot** at `0x08000000` (8 KB) — first stage, applies staged updates |
-| Application | openMMC at `0x08004000` (56 KB) |
-| Update staging | `0x08012000` (56 KB) |
+| Application | openMMC at `0x08002000` (50 KB) |
+| Update staging | `0x0800E800` (50 KB) |
 | Console | USART1, PA9 (TX) / PA10 (RX), **115200 8N1** |
 | I²C | I²C2, PB10 (SCL) / PB11 (SDA), **100 kHz**, behind a TCA9548A mux |
 | Debug | SWD on PA13/PA14 (JTAG disabled; PB3/PB4/PA15 are GPIO) |
@@ -131,7 +131,7 @@ Boot sequence:
 
 1. newboot reads `fw_info`; if an update is pending it copies staging → app and
    clears the flag.
-2. newboot jumps to the application (`0x08004000`).
+2. newboot jumps to the application (`0x08002000`).
 3. openMMC initialises clocks, UART, I²C and the FRU, then starts FreeRTOS.
 
 ---
@@ -173,7 +173,7 @@ speed 1000
 VTREF 3300
 connect
 loadfile uart-debug/newboot.bin 0x08000000
-loadfile uart-debug/openMMC.bin 0x08004000
+loadfile uart-debug/openMMC.bin 0x08002000
 r
 g
 q

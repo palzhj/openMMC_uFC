@@ -2,7 +2,7 @@
 """
 Build a FRU-format clock configuration slot for the uFC.
 
-Layout of one 3 KB slot:
+Layout of one 9 KB slot:
   0x000  wrapper (32 B)              magic UFCC, version, len, CRC32, seq, ...
   0x020  FRU file                    common header + multirecord OEM records
          record data = [dev_type][chunk_idx][chunk_cnt][bus][addr][n_mux]
@@ -87,7 +87,7 @@ def main():
     ap.add_argument("--si5345", required=True)
     ap.add_argument("--matrix", default="00" * 16, help="16 bytes hex")
     ap.add_argument("--seq", type=int, default=1)
-    ap.add_argument("--slot", type=int, default=3072, help="slot size (default 3 KB)")
+    ap.add_argument("--slot", type=int, default=9216, help="slot size (default 9 KB)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 

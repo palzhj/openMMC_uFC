@@ -62,7 +62,7 @@ Use `make clean`, or delete the build directory, if anything looks stale.
 
 | File | Description | Flash address |
 |---|---|---|
-| `openMMC.elf` / `.bin` / `.srec` | application firmware | `0x08004000` |
+| `openMMC.elf` / `.bin` / `.srec` | application firmware | `0x08002000` |
 | `newboot.elf` / `.bin` / `.srec` | bootloader (`newboot`) | `0x08002000` |
 | `STM32F100CBT6_app.map` | application linker map | — |
 
@@ -72,7 +72,7 @@ Use `make clean`, or delete the build directory, if anything looks stale.
 
 | Region | Used | Limit |
 |---|---|---|
-| Flash (`text + data`) | 21,664 B | 57,344 B (56 KB app region) |
+| Flash (`text + data`) | 21,664 B | 51,200 B (50 KB app region) |
 | RAM (`.data` 200 + heap 5,632 + `.bss` 808 + stack reserve 512) | 7,152 B | 8,192 B |
 | RAM free | 1,040 B | — |
 
@@ -159,7 +159,7 @@ Run under Renode + GDB (STM32F103 platform, GDB server on 3333):
 
 - load the ELF, set `SP` to `_estack` (`0x20002000`) and `PC` to `Reset_Handler`
   (address from `nm`);
-- skip `SystemInit()` (Renode has no RCC model): set `VTOR = 0x08004000` and
+- skip `SystemInit()` (Renode has no RCC model): set `VTOR = 0x08002000` and
   `PC = main`;
 - break at `sdr_init` (the call after the test) and read `fru_test_result`
   (address from `nm`): `1` = pass.
@@ -212,13 +212,14 @@ From `port/ucontroller/stm32/stm32f1xx/linker/STM32F100CBT6_*.ld`:
 |---|---|---|---|---|
 | **OpenBLT** (first stage) | `0x08000000` | `0x08001FFF` | 8 KB | do not erase/program |
 | Bootloader (`newboot`) | `0x08002000` | `0x08003FFF` | 8 KB | VTOR `0x08002000` |
-| Application (`openMMC`) | `0x08004000` | `0x08011FFF` | 56 KB | VTOR `0x08004000` |
-| FW update staging | `0x08012000` | `0x0801FEFF` | 55.75 KB | new image |
-| `fw_info` record | `0x0801FF00` | `0x0801FFFF` | 256 B | `version[3]`, `fw_type`, magic `0xAAAAAAAA` |
+| Application (`openMMC`) | `0x08002000` | `0x0800E7FF` | 50 KB | VTOR `0x08002000` |
+| FW update staging | `0x0800E800` | `0x0801AFFF` | 50 KB | new image |
+| `fw_info` record | `0x0801FC00` | `0x0801FFFF` | 1 KB page (256 B record) | `version[3]`, `fw_type`, magic `0xAAAAAAAA` |
 
 > **Flash size:** the layout reserves 128 KB, matching the STM32F100CBT6.
 > The application (ends `0x080094A0`) and the update staging region
-> (`0x08012000–0x0801FFFF`) both fit; `fw_info` is at `0x0801FF00`.
+> (`0x0800E800–0x0801AFFF`), the clock region (`0x0801B000–0x0801FBFF`) and
+> `fw_info` at `0x0801FC00` all fit.
 
 Vector table word 0/1 (verified from the build; the low bit is the Thumb bit, symbols are `0x080026FC` / `0x080043DC`):
 
@@ -244,7 +245,7 @@ Flash pages are 1 KB (`FLASH_PAGE_SIZE 0x400` on MD_VL).
 and is not built here. Never erase or program `0x08000000–0x08001FFF`: the
 STM32F1 resets through OpenBLT there, which then starts `newboot` at
 `0x08002000`. Only program `newboot` (`0x08002000`) and `openMMC`
-(`0x08004000`).
+(`0x08002000`).
 
 ---
 
@@ -265,7 +266,7 @@ speed 1000
 VTREF 3300
 connect
 loadfile newboot.bin 0x08002000
-loadfile openMMC.bin 0x08004000
+loadfile openMMC.bin 0x08002000
 r
 g
 q
@@ -282,13 +283,13 @@ q
 ```bash
 # ST-Link
 st-flash --reset write build/out/newboot.bin 0x08002000
-st-flash --reset write build/out/openMMC.bin 0x08004000
+st-flash --reset write build/out/openMMC.bin 0x08002000
 
 # OpenOCD
 openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
   -c "init" -c "reset halt" \
   -c "program build/out/newboot.bin 0x08002000 verify" \
-  -c "program build/out/openMMC.bin 0x08004000 verify" \
+  -c "program build/out/openMMC.bin 0x08002000 verify" \
   -c "reset run" -c "shutdown"
 ```
 
