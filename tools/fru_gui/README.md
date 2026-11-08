@@ -17,8 +17,6 @@ Two front-ends share the same backend (`fru_gui.py`): a **desktop application**
 
 ## Desktop app (`fru_gui_tk.py`)
 
-![layout](docs/screenshot.md)
-
 - Connection fields: MCH IP, target IPMB address, bus, transit address
 - Tabs: **Board info**, **Product info**, **Raw EEPROM**
 - Buttons: **Read FRU**, **Write FRU**, **Save image…**, **Load image to EEPROM**
