@@ -52,3 +52,11 @@ uint8_t xI2CMasterWriteRead(I2C_ID_T id, uint8_t addr, const uint8_t *tx_buff, u
 uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32_t timeout);
 void vI2CSlaveSetup(I2C_ID_T id, uint8_t slave_addr);
 void vI2CConfig(I2C_ID_T id, uint32_t speed);
+
+/**
+ * @brief Release a stuck I2C bus by clocking SCL nine times and sending STOP.
+ *
+ * A slave interrupted mid-byte can hold SDA low; after this the peripheral is
+ * re-initialised and the bus is usable again.
+ */
+void vI2CBusRecover(I2C_ID_T id);

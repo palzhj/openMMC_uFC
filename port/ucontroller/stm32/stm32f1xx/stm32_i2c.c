@@ -649,3 +649,49 @@ stop:
   // Return the number of bytes successfully received
   return i;
 }
+void vI2CBusRecover(I2C_ID_T id)
+{
+  I2C_TypeDef *I2Cx;
+  GPIO_TypeDef *port = GPIOB;
+  uint16_t scl, sda;
+  GPIO_InitTypeDef gpio;
+  volatile uint32_t d;
+
+  if (id == I2C2_ID) {
+    I2Cx = I2C2;
+    scl = GPIO_Pin_10;
+    sda = GPIO_Pin_11;
+  } else {
+    I2Cx = I2C1;
+    scl = GPIO_Pin_6;
+    sda = GPIO_Pin_7;
+  }
+
+  I2C_Cmd(I2Cx, DISABLE);
+
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+  gpio.GPIO_Mode = GPIO_Mode_Out_OD;
+  gpio.GPIO_Speed = GPIO_Speed_50MHz;
+  gpio.GPIO_Pin = scl | sda;
+  GPIO_Init(port, &gpio);
+
+  GPIO_SetBits(port, sda);
+  for (uint8_t i = 0; i < 9; i++) {
+    GPIO_SetBits(port, scl);
+    for (d = 0; d < 200; d++) { }
+    GPIO_ResetBits(port, scl);
+    for (d = 0; d < 200; d++) { }
+  }
+
+  /* STOP condition: SDA rises while SCL is high */
+  GPIO_ResetBits(port, scl);
+  for (d = 0; d < 200; d++) { }
+  GPIO_ResetBits(port, sda);
+  for (d = 0; d < 200; d++) { }
+  GPIO_SetBits(port, scl);
+  for (d = 0; d < 200; d++) { }
+  GPIO_SetBits(port, sda);
+  for (d = 0; d < 200; d++) { }
+
+  vI2CConfig(id, 100000);
+}

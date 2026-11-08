@@ -29,10 +29,16 @@
 #include "rtm_i2c_mapping.h"
 #endif
 
+__attribute__((weak)) void vI2CBusRecover( I2C_ID_T id )
+{
+    ( void )id;
+}
+
 void i2c_init( void )
 {
     for ( uint8_t i = 0; i < I2C_MUX_CNT; i++ ) {
         i2c_mux[i].semaphore = xSemaphoreCreateBinary();
+        vI2CBusRecover( i2c_mux[i].i2c_interface );
         vI2CConfig( i2c_mux[i].i2c_interface, SPEED_100KHZ );
         xSemaphoreGive( i2c_mux[i].semaphore );
     }

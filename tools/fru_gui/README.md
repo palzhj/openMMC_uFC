@@ -90,6 +90,7 @@ With the double bridge the parameters are:
 | **Transit ch** | Channel from the MCH to the transit controller (usually 0). |
 | **Target** | IPMB address of the device that answers (the module's MMC). |
 | **Bus** | IPMB channel that reaches the target (per slot on a MicroTCA crate). |
+| **EEPROM I²C** | 7-bit I²C address of the EEPROM on the FRU bus (0x50 = board FRU; other addresses use commands 0x14/0x15). |
 | **EEPROM size** | Bytes read from the EEPROM (16-bit addressing, max 65536). |
 | **FRU writable** | Bytes of the FRU image written (the 24AA025E48 allows the lower 128). |
 

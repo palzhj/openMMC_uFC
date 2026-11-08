@@ -62,4 +62,17 @@ size_t eeprom_24xx02_read( uint8_t id, uint16_t address, uint8_t *rx_data, size_
  */
 size_t eeprom_24xx02_write( uint8_t id, uint16_t address, uint8_t *tx_data, size_t buf_len, uint32_t timeout );
 
+/**
+ * @brief Read from an EEPROM at an explicit I2C address on the chip's bus
+ *
+ * Same interface as eeprom_24xx02_read() but the 7-bit slave address is given
+ * by the caller instead of the board mapping (other EEPROMs on the same bus).
+ */
+size_t eeprom_24xx02_read_at( uint8_t id, uint8_t i2c_addr, uint16_t address, uint8_t *rx_data, size_t buf_len, uint32_t timeout );
+
+/**
+ * @brief Write to an EEPROM at an explicit I2C address on the chip's bus
+ */
+size_t eeprom_24xx02_write_at( uint8_t id, uint8_t i2c_addr, uint16_t address, uint8_t *tx_data, size_t buf_len, uint32_t timeout );
+
 #endif
