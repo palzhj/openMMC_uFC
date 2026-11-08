@@ -210,6 +210,7 @@ program a clock crosspoint.
 |---|---|
 | [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | Hardware, build, flashing, FRU, IPMI, troubleshooting, recovery |
 | [docs/I2C_ACCESS.md](docs/I2C_ACCESS.md) | Manual for the universal I²C access over IPMI (EEPROM, PMBus, clocks, mux chains) |
+| [docs/CLOCK_SWITCH.md](docs/CLOCK_SWITCH.md) | uFC 8V54816A clock-switch port map (from the schematic) and register format |
 | [docs/DEBUGGING.md](docs/DEBUGGING.md) | Bring-up log: every failure, root cause and fix |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party components and their licenses |
 

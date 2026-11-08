@@ -132,6 +132,8 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 
 ## Clock tab
 
+- **8V54816A matrix** — read/write the 16-byte clock-switch matrix (port map
+  from the uFC schematic: see [docs/CLOCK_SWITCH.md](../../docs/CLOCK_SWITCH.md))
 - **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
 - **Status** — command `0x17`: idle / running / OK / error + failing register
 

@@ -320,6 +320,15 @@ class FruEditor(tk.Tk):
         ttk.Label(row, text="(firmware built with -DCLOCK_PROGRAM=ON)",
                   style="Hint.TLabel").pack(side="left", padx=(12, 0))
 
+        srow = ttk.Frame(parent)
+        srow.pack(fill="x", pady=(0, 8))
+        ttk.Label(srow, text="8V54816A matrix (16 bytes hex)",
+                  style="FieldLabel.TLabel").pack(side="left")
+        self.switch_var = tk.StringVar(value="")
+        ttk.Entry(srow, textvariable=self.switch_var, width=52).pack(side="left", padx=(6, 8))
+        ttk.Button(srow, text="Read switch", command=self.clock_switch_read).pack(side="left")
+        ttk.Button(srow, text="Write switch", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
+
         ttk.Label(parent,
                   text="Writes the ClockBuilder register table (3 preamble + 518 + 5 postamble) "
                        "into the Si5345 RAM, then a soft reset applies it. NVM is not touched, "
@@ -336,6 +345,24 @@ class FruEditor(tk.Tk):
         self.clock_out.insert("end", text + "\n")
         self.clock_out.see("end")
         self.clock_out.configure(state="disabled")
+
+    def clock_switch_read(self):
+        try:
+            data = self._access().clock_switch_read()
+            self.switch_var.set(" ".join("%02x" % b for b in data))
+            self._clock_log("switch matrix: " + " ".join("%02x" % b for b in data))
+        except Exception as e:
+            self._clock_log("ERROR: %s" % e)
+
+    def clock_switch_write(self):
+        try:
+            data = self._hex_bytes(self.switch_var.get())
+            self._access().clock_switch_write(data)
+            self._clock_log("switch matrix written: " + " ".join("%02x" % b for b in data))
+            self._status("Clock switch written", "ok")
+        except Exception as e:
+            self._status("Clock switch write failed", "error")
+            self._clock_log("ERROR: %s" % e)
 
     def clock_program(self):
         try:
