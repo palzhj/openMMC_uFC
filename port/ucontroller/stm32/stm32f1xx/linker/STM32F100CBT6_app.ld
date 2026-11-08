@@ -52,8 +52,8 @@ __BootFlash_end       = 0x08003FFF;   /* Bootloader end address (last byte) */
 __AppFlash_start      = 0x08004000;   /* Application start address (vector table) */
 __AppFlash_end        = 0x08011FFF;   /* 56K Application end address (last byte) */
 __FWUpdateFlash_start = 0x08012000;   /* Firmware update region start address */
-__FWUpdateFlash_end   = 0x0801FFFF;   /* 56K Firmware update region end address (last byte) */
-__FWInfo_addr         = __FWUpdateFlash_end - 255; /* Last 256 bytes of flash reserved to the fw_info struct */
+__FWUpdateFlash_end   = 0x0801FFFF;   /* Firmware update region end address (last byte) */
+__FWInfo_addr         = 0x08002000;   /* Dedicated fw_info page in the free 8 KB gap (256 B record) */
 
 /* Define output sections */
 SECTIONS
