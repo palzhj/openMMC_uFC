@@ -39,7 +39,7 @@ FIELD_LABELS = {
 
 
 class FruEditor(tk.Tk):
-    def __init__(self, mch, target, bus, transit):
+    def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128):
         super().__init__()
         self.title(APP_TITLE)
         self.geometry("980x680")
@@ -49,11 +49,11 @@ class FruEditor(tk.Tk):
         self.parsed = None
         self.entries = {"board": {}, "product": {}}
 
-        self._build_ui(mch, target, bus, transit)
+        self._build_ui(mch, target, bus, transit, eeprom_size, fru_limit)
         self.log("Ready. Firmware must be built with -DEEPROM_ACCESS=ON.")
 
     # ------------------------------------------------------------------ UI
-    def _build_ui(self, mch, target, bus, transit):
+    def _build_ui(self, mch, target, bus, transit, eeprom_size, fru_limit):
         top = ttk.Frame(self, padding=(8, 6))
         top.pack(fill="x")
 
@@ -75,6 +75,16 @@ class FruEditor(tk.Tk):
 
         ttk.Button(top, text="Read FRU", command=self.read_fru).grid(row=0, column=8, padx=(12, 0))
         ttk.Button(top, text="Write FRU", command=self.write_fru).grid(row=0, column=9, padx=4)
+
+        sizes = ttk.Frame(self, padding=(8, 0))
+        sizes.pack(fill="x")
+        ttk.Label(sizes, text="EEPROM size:").pack(side="left")
+        self.size_var = tk.StringVar(value=str(eeprom_size))
+        ttk.Entry(sizes, textvariable=self.size_var, width=8).pack(side="left", padx=4)
+        ttk.Label(sizes, text="bytes    FRU writable:").pack(side="left")
+        self.limit_var = tk.StringVar(value=str(fru_limit))
+        ttk.Entry(sizes, textvariable=self.limit_var, width=8).pack(side="left", padx=4)
+        ttk.Label(sizes, text="bytes (max 65536)").pack(side="left")
 
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True, padx=8, pady=4)
@@ -161,9 +171,23 @@ class FruEditor(tk.Tk):
         self.log_text.see("end")
         self.log_text.configure(state="disabled")
 
+    def _sizes(self):
+        try:
+            size = int(self.size_var.get().strip())
+            limit = int(self.limit_var.get().strip())
+        except ValueError:
+            raise ValueError("EEPROM size and writable limit must be integers")
+        if not 1 <= size <= 0x10000:
+            raise ValueError("EEPROM size must be 1..65536 bytes")
+        if not 1 <= limit <= size:
+            raise ValueError("FRU writable limit must be 1..EEPROM size")
+        return size, limit
+
     def _access(self):
+        size, _limit = self._sizes()
         return FruAccess(self.mch_var.get().strip(), self.target_var.get().strip(),
-                         self.transit_var.get().strip(), self.bus_var.get().strip())
+                         self.transit_var.get().strip(), self.bus_var.get().strip(),
+                         eeprom_size=size)
 
     def _fill(self, raw, parsed):
         self.raw = raw
@@ -194,8 +218,9 @@ class FruEditor(tk.Tk):
     # -------------------------------------------------------------- actions
     def read_fru(self):
         try:
+            size, limit = self._sizes()
             raw = self._access().dump()
-            parsed = parse_fru(raw)
+            parsed = parse_fru(raw, limit=limit)
             self._fill(raw, parsed)
             self.status.set("FRU read: %d bytes (board and product areas parsed)" % len(raw))
             self.log("Read %d bytes from FRU EEPROM." % len(raw))
@@ -217,12 +242,13 @@ class FruEditor(tk.Tk):
                     values[key][name] = var.get()
         values["board"]["mfg_time"] = self.time_var.get()  # parsed by build_areas
         try:
-            image = build_image(self.parsed, values)
-            payload = image_for_eeprom(image)
+            _size, limit = self._sizes()
+            image = build_image(self.parsed, values, limit=limit)
+            payload = image_for_eeprom(image, limit)
             acc = self._access()
             acc.write(0, payload)
             raw = acc.dump()
-            parsed = parse_fru(raw)
+            parsed = parse_fru(raw, limit=limit)
             self._fill(raw, parsed)
             problems = []
             for key, area_key in (("board", "board_area"), ("product", "product_area")):
@@ -258,17 +284,18 @@ class FruEditor(tk.Tk):
         if not path:
             return
         try:
+            _size, limit = self._sizes()
             with open(path, "rb") as f:
-                data = f.read(EEPROM_SIZE)
-            if len(data) != EEPROM_SIZE:
-                raise ValueError("expected a 256-byte image")
-            parse_fru(data)  # validate before writing
+                data = f.read(limit)
+            if not data:
+                raise ValueError("empty image")
+            parse_fru(data, limit=limit)  # validate before writing
             if not messagebox.askyesno(APP_TITLE, "Write the whole 256-byte image to the FRU EEPROM?"):
                 return
             acc = self._access()
-            acc.write(0, data[:FRU_MAX_SIZE])
+            acc.write(0, image_for_eeprom(data[:limit], limit))
             raw = acc.dump()
-            self._fill(raw, parse_fru(raw))
+            self._fill(raw, parse_fru(raw, limit=limit))
             self.status.set("Image written")
             self.log("Wrote %d-byte image from %s" % (len(data), path))
         except Exception as e:
@@ -283,8 +310,11 @@ def main():
     ap.add_argument("--target", default="0x7e")
     ap.add_argument("--bus", default="7")
     ap.add_argument("--transit", default="0x82")
+    ap.add_argument("--eeprom-size", type=int, default=256, help="EEPROM size in bytes (default 256)")
+    ap.add_argument("--fru-limit", type=int, default=128, help="writable FRU bytes (default 128)")
     args = ap.parse_args()
-    app = FruEditor(args.mch, args.target, args.bus, args.transit)
+    app = FruEditor(args.mch, args.target, args.bus, args.transit,
+                    eeprom_size=args.eeprom_size, fru_limit=args.fru_limit)
     app.mainloop()
 
 

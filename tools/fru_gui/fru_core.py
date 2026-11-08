@@ -25,7 +25,8 @@ import sys
 # ---------------------------------------------------------------------------
 
 EEPROM_SIZE = 256
-FRU_MAX_SIZE = 128          # 24AA025E48: only the lower 128 bytes are writable
+FRU_MAX_SIZE = 128          # 24AA025E48 default: lower 128 bytes writable
+MAX_EEPROM_SIZE = 0x10000   # 16-bit address in the raw IPMI commands (64 KB)
 FRU_MAX_STRING = 62         # 6-bit field length, including the NUL
 
 # IPMI FRU board-area manufacturing time: minutes since 1996-01-01 00:00 UTC.
@@ -75,8 +76,9 @@ def ipmitool_cmd():
 
 
 class FruAccess:
-    def __init__(self, mch, target, transit, bus):
+    def __init__(self, mch, target, transit, bus, eeprom_size=EEPROM_SIZE):
         self.mch = mch
+        self.eeprom_size = eeprom_size
         self.bridge = ["-I", "lan", "-H", mch, "-A", "none",
                        "-T", transit, "-B", "0", "-t", target, "-b", bus]
 
@@ -109,7 +111,7 @@ class FruAccess:
             data = data[n:]
 
     def dump(self):
-        return self.read(0, EEPROM_SIZE)
+        return self.read(0, self.eeprom_size)
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +154,7 @@ def _parse_area(raw, area_off, names, is_board):
     return info
 
 
-def parse_fru(raw):
+def parse_fru(raw, limit=FRU_MAX_SIZE):
     """Return the FRU fields, the multirecord blob and the area layout."""
     if len(raw) < 8 or raw[0] != 0x01:
         raise ValueError("not a FRU image (bad format byte)")
@@ -160,9 +162,9 @@ def parse_fru(raw):
     product_off = raw[4] * 8
     multi_off = raw[5] * 8
 
-    # FRU image extent: last non-0xFF byte inside the writable half.
+    # FRU image extent: last non-0xFF byte inside the writable region.
     end = 0
-    for i in range(min(FRU_MAX_SIZE, len(raw))):
+    for i in range(min(limit, len(raw))):
         if raw[i] != 0xFF:
             end = i + 1
 
@@ -196,8 +198,8 @@ def _encode_area(area_type, lang, fields, prefix=b""):
     return bytes(body)
 
 
-def build_image(parsed, values):
-    """Rebuild the full FRU image from the edited fields (<= 128 bytes)."""
+def build_image(parsed, values, limit=FRU_MAX_SIZE):
+    """Rebuild the full FRU image from the edited fields (<= limit bytes)."""
     board_vals = values.get("board", {})
     product_vals = values.get("product", {})
 
@@ -243,14 +245,14 @@ def build_image(parsed, values):
     header[7] = _checksum(header)
 
     image = bytes(header) + board + product + multi
-    if len(image) > FRU_MAX_SIZE:
+    if len(image) > limit:
         raise ValueError("FRU image would be %d bytes; the writable area is %d bytes"
-                         % (len(image), FRU_MAX_SIZE))
+                         % (len(image), limit))
     return image
 
 
-def image_for_eeprom(image):
-    """Pad the image to the 128-byte writable area with 0xFF."""
-    if len(image) > FRU_MAX_SIZE:
+def image_for_eeprom(image, limit=FRU_MAX_SIZE):
+    """Pad the image to the writable area with 0xFF."""
+    if len(image) > limit:
         raise ValueError("image too large")
-    return image + b"\xFF" * (FRU_MAX_SIZE - len(image))
+    return image + b"\xFF" * (limit - len(image))
