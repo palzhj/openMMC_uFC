@@ -34,9 +34,9 @@ under `port/board/ufc-v2/`.
 | Region | Address | Size | Notes |
 |---|---|---|---|
 | newboot (first stage) | `0x08000000` | 8 KB | boots straight from the reset vector, applies staged updates, jumps to the app |
-| Application | `0x08002000` | 56 KB | openMMC |
-| Firmware staging | `0x08010000` | 56 KB | HPM.1 upload target |
-| Clock configuration | `0x0801E000` | 7 KB | reserved for clock profiles (Si5345 table + 8V54816A matrix) |
+| Application | `0x08002000` | 50 KB | openMMC |
+| Firmware staging | `0x0800E800` | 50 KB | HPM.1 upload target |
+| Clock configuration | `0x0801B000` | 19 KB | 1 KB pointer + 9 KB slot A + 9 KB slot B (FRU records) |
 | `fw_info` | `0x0801FC00` | 1 KB | pending‑update flag (`0xAA…`) used by newboot |
 
 OpenBLT has been dropped: the CPU starts **newboot** directly from `0x08000000`
