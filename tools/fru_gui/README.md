@@ -15,6 +15,9 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
 - Connection fields: MCH IP, target IPMB address, bus, transit address
 - Tabs: **Board info**, **Product info**, **Raw EEPROM**
 - Buttons: **Read FRU**, **Write FRU**, **Save image…**, **Load image to EEPROM**
+- **Manufacturing time is shown and edited as a UTC date** (`YYYY-MM-DD HH:MM`);
+  the app converts it to/from the FRU 24-bit value (minutes since 1996-01-01).
+  A **Now** button fills the current UTC time.
 - Board/product fields are fixed length (max shown next to each field);
   writing rebuilds only those two areas with fresh checksums and verifies the
   result by reading it back
