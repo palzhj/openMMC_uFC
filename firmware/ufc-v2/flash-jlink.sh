@@ -20,12 +20,12 @@ speed 1000
 VTREF 3300
 connect
 loadfile $BIN 0x08000000
-loadfile $APP 0x08001C00
+loadfile $APP 0x08002000
 r
 g
 q
 SCRIPT
 
-echo "flashing $DIR/newboot.bin (0x08000000) + $DIR/openMMC.bin (0x08001C00) via J-Link"
+echo "flashing $DIR/newboot.bin (0x08000000) + $DIR/openMMC.bin (0x08002000) via J-Link"
 JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript "$TMP"
 rm -f "$TMP"
