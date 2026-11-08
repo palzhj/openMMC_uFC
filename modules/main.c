@@ -34,6 +34,7 @@
 #include "payload.h"
 #endif
 #include "i2c.h"
+#include "i2c_mapping.h"
 #include "fru.h"
 #include "scansta1101.h"
 #include "fpga_spi.h"
@@ -47,6 +48,58 @@
 #endif
 
 /*-----------------------------------------------------------*/
+
+
+#ifdef UCD_PROBE
+/* Temporary diagnostic (not for production): read UCD90320 rail voltages and
+ * currents through the FRU/PMBus segment (TCA9548A channel 0, PMBus 0x11). */
+void ucd_probe( void )
+{
+    static const char *rail_names[19] = {
+        "3V3", "1V0", "VADJ0", "VADJ1", "5V0", "2V5", "1V0A", "1V2A",
+        "FMC0_12V0", "FMC1_12V0", "FMC0_3V3", "FMC1_3V3", "FMC0_VADJ",
+        "FMC1_VADJ", "DESKTOP_3V3", "DDR", "12V0", "CLK_3V3", "TEMP_S7"
+    };
+    uint8_t addr, iface, page, reg, buf[2];
+    int vexp = 0;
+
+    if ( !i2c_take_by_chipid( CHIP_ID_EEPROM, &addr, &iface, pdMS_TO_TICKS( 2000 ) ) )
+    {
+        printf( "[PMBUS] could not take channel 0\n" );
+        return;
+    }
+
+    reg = 0x20;
+    {
+        int rc = xI2CMasterWriteRead( iface, 0x11, &reg, 1, buf, 1 );
+        printf( "[PMBUS] VOUT_MODE rc=%d val=0x%02x\n", rc, buf[0] );
+        if ( rc == 1 )
+        {
+            vexp = ( buf[0] > 0x0F ) ? (int)( buf[0] - 0x20 ) : (int)buf[0];
+        }
+    }
+
+    for ( page = 0; page < 19; page++ )
+    {
+        uint8_t wbuf[2] = { 0x00, page };
+        int wrc, vrc, irc;
+        uint16_t vraw = 0xFFFF, iraw = 0xFFFF;
+
+        wrc = xI2CMasterWrite( iface, 0x11, wbuf, 2 );
+        reg = 0x8B;
+        vrc = xI2CMasterWriteRead( iface, 0x11, &reg, 1, buf, 2 );
+        if ( vrc == 2 ) vraw = (uint16_t)( buf[0] | ( buf[1] << 8 ) );
+        reg = 0x8C;
+        irc = xI2CMasterWriteRead( iface, 0x11, &reg, 1, buf, 2 );
+        if ( irc == 2 ) iraw = (uint16_t)( buf[0] | ( buf[1] << 8 ) );
+
+        printf( "[PMBUS] p%-2d %-12s wr=%d vr=%d v=0x%04x ir=%d i=0x%04x\n",
+                page, rail_names[page], wrc, vrc, vraw, irc, iraw );
+    }
+
+    i2c_give( iface );
+}
+#endif /* UCD_PROBE */
 
 int main( void )
 {
@@ -72,6 +125,7 @@ int main( void )
     LED_init();
 
     i2c_init();
+
 
     ipmb_addr = get_ipmb_addr( );
 

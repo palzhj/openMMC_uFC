@@ -21,8 +21,8 @@ under `port/board/ufc-v2/`.
    * [Installation](#installation)
    * [Compilation](#compilation)
    * [Programming](#programming)
-      + [Application / newboot over UART (OpenBLT XCP)](#application--newboot-over-uart-openblt-xcp)
-      + [Bootloader over SWD (J-Link)](#bootloader-over-swd-j-link)
+      + [Firmware update over IPMI (HPM.1 OTA)](#firmware-update-over-ipmi-hpm1-ota)
+      + [newboot / application over SWD (J-Link)](#newboot--application-over-swd-j-link)
    * [Debugging](#debugging)
    * [FRU information](#fru-information)
    * [IPMI custom commands](#ipmi-custom-commands)
@@ -33,11 +33,14 @@ under `port/board/ufc-v2/`.
 
 | Region | Address | Size | Notes |
 |---|---|---|---|
-| OpenBLT bootloader | `0x08000000` | 8 KB | **Never erase this region** |
-| newboot | `0x08002000` | 8 KB | OpenBLT application, vector checksum at `0x080021D0` |
+| newboot (first stage) | `0x08000000` | 8 KB | boots straight from the reset vector, applies staged updates, jumps to the app |
+| *(unused)* | `0x08002000` | 8 KB | free (previously newboot while OpenBLT was used) |
 | Application | `0x08004000` | 56 KB | openMMC |
 | Firmware staging | `0x08012000` | 56 KB | HPM.1 upload target |
 | `fw_info` | `0x0801FF00` | 256 B | pending‑update flag (`0xAA…`) used by newboot |
+
+OpenBLT has been dropped: the CPU starts **newboot** directly from `0x08000000`
+and no vector‑table checksum is involved.
 
 ## Installation
 
@@ -78,33 +81,30 @@ The image embeds the git tag and commit (`Version:` / `SHA1:` on the console).
 
 ## Programming
 
-### Application / newboot over UART (OpenBLT XCP)
+### Firmware update over IPMI (HPM.1 OTA)
 
-The board ships with OpenBLT, which accepts an XCP session on USART1.
-Build [BootCommander](https://github.com/feaser/openblt) and flash:
+Over IPMB through a NAT‑MCH (double‑bridged, see the NAT‑MCH manual Appendix B.3):
 
 ```sh
-# application (base address 0x08004000 is encoded in the file)
-BootCommander -s=xcp -t=xcp_rs232 -d=/dev/ttyUSB0 -b=115200 \
-              -t6=500 -t1=500 build-ufc/out/openMMC.srec
-
-# newboot goes to 0x08002000
-BootCommander -s=xcp -t=xcp_rs232 -d=/dev/ttyUSB0 -b=115200 \
-              -t6=500 -t1=500 build-ufc/out/newboot.srec
+ipmitool -I lan -H <mch-ip> -A none -T 0x82 -B 0 -t 0x7e -b 7 \
+         hpm upgrade openMMC.hpm
+ipmitool -I lan -H <mch-ip> -A none -T 0x82 -B 0 -t 0x7e -b 7 \
+         hpm activate
 ```
 
-If the backdoor entry times out, power‑cycle the board while BootCommander is
-connecting.
+The HPM image is built from the application binary with `bin2hpm`:
 
-> [!WARNING]
-> The application's first 1.5 KB are reserved for the OpenBLT vector table
-> checksum (word at `0x080021D0` must stay `0x55AA11EE`). Do not relocate the
-> newboot or erase its checksum slot.
+```sh
+bin2hpm -c 1 -n -m 0x315A -p 0x0 -d 0 out/openMMC.bin -o out/openMMC.hpm
+```
+
+`hpm upgrade` stages the image, `hpm activate` writes the `fw_info` record and
+resets the MMC; newboot then copies the staging area into the application and
+clears the flag. Both steps are fully automatic.
 
 ### newboot / application over SWD (J-Link)
 
-The repository ships a J-Link script that loads newboot and the application
-without touching the bootloader region:
+The repository ships a J-Link script that loads newboot and the application:
 
 ```sh
 cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
@@ -118,7 +118,7 @@ si SWD
 speed 1000
 VTREF 3300
 connect
-loadfile uart-debug/newboot.bin 0x08002000
+loadfile uart-debug/newboot.bin 0x08000000
 loadfile uart-debug/openMMC.bin 0x08004000
 r
 g
@@ -127,10 +127,6 @@ q
 
 `VTREF 3300` only takes effect after a J-Link power cycle (or with the J-Link
 VTref pin wired to the board's 3.3 V).
-
-> [!CAUTION]
-> Never erase or reprogram `0x08000000–0x08001FFF` during normal firmware
-> updates — it holds the OpenBLT bootloader.
 
 ## Debugging
 
@@ -214,5 +210,5 @@ modifications made in 2026 for scientific use. Modifications are tracked in the
 git history and noted where they are not obvious.
 
 Bundled third‑party components (FreeRTOS, STM32 StdPeriph, CMSIS) keep their own
-licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The OpenBLT
-bootloader is a separate program and is not included in this repository.
+licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). OpenBLT is no
+longer used: the first‑stage bootloader (newboot) is part of this repository.

@@ -55,7 +55,8 @@ i2c_chip_mapping_t i2c_chip_map[I2C_CHIP_CNT] = {
   [CHIP_ID_MUX_0]         = {I2C_BUS_MUX_ID,    0x70},
   [CHIP_ID_EEPROM]        = {I2C_BUS_FRU_ID,    0x50},
   [CHIP_ID_8V54816]       = {I2C_BUS_CLOCK_ID,  0x58},
-  [CHIP_ID_SI5345_0]      = {I2C_BUS_CLOCK_ID,  0x69}
+  [CHIP_ID_SI5345_0]      = {I2C_BUS_CLOCK_ID,  0x69},
+  [CHIP_ID_PMBUS_0]       = {I2C_BUS_FRU_ID,    0x11}
 };
 
 bool i2c_set_mux_bus(uint8_t bus_id, i2c_mux_state_t *i2c_mux, int8_t new_state)

@@ -6,8 +6,8 @@ It is written so that the same class of failures can be recognised quickly on
 other boards.
 
 * **Board:** uFC v2.0, STM32F100CBT6 (Cortex‑M3 value line, 128 KB flash, 8 KB SRAM)
-* **Boot chain:** OpenBLT `0x08000000` → newboot `0x08002000` → openMMC `0x08004000`
-* **Bench:** N6705C CH4 (12 V), USART1 115200, OpenBLT XCP over UART, Renode
+* **Boot chain (current):** newboot `0x08000000` → openMMC `0x08004000` (OpenBLT was dropped after bring-up; the notes below are historical)
+* **Bench:** N6705C CH4 (12 V), USART1 115200, IPMI HPM OTA, Renode
 * **Toolchain:** arm‑none‑eabi‑gcc 14.2.1, CMake 4.2.3
 
 ---

@@ -31,6 +31,9 @@
 /* Project Includes */
 #include "port.h"
 #include "payload.h"
+#ifdef UCD_PROBE
+void ucd_probe(void);
+#endif
 #include "ipmi.h"
 #include "task_priorities.h"
 #include "hotswap.h"
@@ -384,6 +387,9 @@ void payload_send_message(uint8_t fru_id, EventBits_t msg)
 
 TaskHandle_t vTaskPayload_Handle;
 
+/* CLK_3V3 rail telemetry (UCD90320 page 17) */
+extern void sdr_clk3v3_update(void);
+
 void payload_init(void)
 {
   /* Set standalone mode if the module is disconnected from a create*/
@@ -400,6 +406,12 @@ void payload_init(void)
 
 void vTaskPayload(void *pvParameters)
 {
+#ifdef UCD_PROBE
+  /* Diagnostic: let the FRU/mux settle, then dump the PMBus/I2C tree. */
+  vTaskDelay(pdMS_TO_TICKS(3000));
+  ucd_probe();
+#endif
+
 #ifdef MODULE_VIO_TPL0102
 
 #define WRITE_VADJ_VAL 		1.8
@@ -716,6 +728,10 @@ void vTaskPayload(void *pvParameters)
     }
 
     state = new_state;
+
+    /* Refresh the CLK +3.3V SDR sensor every loop (1 s). */
+    sdr_clk3v3_update();
+
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(PAYLOAD_BASE_DELAY));
   }
 }

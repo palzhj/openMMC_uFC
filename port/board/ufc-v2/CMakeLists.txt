@@ -66,6 +66,12 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_BOARD_CONFIG")
 endif()
 
+#Diagnostic PMBus probe for the UCD90320 (temporary, not for production)
+option(UCD_PROBE "Build the UCD90320 PMBus diagnostic probe" OFF)
+if (UCD_PROBE)
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DUCD_PROBE")
+endif()
+
 #Extra definitions
 set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_MAX_SIZE=128")   # 24AA025E48, writable half
 

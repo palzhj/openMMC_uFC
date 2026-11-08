@@ -1461,6 +1461,94 @@ const SDR_type_01h_t SDR_UCD_TEMP = {
 
 #endif
 
+
+/* CLK +3.3V (UCD90320 page 17) */
+#define SDR_CLK_3V3_ID "CLK +3.3V"
+
+const SDR_type_01h_t SDR_CLK_3V3 = {
+
+    .hdr.recID_LSB = 0x00,
+    .hdr.recID_MSB = 0x00,
+    .hdr.SDRversion = 0x51,
+    .hdr.rectype = TYPE_01,
+    .hdr.reclength = sizeof(SDR_type_01h_t) - sizeof(SDR_entry_hdr_t),
+
+    .ownerID = 0x00,
+    .ownerLUN = 0x00,
+    .sensornum = 0x00,
+
+    .entityID = 0xC1,                             /* entity id: AMC Module */
+    .entityinstance = 0x00,
+    .sensorinit = 0x7F,
+    .sensorcap = 0x56,
+    .sensortype = SENSOR_TYPE_VOLTAGE,
+    .event_reading_type = 0x01,
+    .assertion_event_mask = 0x7A95,
+    .deassertion_event_mask = 0x7A80,
+    .readable_threshold_mask = 0x3F,
+    .settable_threshold_mask = 0x00,
+    .sensor_units_1 = 0x00,
+    .sensor_units_2 = 0x04,
+    .sensor_units_3 = 0x00,
+    .linearization = 0x00,
+    .M = 16,                                      /* 16 mV/LSB with R = -3 */
+    .M_tol = 0x00,
+    .B = 0x00,
+    .B_accuracy = 0x00,
+    .acc_exp_sensor_dir = 0x00,
+    .Rexp_Bexp = 0xD0,                            /* R-Exp = -3, B-Exp = 0 */
+    .analog_flags = 0x03,
+    .nominal_reading = (3300 / 16),               /* 3.300 V */
+    .normal_max = (3500 / 16),
+    .normal_min = (3100 / 16),
+    .sensor_max_reading = 0xFF,
+    .sensor_min_reading = 0x00,
+    .upper_nonrecover_thr = (3795 / 16),          /* 3.795 V */
+    .upper_critical_thr = (3630 / 16),            /* 3.630 V */
+    .upper_noncritical_thr = (3465 / 16),         /* 3.465 V */
+    .lower_nonrecover_thr = (2805 / 16),          /* 2.805 V */
+    .lower_critical_thr = (2970 / 16),            /* 2.970 V */
+    .lower_noncritical_thr = (3135 / 16),         /* 3.135 V */
+    .pos_thr_hysteresis = 2,
+    .neg_thr_hysteresis = 2,
+    .reserved1 = 0x00,
+    .reserved2 = 0x00,
+    .OEM = 17,                                    /* UCD90320 page 17 */
+    .IDtypelen = 0xc0 | STR_SIZE(SDR_CLK_3V3_ID),
+    .IDstring = SDR_CLK_3V3_ID
+};
+
+sensor_t *sdr_clk3v3_sensor = NULL;
+
+void sdr_clk3v3_update(void)
+{
+    uint8_t addr, iface, reg, buf[2];
+    uint8_t wbuf[2] = { 0x00, 17 };               /* PAGE 17: CLK_3V3 */
+    uint16_t raw;
+
+    if ( sdr_clk3v3_sensor == NULL )
+    {
+        return;
+    }
+    if ( !i2c_take_by_chipid( CHIP_ID_PMBUS_0, &addr, &iface, pdMS_TO_TICKS( 100 ) ) )
+    {
+        return;
+    }
+    if ( xI2CMasterWrite( iface, addr, wbuf, 2 ) == 2 )
+    {
+        reg = 0x8B;                               /* READ_VOUT */
+        if ( xI2CMasterWriteRead( iface, addr, &reg, 1, buf, 2 ) == 2 )
+        {
+            raw = (uint16_t)( buf[0] | ( buf[1] << 8 ) );
+            /* VOUT_MODE = 0x14 -> linear, exponent -12: V = raw / 4096 */
+            sdr_clk3v3_sensor->readout_value = (uint16_t)( ( (uint32_t)raw * 1000U ) / ( 4096U * 16U ) );
+            /* Recompute the threshold state from the new reading. */
+            sensor_state_check( sdr_clk3v3_sensor );
+        }
+    }
+    i2c_give( iface );
+}
+
 void amc_sdr_init(void)
 {
   /* Hotswap Sensor */
@@ -1540,5 +1628,8 @@ void amc_sdr_init(void)
   sdr_add_settings(CHIP_ID_INA_2, (void *)&INA3221_SETTINGS);
 
 #endif
+
+  /* CLK +3.3V rail (UCD90320 page 17) */
+  sdr_clk3v3_sensor = sdr_insert_entry(TYPE_01, (void *)&SDR_CLK_3V3, NULL, 0, CHIP_ID_PMBUS_0);
 
 }

@@ -36,14 +36,6 @@ under their own licenses. Their license texts are kept next to the code.
   are preserved, grants no ARM trademark rights, and is subject to U.S. export
   control law.
 
-## OpenBLT (not vendored)
-
-The board boots through [OpenBLT](https://github.com/feaser/openblt), which is
-a separate program (GPL‑3.0+ with a commercial option) programmed at
-`0x08000000`. **No OpenBLT source code is included in this repository** — only
-the documented vector‑table checksum value (`0x55AA11EE`) that the bootloader
-expects at `0x080021D0`.
-
 ## Documents
 
 Vendor datasheets and PICMG/Intel specifications are **not** part of this
