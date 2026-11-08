@@ -513,36 +513,67 @@ class FruEditor(tk.Tk):
         self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
 
     def _clock_system_dot(self):
+        """System view with the 8V54816A port configuration embedded."""
         dest_block = {"CLK9": "SI", "CLK10": "SI", "CLK11": "SI",
                       "CLK12": "FMC0", "CLK13": "FMC0",
                       "CLK14": "FMC1", "CLK15": "FMC1"}
+        orig_block = {"CLK0": "AMC", "CLK1": "AMC", "CLK2": "AMC", "CLK3": "AMC",
+                      "CLK4": "AMC", "CLK5": "S7IN", "CLK6": "FPGAIN",
+                      "CLK7": "OSC", "CLK8": "SI"}
         lines = ["digraph clocking {", "  rankdir=LR;",
-                 '  graph [fontname="Helvetica", nodesep=0.35, ranksep=0.9];',
+                 '  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true];',
                  '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
                  '        color="#E4DED2", fontname="Helvetica", fontsize=9];',
-                 '  edge [color="#8A8A80", fontname="Helvetica", fontsize=8];',
-                 '  AMC [label="AMC\nTCLKA-D / FCLKA"];',
-                 '  OSC [label="156.25 MHz"];',
-                 '  MUX [label="8V54816A\n16-port mux"];',
-                 '  FMC0 [label="FMC0"];', '  FMC1 [label="FMC1"];',
-                 '  SI [label="Si5345\nPLL 4:10"];',
-                 '  S7 [label="Spartan 7"];', '  K7 [label="Kintex 7"];',
-                 '  WR [label="WR"];', '  VCXO [label="VCXO 20 MHz"];',
-                 '  OSC8 [label="8 MHz"];', '  MCU [label="MCU"];',
-                 '  OSC200 [label="200 MHz"];', '  LEMO [label="LEMO_CLK_IN"];']
-        for e in ('AMC -> MUX', 'OSC -> MUX', 'MUX -> FMC0 [label="GBTCLK0/M2C0"]',
-                  'MUX -> FMC1 [label="GBTCLK1/M2C1"]', 'MUX -> SI [label="PLL in"]',
-                  'SI -> MUX [label="FB / PLL_OUT"]',
-                  'SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"]',
-                  'WR -> S7 [label="125 MHz"]', 'WR -> K7 [label="125 MHz"]',
-                  'VCXO -> WR', 'OSC8 -> MCU', 'MCU -> S7', 'OSC200 -> K7', 'LEMO -> K7'):
-            lines.append("  " + e + ";")
+                 '  edge [color="#9A968C", fontname="Helvetica", fontsize=8];',
+                 '  subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";',
+                 '    AMC [label="AMC\nTCLKA-D / FCLKA"]; OSC [label="156.25 MHz"];',
+                 '    S7IN [label="S7_INOUT"]; FPGAIN [label="FPGA_INOUT"]; }',
+                 '  subgraph cluster_mux { label="8V54816A — port configuration";',
+                 '        fontsize=9; color="#FAF9F5";']
+        for i in range(16):
+            if i < 9:
+                port, name = self.CLOCK_INPUTS[i]
+            else:
+                port, name = self.CLOCK_OUTPUTS[i - 9]
+            cfg = self.clock_matrix[i]
+            if cfg & 0x80:
+                src = cfg & 0x0F
+                src_txt = ("CLK%d" % src) if src < 16 else "?"
+                bits = ["out", "src " + src_txt]
+                if cfg & 0x40:
+                    bits.append("term")
+                bits.append("non-inv" if (cfg & 0x20) else "inv")
+            else:
+                bits = ["in"]
+                if cfg & 0x40:
+                    bits.append("term")
+            lines.append('    n%d [label="%s %s\n%s  [0x%02x]"];'
+                         % (i, port, name, ", ".join(bits), cfg))
+        lines.append("  }")
+        lines.append('  subgraph cluster_dst { label="destinations"; fontsize=9; color="#FAF9F5";')
+        lines.append('    SI [label="Si5345\nPLL 4:10"]; FMC0 [label="FMC0"]; FMC1 [label="FMC1"];')
+        lines.append('    S7 [label="Spartan 7"]; K7 [label="Kintex 7"]; WR [label="WR"];')
+        lines.append('    VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];')
+        lines.append('    OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }')
+
+        # fixed topology
+        for i, blk in orig_block.items():
+            idx = [p for (p, _n) in self.CLOCK_INPUTS].index(i)
+            lines.append('  %s -> n%d [color="#C9CFC9"];' % (blk, idx))
+        for port, blk in dest_block.items():
+            idx = 9 + [p for (p, _n) in self.CLOCK_OUTPUTS].index(port)
+            lines.append('  n%d -> %s [color="#C9CFC9"];' % (idx, blk))
+        lines.append('  SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];')
+        lines.append('  WR -> S7 [label="125 MHz"]; WR -> K7 [label="125 MHz"];')
+        lines.append('  VCXO -> WR; OSC8 -> MCU; MCU -> S7; OSC200 -> K7; LEMO -> K7;')
+
+        # active routing through the switch
         for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
             cfg = self.clock_matrix[9 + j]
             if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
-                src = self.CLOCK_INPUTS[cfg & 0x0F][1]
-                lines.append('  MUX -> %s [label="%s → %s", color="#0E6B5E", penwidth=2];'
-                             % (dest_block[port], src, name))
+                src = cfg & 0x0F
+                lines.append('  n%d -> n%d [label="0x%02x", color="#0E6B5E", penwidth=2.2];'
+                             % (src, 9 + j, cfg))
         lines.append("}")
         return "\n".join(lines) + "\n"
 
