@@ -50,10 +50,9 @@ digraph clocking {
     subgraph "cluster_FMC0" { label="FMC0"; fontsize=9; color="#FAF9F5";
       "FMC0.GBTCLK0_M2C" [label="GBTCLK0_M2C out"];
       "FMC0.GBTCLK1_M2C" [label="GBTCLK1_M2C out"];
-      "FMC0.CLK0_M2C" [label="CLK0_M2C out"];
-      "FMC0.CLK1_M2C" [label="CLK1_M2C out"];
-      "FMC0.CLK2_BIDIR" [label="CLK2_BIDIR in"];
-      "FMC0.CLK3_BIDIR" [label="CLK3_BIDIR in"];
+      "FMC0.CLK1_M2C" [label="CLK1_M2C in"];
+      "FMC0.CLK2_BIDIR" [label="CLK2_BIDIR inout"];
+      "FMC0.CLK3_BIDIR" [label="CLK3_BIDIR inout"];
     }
     subgraph "cluster_mcu" { label="MCU"; fontsize=9; color="#FAF9F5";
       "mcu.CLK" [label="CLK in"];
@@ -61,10 +60,9 @@ digraph clocking {
     subgraph "cluster_FMC1" { label="FMC1"; fontsize=9; color="#FAF9F5";
       "FMC1.GBTCLK0_M2C" [label="GBTCLK0_M2C out"];
       "FMC1.GBTCLK1_M2C" [label="GBTCLK1_M2C out"];
-      "FMC1.CLK0_M2C" [label="CLK0_M2C out"];
-      "FMC1.CLK1_M2C" [label="CLK1_M2C out"];
-      "FMC1.CLK2_BIDIR" [label="CLK2_BIDIR in"];
-      "FMC1.CLK3_BIDIR" [label="CLK3_BIDIR in"];
+      "FMC1.CLK1_M2C" [label="CLK1_M2C in"];
+      "FMC1.CLK2_BIDIR" [label="CLK2_BIDIR inout"];
+      "FMC1.CLK3_BIDIR" [label="CLK3_BIDIR inout"];
     }
     subgraph "cluster_osc156" { label="156.25 MHz"; fontsize=9; color="#FAF9F5";
       "osc156.OUT" [label="OUT out"];
@@ -134,13 +132,13 @@ digraph clocking {
   "MUX.CLK10" -> "PLL.IN1" [color="#8A8A80"];
   "MUX.CLK11" -> "PLL.IN0" [color="#8A8A80"];
   "FMC0.GBTCLK0_M2C" -> "MUX.CLK12" [color="#8A8A80"];
-  "FMC0.CLK0_M2C" -> "MUX.CLK13" [color="#8A8A80"];
-  "FMC1.CLK0_M2C" -> "MUX.CLK14" [color="#8A8A80"];
+  "MUX.CLK13" -> "FMC0.CLK1_M2C" [color="#8A8A80", arrowhead=none];
+  "MUX.CLK14" -> "FMC1.CLK1_M2C" [color="#8A8A80", arrowhead=none];
   "FMC1.GBTCLK0_M2C" -> "MUX.CLK15" [color="#8A8A80"];
   "FMC0.GBTCLK0_M2C" -> "S7.FMC0_GTXCLK1_M2C" [color="#8A8A80"];
-  "FMC0.CLK0_M2C" -> "S7.FMC0_CLK2_BIDIR" [color="#8A8A80"];
+  "FMC0.CLK1_M2C" -> "S7.FMC0_CLK2_BIDIR" [color="#8A8A80", arrowhead=none];
   "FMC1.GBTCLK0_M2C" -> "S7.FMC1_GTXCLK1_M2C" [color="#8A8A80"];
-  "FMC1.CLK0_M2C" -> "S7.FMC1_CLK2_BIDIR" [color="#8A8A80"];
+  "FMC1.CLK1_M2C" -> "S7.FMC1_CLK2_BIDIR" [color="#8A8A80", arrowhead=none];
   "PLL.OUT0" -> "K7.MGTCLK116_0" [color="#8A8A80", style=dashed];
   "PLL.OUT1" -> "K7.MGTCLK116_1" [color="#8A8A80", style=dashed];
   "PLL.OUT2" -> "K7.MGTCLK117_0" [color="#8A8A80", style=dashed];

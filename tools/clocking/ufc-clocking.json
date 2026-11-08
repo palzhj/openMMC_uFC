@@ -11,7 +11,8 @@
     ],
     "notes": [
       "links with \"verified\": false need a schematic check",
-      "pin numbers are package pins; for the 8V54816A they are the connector/differential pair pins"
+      "pin numbers are package pins; for the 8V54816A they are the connector/differential pair pins",
+      "schematic labels corrected per the latest FMC spec: CLK0_C2M -> CLK1_M2C, CLK1_C2M -> CLK3_BIDIR, CLK1_M2C -> CLK2_BIDIR"
     ]
   },
   "devices": {
@@ -703,29 +704,16 @@
       }
     },
     {
-      "id": "FMC0.CLK0_M2C",
-      "parent": "FMC0",
-      "device": "FMC0",
-      "name": "CLK0_M2C",
-      "dir": "out",
-      "capability": {
-        "in": true,
-        "out": true,
-        "tristate": true,
-        "default": "out"
-      }
-    },
-    {
       "id": "FMC0.CLK1_M2C",
       "parent": "FMC0",
       "device": "FMC0",
       "name": "CLK1_M2C",
-      "dir": "out",
+      "dir": "in",
       "capability": {
         "in": true,
-        "out": true,
-        "tristate": true,
-        "default": "out"
+        "out": false,
+        "tristate": false,
+        "default": "in"
       }
     },
     {
@@ -733,11 +721,11 @@
       "parent": "FMC0",
       "device": "FMC0",
       "name": "CLK2_BIDIR",
-      "dir": "in",
+      "dir": "inout",
       "capability": {
         "in": true,
         "out": true,
-        "tristate": false,
+        "tristate": true,
         "default": "in"
       }
     },
@@ -746,11 +734,11 @@
       "parent": "FMC0",
       "device": "FMC0",
       "name": "CLK3_BIDIR",
-      "dir": "in",
+      "dir": "inout",
       "capability": {
         "in": true,
         "out": true,
-        "tristate": false,
+        "tristate": true,
         "default": "in"
       }
     },
@@ -781,29 +769,16 @@
       }
     },
     {
-      "id": "FMC1.CLK0_M2C",
-      "parent": "FMC1",
-      "device": "FMC1",
-      "name": "CLK0_M2C",
-      "dir": "out",
-      "capability": {
-        "in": true,
-        "out": true,
-        "tristate": true,
-        "default": "out"
-      }
-    },
-    {
       "id": "FMC1.CLK1_M2C",
       "parent": "FMC1",
       "device": "FMC1",
       "name": "CLK1_M2C",
-      "dir": "out",
+      "dir": "in",
       "capability": {
         "in": true,
-        "out": true,
-        "tristate": true,
-        "default": "out"
+        "out": false,
+        "tristate": false,
+        "default": "in"
       }
     },
     {
@@ -811,11 +786,11 @@
       "parent": "FMC1",
       "device": "FMC1",
       "name": "CLK2_BIDIR",
-      "dir": "in",
+      "dir": "inout",
       "capability": {
         "in": true,
         "out": true,
-        "tristate": false,
+        "tristate": true,
         "default": "in"
       }
     },
@@ -824,11 +799,11 @@
       "parent": "FMC1",
       "device": "FMC1",
       "name": "CLK3_BIDIR",
-      "dir": "in",
+      "dir": "inout",
       "capability": {
         "in": true,
         "out": true,
-        "tristate": false,
+        "tristate": true,
         "default": "in"
       }
     },
@@ -1469,11 +1444,11 @@
     },
     {
       "a": "MUX.CLK13",
-      "b": "FMC0.CLK0_M2C"
+      "b": "FMC0.CLK1_M2C"
     },
     {
       "a": "MUX.CLK14",
-      "b": "FMC1.CLK0_M2C"
+      "b": "FMC1.CLK1_M2C"
     },
     {
       "a": "MUX.CLK15",
@@ -1484,7 +1459,7 @@
       "b": "S7.FMC0_GTXCLK1_M2C"
     },
     {
-      "a": "FMC0.CLK0_M2C",
+      "a": "FMC0.CLK1_M2C",
       "b": "S7.FMC0_CLK2_BIDIR"
     },
     {
@@ -1492,7 +1467,7 @@
       "b": "S7.FMC1_GTXCLK1_M2C"
     },
     {
-      "a": "FMC1.CLK0_M2C",
+      "a": "FMC1.CLK1_M2C",
       "b": "S7.FMC1_CLK2_BIDIR"
     },
     {

@@ -66,10 +66,12 @@ def validate(doc):
                 errors.append("link endpoint %r does not exist" % (pid,))
         if a in points and b in points:
             da, db = points[a]["dir"], points[b]["dir"]
+            ext = {pid for pid, p in points.items()
+                   if devices.get(p.get("parent"), {}).get("class") == "connector"}
             if da == db:
                 if da == "out":
                     warnings.append("link %s-%s: both ends are outputs" % (a, b))
-                elif da == "in":
+                elif da == "in" and a not in ext and b not in ext:
                     warnings.append("link %s-%s: no driver (both inputs)" % (a, b))
         if link.get("verified") is False:
             warnings.append("unverified link %s-%s" % (a, b))
