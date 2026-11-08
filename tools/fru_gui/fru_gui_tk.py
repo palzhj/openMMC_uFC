@@ -79,15 +79,18 @@ class FruEditor(tk.Tk):
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True, padx=8, pady=4)
 
-        self.board_tab = ttk.Frame(self.nb, padding=8)
-        self.product_tab = ttk.Frame(self.nb, padding=8)
+        self.fields_tab = ttk.Frame(self.nb, padding=8)
         self.raw_tab = ttk.Frame(self.nb, padding=8)
-        self.nb.add(self.board_tab, text="Board info")
-        self.nb.add(self.product_tab, text="Product info")
+        self.nb.add(self.fields_tab, text="FRU fields")
         self.nb.add(self.raw_tab, text="Raw EEPROM")
 
-        self._build_area(self.board_tab, "board", with_time=True)
-        self._build_area(self.product_tab, "product", with_time=False)
+        board_frame = ttk.LabelFrame(self.fields_tab, text="Board info area", padding=6)
+        board_frame.pack(fill="x", pady=(0, 8))
+        self._build_area(board_frame, "board", with_time=True)
+
+        product_frame = ttk.LabelFrame(self.fields_tab, text="Product info area", padding=6)
+        product_frame.pack(fill="x")
+        self._build_area(product_frame, "product", with_time=False)
 
         self.hex_text = tk.Text(self.raw_tab, font=("Courier", 10), state="disabled",
                                 height=18, width=64)
