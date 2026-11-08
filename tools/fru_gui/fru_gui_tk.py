@@ -82,8 +82,8 @@ class FruEditor(tk.Tk):
     def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("1020x930")
-        self.minsize(940, 700)
+        self.geometry("1040x980")
+        self.minsize(940, 740)
         self.configure(bg=BG)
 
         self.raw = None
@@ -161,13 +161,6 @@ class FruEditor(tk.Tk):
         ttk.Label(title, text="FRU  ·  I\u00b2C  ·  PMBus  over IPMI",
                   style="Sub.TLabel").pack(anchor="w")
 
-        actions = ttk.Frame(header)
-        actions.pack(side="right")
-        ttk.Button(actions, text="Write FRU", style="TButton",
-                   command=self.write_fru).pack(side="right", padx=(8, 0))
-        ttk.Button(actions, text="Read FRU", style="Primary.TButton",
-                   command=self.read_fru).pack(side="right")
-
         ttk.Separator(self).pack(fill="x", padx=16)
 
         # connection / size strip
@@ -236,6 +229,17 @@ class FruEditor(tk.Tk):
         self.fields_tab = ttk.Frame(self.nb)
         self.raw_tab = ttk.Frame(self.nb, padding=12)
         self.nb.add(self.fields_tab, text="FRU fields")
+
+        toolbar = ttk.Frame(self.fields_tab, padding=(12, 8, 12, 0))
+        toolbar.pack(fill="x")
+        ttk.Button(toolbar, text="Read FRU", style="Primary.TButton",
+                   command=self.read_fru).pack(side="left")
+        ttk.Button(toolbar, text="Write FRU",
+                   command=self.write_fru).pack(side="left", padx=(8, 0))
+        ttk.Button(toolbar, text="Save image…",
+                   command=self.save_image).pack(side="left", padx=(16, 0))
+        ttk.Button(toolbar, text="Load image to EEPROM",
+                   command=self.load_image).pack(side="left", padx=(8, 0))
         self.nb.add(self.raw_tab, text="Raw EEPROM")
 
         canvas = tk.Canvas(self.fields_tab, bg=BG, highlightthickness=0)
@@ -299,9 +303,6 @@ class FruEditor(tk.Tk):
 
         bottom = ttk.Frame(self, padding=(16, 6))
         bottom.pack(fill="x")
-        ttk.Button(bottom, text="Save image…", command=self.save_image).pack(side="left")
-        ttk.Button(bottom, text="Load image to EEPROM",
-                   command=self.load_image).pack(side="left", padx=(8, 0))
         ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
 
     def _build_ota_tab(self, parent):
