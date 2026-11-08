@@ -44,13 +44,13 @@ Reset default is `0x00` for every port (all inputs, termination off).
 
 | Port | Pins | Signal | Direction |
 |---|---|---|---|
-| CLK0 | 6/7 | `AMC_TCLKD_P/N` | input (from the backplane) |
-| CLK1 | 10/11 | `AMC_TCLKC_P/N` | input |
-| CLK2 | 15/16 | `AMC_TCLKA_P/N` | input |
-| CLK3 | 19/20 | `AMC_TCLKB_P/N` | input |
-| CLK4 | 31/32 | `AMC_FCLKA_P/N` | input |
-| CLK5 | 35/36 | `S7_CLK_INOUT_P/N` | input |
-| CLK6 | 40/41 | `FPGA_CLK_INOUT_P/N` | input |
+| CLK0 | 6/7 | `AMC_TCLKD_P/N` | **bidirectional** (TCLKD can be received or driven) |
+| CLK1 | 10/11 | `AMC_TCLKC_P/N` | **bidirectional** |
+| CLK2 | 15/16 | `AMC_TCLKA_P/N` | **bidirectional** |
+| CLK3 | 19/20 | `AMC_TCLKB_P/N` | **bidirectional** |
+| CLK4 | 31/32 | `AMC_FCLKA_P/N` | **bidirectional** (FCLKA can be received or driven) |
+| CLK5 | 35/36 | `S7_CLK_INOUT_P/N` | **bidirectional** |
+| CLK6 | 40/41 | `FPGA_CLK_INOUT_P/N` | **bidirectional** |
 | CLK7 | 44/45 | `156M_P/N` (570BAB000544DG) | input |
 | CLK8 | 56/57 | `PLL_OUT_P/N` (Si5345 output) | input |
 | CLK9 | 60/61 | `PLL_IN_P2` (to Si5345 IN2) | **output** |
