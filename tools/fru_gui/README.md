@@ -1,7 +1,7 @@
 # uFC FRU editor
 
-Tools to read and update the uFC **FRU EEPROM** through the MMC, using the
-firmware's raw EEPROM commands (custom NetFn `0x32`):
+Desktop application to read and update the uFC **FRU EEPROM** through the MMC,
+using the firmware's raw EEPROM commands (custom NetFn `0x32`):
 
 | Cmd | Meaning |
 |---|---|
@@ -10,21 +10,17 @@ firmware's raw EEPROM commands (custom NetFn `0x32`):
 
 The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
 
-Two front-ends share the same backend (`fru_gui.py`): a **desktop application**
-(MicroBoot-style, recommended) and a small **web page**.
-
----
-
-## Desktop app (`fru_gui_tk.py`)
+## Features
 
 - Connection fields: MCH IP, target IPMB address, bus, transit address
 - Tabs: **Board info**, **Product info**, **Raw EEPROM**
 - Buttons: **Read FRU**, **Write FRU**, **Save image…**, **Load image to EEPROM**
 - Board/product fields are fixed length (max shown next to each field);
-  writing rebuilds only those two areas with fresh checksums and verifies
-  the result by reading it back.
+  writing rebuilds only those two areas with fresh checksums and verifies the
+  result by reading it back
+- Status line and log pane
 
-### Run from source
+## Run from source
 
 ```sh
 # Linux: Tkinter is a separate package on most distributions
@@ -36,7 +32,7 @@ python3 tools/fru_gui/fru_gui_tk.py --mch 192.168.1.41 --target 0x7e --bus 7
 Windows: install Python from python.org (Tkinter is included) and put
 `ipmitool.exe` in `PATH` or next to the executable.
 
-### Build a standalone binary
+## Build a standalone binary
 
 The app is plain Python + Tkinter; [PyInstaller](https://pyinstaller.org/)
 produces a single-file executable.
@@ -55,20 +51,15 @@ tools\fru_gui\build-windows.bat     # → tools\fru_gui\dist\ufc-fru-editor.exe
 `ipmitool` / `ipmitool.exe` next to the built executable — the app prefers the
 local copy when present.
 
----
+## Files
 
-## Web GUI (`fru_gui.py`)
+| File | Purpose |
+|---|---|
+| `fru_gui_tk.py` | Tkinter application |
+| `fru_core.py` | FRU parsing/building + IPMI raw-transport backend |
+| `build-linux.sh`, `build-windows.bat` | PyInstaller builds |
 
-```sh
-python3 tools/fru_gui/fru_gui.py --mch 192.168.1.41 --target 0x7e --bus 7 --port 8099
-```
-
-Open <http://127.0.0.1:8099>. Same features as the desktop app, plus a
-downloadable backup.
-
----
-
-## Options (both front-ends)
+## Options
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -76,13 +67,12 @@ downloadable backup.
 | `--target` | `0x7e` | MMC IPMB-L address (AMC7) |
 | `--bus` | `7` | IPMB-L bus (`-b`) |
 | `--transit` | `0x82` | carrier transit address (`-T`) |
-| `--port` | `8099` | web GUI HTTP port (web only) |
 
 ## Notes
 
 - Writing changes the **live** FRU — save a backup image first.
 - The MCH caches the FRU it read at discovery, so `show_fruinfo` may show old
   values until the module is re-discovered (`shutdown <fru>` + `fru_start <fru>`).
-  Both front-ends read the EEPROM directly and always show the current data.
+  The editor reads the EEPROM directly and always shows the current data.
 - Field lengths are fixed by the existing FRU layout; values that do not fit
   are rejected with the maximum length shown.
