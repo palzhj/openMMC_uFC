@@ -84,9 +84,10 @@ class FruAccess:
     """
 
     def __init__(self, mch, target=None, transit=None, bus=None, eeprom_size=EEPROM_SIZE,
-                 transit_ch=0, bridge="double"):
+                 transit_ch=0, bridge="double", i2c_addr=0x50):
         self.mch = mch
         self.eeprom_size = eeprom_size
+        self.i2c_addr = i2c_addr
         self.bridge = ["-I", "lan", "-H", mch, "-A", "none"]
         if bridge == "double":
             if not (transit and target and bus is not None):
@@ -106,12 +107,19 @@ class FruAccess:
             raise RuntimeError((out.stderr or out.stdout).strip() or "ipmitool failed")
         return bytes(int(x, 16) for x in out.stdout.split())
 
+    def _addr_cmd(self):
+        return ("0x12", "0x13") if self.i2c_addr == 0x50 else ("0x14", "0x15")
+
     def read(self, offset, length):
+        _wr, rd_cmd = self._addr_cmd()
         data = bytearray()
         while length:
-            n = min(31, length)  # 0x13 payload: completion code + data <= 32
-            data += self._ipmi("0x32", "0x13", str(offset & 0xFF),
-                               str((offset >> 8) & 0xFF), str(n))
+            n = min(31, length)  # response: completion code + data <= 32
+            args = ["0x32", rd_cmd]
+            if rd_cmd == "0x15":
+                args.append("0x%02x" % self.i2c_addr)
+            args += [str(offset & 0xFF), str((offset >> 8) & 0xFF), str(n)]
+            data += self._ipmi(*args)
             offset += n
             length -= n
         return bytes(data)
@@ -122,8 +130,13 @@ class FruAccess:
             # request carries at most 25 data bytes: 2 address bytes + 23 payload.
             n = min(23, len(data))
             chunk = data[:n]
-            self._ipmi("0x32", "0x12", str(offset & 0xFF), str((offset >> 8) & 0xFF),
-                       *["0x%02x" % b for b in chunk])
+            wr_cmd = self._addr_cmd()[0]
+            args = ["0x32", wr_cmd]
+            if wr_cmd == "0x14":
+                args.append("0x%02x" % self.i2c_addr)
+            args += [str(offset & 0xFF), str((offset >> 8) & 0xFF),
+                     *["0x%02x" % b for b in chunk]]
+            self._ipmi(*args)
             offset += n
             data = data[n:]
 

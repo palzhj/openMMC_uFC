@@ -58,6 +58,7 @@ size_t eeprom_24xx02_read( uint8_t id, uint16_t address, uint8_t *rx_data, size_
             if ( rx_len == buf_len ) {
                 break;
             }
+            vI2CBusRecover( i2c_interface );
         }
         for ( volatile uint32_t d = 0; d < 20000; d++ ) { }
     }
@@ -112,6 +113,97 @@ size_t eeprom_24xx02_write( uint8_t id, uint16_t address, uint8_t *tx_data, size
             /* 24AA025E48 internal write cycle is 5 ms. Do NOT use vTaskDelay():
              * fru_init() may run before the scheduler is started. */
             for (volatile uint32_t d = 0; d < 60000; d++) { }
+        }
+    }
+
+    if ( tx_len != buf_len ) {
+        /* release the bus after a NACK-ing / absent device */
+        uint8_t i2c_addr;
+        uint8_t i2c_interface;
+        if ( i2c_take_by_chipid( id, &i2c_addr, &i2c_interface, timeout ) ) {
+            vI2CBusRecover( i2c_interface );
+            i2c_give( i2c_interface );
+        }
+    }
+
+    return tx_len;
+}
+
+size_t eeprom_24xx02_read_at( uint8_t id, uint8_t i2c_addr_override, uint16_t address,
+                              uint8_t *rx_data, size_t buf_len, TickType_t timeout )
+{
+    uint8_t i2c_addr;
+    uint8_t i2c_interface;
+    uint8_t rx_len = 0;
+
+    if ( rx_data == NULL ) {
+        return 0;
+    }
+
+    for ( uint8_t attempt = 0; attempt < 10; attempt++ ) {
+        if ( i2c_take_by_chipid( id, &i2c_addr, &i2c_interface, timeout ) ) {
+            rx_len = xI2CMasterWriteRead( i2c_interface, i2c_addr_override,
+                                          (uint8_t *)&address, 1, rx_data, buf_len );
+            i2c_give( i2c_interface );
+            if ( rx_len == buf_len ) {
+                break;
+            }
+            vI2CBusRecover( i2c_interface );
+        }
+        for ( volatile uint32_t d = 0; d < 20000; d++ ) { }
+    }
+
+    return rx_len;
+}
+
+size_t eeprom_24xx02_write_at( uint8_t id, uint8_t i2c_addr_override, uint16_t address,
+                               uint8_t *tx_data, size_t buf_len, TickType_t timeout )
+{
+    uint8_t i2c_addr;
+    uint8_t i2c_interface;
+    uint8_t bytes_to_write;
+    uint8_t i2c_written = 0;
+    uint8_t page_buf[9];
+    uint16_t curr_addr;
+
+    size_t tx_len = 0;
+    uint32_t retries = 0;
+
+    if ( tx_data != NULL ) {
+        curr_addr = address;
+
+        while ( tx_len < buf_len ) {
+            bytes_to_write = 8 - ( curr_addr % 8 );
+            if ( bytes_to_write > ( buf_len - tx_len ) ) {
+                bytes_to_write = ( buf_len - tx_len );
+            }
+            page_buf[0] = ( curr_addr ) & 0xFF;
+            memcpy( &page_buf[1], tx_data + tx_len, bytes_to_write );
+
+            if ( i2c_take_by_chipid( id, &i2c_addr, &i2c_interface, timeout ) ) {
+                i2c_written = xI2CMasterWrite( i2c_interface, i2c_addr_override,
+                                               &page_buf[0], bytes_to_write + 1 );
+                if ( i2c_written ) {
+                    tx_len += i2c_written - 1;
+                    curr_addr += i2c_written - 1;
+                    retries = 0;
+                } else if ( ++retries > 200 ) {
+                    i2c_give( i2c_interface );
+                    break;
+                }
+                i2c_give( i2c_interface );
+            }
+            for ( volatile uint32_t d = 0; d < 60000; d++ ) { }
+        }
+    }
+
+    if ( tx_len != buf_len ) {
+        /* release the bus after a NACK-ing / absent device */
+        uint8_t i2c_addr;
+        uint8_t i2c_interface;
+        if ( i2c_take_by_chipid( id, &i2c_addr, &i2c_interface, timeout ) ) {
+            vI2CBusRecover( i2c_interface );
+            i2c_give( i2c_interface );
         }
     }
 

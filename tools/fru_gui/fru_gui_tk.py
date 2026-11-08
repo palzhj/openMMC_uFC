@@ -94,6 +94,7 @@ class FruEditor(tk.Tk):
         self._update_address()
         self._on_bridge_change()
         self.size_var.trace_add("write", lambda *_: self._update_address())
+        self.i2c_var.trace_add("write", lambda *_: self._update_address())
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
 
     # ---------------------------------------------------------------- style
@@ -199,6 +200,11 @@ class FruEditor(tk.Tk):
         self.bus_var, self.bus_w = self._labeled(
             strip, "Bus", str(bus), 4,
             tip="IPMB channel that reaches the target\n(per-slot on a MicroTCA crate).")
+        self.i2c_var, self.i2c_w = self._labeled(
+            strip, "EEPROM I\u00b2C", "0x50", 6,
+            tip="7-bit I2C address of the EEPROM on the FRU bus.\n"
+                "0x50 is the board FRU part; other addresses use the\n"
+                "address-parameterised firmware commands (0x14/0x15).")
         self.size_var, self.size_w = self._labeled(
             strip, "EEPROM size (B)", str(eeprom_size), 7,
             tip="Bytes read from the EEPROM. The device sits at I2C 0x50 on\nthe FRU bus (fixed in firmware); the tool addresses it by\nbyte offset (16-bit, so 65536 bytes is the maximum).")
@@ -334,14 +340,28 @@ class FruEditor(tk.Tk):
         update()
 
     # ------------------------------------------------------------- helpers
+    def _i2c_addr(self):
+        text = self.i2c_var.get().strip().lower()
+        try:
+            addr = int(text, 16) if text.startswith("0x") else int(text, 0)
+        except ValueError:
+            raise ValueError("EEPROM I2C address must be 0x08..0x77")
+        if not 0x08 <= addr <= 0x77:
+            raise ValueError("EEPROM I2C address must be 0x08..0x77")
+        return addr
+
     def _update_address(self):
         try:
             size = int(self.size_var.get().strip())
         except ValueError:
             size = 0
+        try:
+            addr = self.i2c_var.get().strip()
+        except Exception:
+            addr = "0x50"
         self.addr_var.set(
-            "EEPROM byte offsets 0x0000–0x%04X  ·  the device address is fixed in the target's firmware"
-            % (max(0, size - 1)))
+            "EEPROM at I2C %s  ·  byte offsets 0x0000–0x%04X"
+            % (addr, max(0, size - 1)))
 
     def _bridge_mode(self):
         return {"Double bridge": "double", "Single bridge": "single",
@@ -418,7 +438,7 @@ class FruEditor(tk.Tk):
         return FruAccess(self.mch_var.get().strip(), self.target_var.get().strip(),
                          self.transit_var.get().strip(), self.bus_var.get().strip(),
                          eeprom_size=size, transit_ch=int(self.tch_var.get().strip() or 0),
-                         bridge=self._bridge_mode())
+                         bridge=self._bridge_mode(), i2c_addr=self._i2c_addr())
 
     def _fill(self, raw, parsed):
         self.raw = raw

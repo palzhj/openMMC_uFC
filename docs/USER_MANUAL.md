@@ -273,8 +273,17 @@ All LEDs are **active low**; the LED task is enabled in this build.
 |---|---|---|---|
 | Get free heap | `0x32` | `0x01` | u32 free bytes, little‑endian |
 | Get commit hash | `0x32` | `0x02` | 20‑byte git SHA‑1 |
-| EEPROM raw write (opt‑in) | `0x32` | `0x12` | `[addr_lo addr_hi data…]`, max 30 data bytes |
-| EEPROM raw read (opt‑in) | `0x32` | `0x13` | `[addr_lo addr_hi len]` → `len` data bytes (1…32) |
+| EEPROM raw write (opt‑in) | `0x32` | `0x12` | `[addr_lo addr_hi data…]`, max 30 data bytes (FRU EEPROM) |
+| EEPROM raw read (opt‑in) | `0x32` | `0x13` | `[addr_lo addr_hi len]` → `len` data bytes (1…32) (FRU EEPROM) |
+| EEPROM raw write at I²C addr | `0x32` | `0x14` | `[i2c_addr addr_lo addr_hi data…]` (0x08…0x77) |
+| EEPROM raw read at I²C addr | `0x32` | `0x15` | `[i2c_addr addr_lo addr_hi len]` → data |
+
+`0x12`/`0x13` use the board FRU EEPROM (24AA025E48 at 0x50). `0x14`/`0x15`
+take an explicit 7-bit I²C address for other EEPROMs on the same bus; they
+probe the device first, and an absent address fails with an error instead of
+blocking the bus. A failed transaction triggers an I²C bus recovery (SCL is
+clocked nine times and the peripheral re-initialised), so a NACK-ing device
+cannot wedge the FRU bus.
 
 ```sh
 # double‑bridged through a NAT‑MCH (AMC7 example)
@@ -283,6 +292,8 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x7e -b 7 raw 0x32 0x02
 # raw EEPROM access (build with -DEEPROM_ACCESS=ON)
 ipmitool ... raw 0x32 0x13 0x00 0x00 0x08     # read 8 bytes at offset 0
 ipmitool ... raw 0x32 0x12 0x70 0x00 0x5A 0xA5  # write 2 bytes at 0x70
+ipmitool ... raw 0x32 0x15 0x50 0x00 0x00 0x08  # same read, explicit I2C addr
+ipmitool ... raw 0x32 0x14 0x50 0x70 0x00 0x5A 0xA5
 ```
 
 ---
