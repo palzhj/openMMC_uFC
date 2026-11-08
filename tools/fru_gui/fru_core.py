@@ -143,6 +143,10 @@ class FruAccess:
     def dump(self):
         return self.read(0, self.eeprom_size)
 
+    def hpm_command(self, args):
+        """ipmitool 'hpm ...' command line using the configured bridge."""
+        return [ipmitool_cmd()] + self.bridge + ["hpm"] + list(args)
+
     def xfer(self, bus, muxes, dev, wdata=b"", rlen=0):
         """Generic I2C transfer (custom command 0x20).
 

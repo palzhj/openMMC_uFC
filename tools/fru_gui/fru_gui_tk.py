@@ -9,7 +9,12 @@ Reads/writes the FRU EEPROM through a NAT-MCH (IPMI raw commands 0x32/0x12,
 import argparse
 import datetime
 import os
+import queue
+import re
+import subprocess
 import sys
+import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -263,6 +268,10 @@ class FruEditor(tk.Tk):
         self.nb.add(self.i2c_tab, text="I²C transfer")
         self._build_i2c_tab(self.i2c_tab)
 
+        self.ota_tab = ttk.Frame(self.nb, padding=12)
+        self.nb.add(self.ota_tab, text="OTA update")
+        self._build_ota_tab(self.ota_tab)
+
         self.hex_text = tk.Text(self.raw_tab, font=(MONO_FONT, 10), state="disabled",
                                 height=18, width=64, bg=PANEL, fg=INK,
                                 relief="flat", highlightthickness=1,
@@ -294,6 +303,175 @@ class FruEditor(tk.Tk):
         ttk.Button(bottom, text="Load image to EEPROM",
                    command=self.load_image).pack(side="left", padx=(8, 0))
         ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
+
+    def _build_ota_tab(self, parent):
+        self.ota_proc = None
+        self.ota_queue = queue.Queue()
+        self.ota_progress_re = re.compile(r"(\d{1,3})%")
+
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=(0, 8))
+        ttk.Label(row, text="HPM file", style="FieldLabel.TLabel").pack(side="left")
+        self.ota_file = tk.StringVar(value="")
+        ttk.Entry(row, textvariable=self.ota_file, width=52).pack(side="left", padx=(6, 6))
+        ttk.Button(row, text="Browse…", command=self._ota_browse).pack(side="left")
+
+        row2 = ttk.Frame(parent)
+        row2.pack(fill="x", pady=(0, 8))
+        ttk.Label(row2, text="Component", style="FieldLabel.TLabel").pack(side="left")
+        self.ota_comp = tk.StringVar(value="1")
+        ttk.Entry(row2, textvariable=self.ota_comp, width=4).pack(side="left", padx=(6, 16))
+        ttk.Label(row2, text="(0 bootloader · 1 MMC · 2 payload)",
+                  style="Hint.TLabel").pack(side="left")
+        ttk.Button(row2, text="Check target", command=self._ota_check).pack(side="left", padx=(16, 0))
+
+        row3 = ttk.Frame(parent)
+        row3.pack(fill="x", pady=(0, 8))
+        self.ota_buttons = []
+        for text, cmd in (("Upload", self._ota_upload),
+                          ("Activate", self._ota_activate),
+                          ("Upload + Activate", self._ota_upload_activate)):
+            b = ttk.Button(row3, text=text, command=cmd)
+            b.pack(side="left", padx=(0, 8))
+            self.ota_buttons.append(b)
+
+        self.ota_pbar = ttk.Progressbar(parent, orient="horizontal", mode="determinate",
+                                        maximum=100)
+        self.ota_pbar.pack(fill="x", pady=(0, 8))
+
+        ttk.Label(parent, text="ipmitool output", style="Hint.TLabel").pack(anchor="w")
+        self.ota_out = tk.Text(parent, height=14, font=(MONO_FONT, 8), state="disabled",
+                               bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
+                               highlightbackground=LINE, padx=8, pady=6)
+        self.ota_out.pack(fill="both", expand=True)
+
+    def _ota_browse(self):
+        path = filedialog.askopenfilename(filetypes=[("HPM image", "*.hpm"), ("All files", "*.*")])
+        if path:
+            self.ota_file.set(path)
+
+    def _ota_log(self, text):
+        self.ota_out.configure(state="normal")
+        self.ota_out.insert("end", text)
+        self.ota_out.see("end")
+        self.ota_out.configure(state="disabled")
+
+    def _ota_busy(self, busy):
+        for b in self.ota_buttons:
+            b.configure(state="disabled" if busy else "normal")
+
+    def _ota_run(self, args, next_args=None, timeout=None):
+        if self.ota_proc is not None:
+            return
+        self.ota_next = next_args
+        self.ota_deadline = (time.time() + timeout) if timeout else None
+        self.ota_forced = False
+        try:
+            acc = self._access()
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, str(e))
+            return
+        cmd = acc.hpm_command(args)
+        self._ota_log("$ %s\n" % " ".join(cmd))
+        self.ota_pbar.configure(value=0)
+        self._ota_busy(True)
+        try:
+            self.ota_proc = subprocess.Popen(
+                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, text=True, bufsize=1)
+            try:
+                self.ota_proc.stdin.write("y\n")
+                self.ota_proc.stdin.flush()
+            except Exception:
+                pass
+        except Exception as e:
+            self.ota_proc = None
+            self._ota_busy(False)
+            messagebox.showerror(APP_TITLE, "cannot run ipmitool:\n%s" % e)
+            return
+        threading.Thread(target=self._ota_reader, daemon=True).start()
+        self.after(150, self._ota_poll)
+
+    def _ota_reader(self):
+        proc = self.ota_proc
+        for line in proc.stdout:
+            self.ota_queue.put(("line", line))
+        code = proc.wait()
+        self.ota_queue.put(("done", code))
+
+    def _ota_poll(self):
+        done = False
+        code = None
+        if (self.ota_proc is not None and self.ota_deadline is not None
+                and time.time() > self.ota_deadline):
+            self._ota_log("\n(timeout waiting for the reply — the MMC is probably resetting)\n")
+            try:
+                self.ota_proc.terminate()
+            except Exception:
+                pass
+            self.ota_forced = True
+            self.ota_deadline = None
+        while True:
+            try:
+                kind, value = self.ota_queue.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "line":
+                self._ota_log(value)
+                for m in self.ota_progress_re.finditer(value):
+                    try:
+                        pct = int(m.group(1))
+                    except ValueError:
+                        continue
+                    if 0 <= pct <= 100:
+                        self.ota_pbar.configure(value=pct)
+            else:
+                done = True
+                code = value
+        if done:
+            forced = getattr(self, "ota_forced", False)
+            self.ota_proc = None
+            self._ota_busy(False)
+            self.ota_pbar.configure(value=100 if (code == 0 or forced) else self.ota_pbar.cget("value"))
+            if forced:
+                self._status("Activate sent — MMC resetting, read again in a few seconds", "ok")
+            else:
+                self._status("OTA command %s" % ("finished" if code == 0 else "failed"),
+                             "ok" if code == 0 else "error")
+            nxt = getattr(self, "ota_next", None)
+            self.ota_next = None
+            if nxt and code == 0:
+                self.after(600, lambda: self._ota_run(nxt))
+            return
+        self.after(150, self._ota_poll)
+
+    def _ota_check(self):
+        self._ota_run(["check"])
+
+    def _ota_upload(self):
+        path = self.ota_file.get().strip()
+        if not path or not os.path.isfile(path):
+            messagebox.showwarning(APP_TITLE, "Choose an .hpm file first.")
+            return
+        self._ota_run(["upgrade", path, "-C", self.ota_comp.get().strip()])
+
+    def _ota_activate(self):
+        if not messagebox.askyesno(APP_TITLE,
+                                    "Activate the staged image? The MMC will reset."):
+            return
+        self._ota_run(["activate"], timeout=25)
+
+    def _ota_upload_activate(self):
+        path = self.ota_file.get().strip()
+        if not path or not os.path.isfile(path):
+            messagebox.showwarning(APP_TITLE, "Choose an .hpm file first.")
+            return
+        if not messagebox.askyesno(APP_TITLE,
+                                    "Upload and activate %s?\nThe MMC will reset after the upload."
+                                    % os.path.basename(path)):
+            return
+        self._ota_run(["upgrade", path, "-C", self.ota_comp.get().strip()],
+                      next_args=["activate"])
 
     def _build_i2c_tab(self, parent):
         row = ttk.Frame(parent)
