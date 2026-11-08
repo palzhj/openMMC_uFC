@@ -458,83 +458,63 @@ class FruEditor(tk.Tk):
         self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
 
     def _clock_system_dot(self):
-        """System view with the 8V54816A port configuration embedded."""
-        dest_block = {"CLK9": "SI", "CLK10": "SI", "CLK11": "SI",
-                      "CLK12": "FMC0", "CLK13": "FMC0",
-                      "CLK14": "FMC1", "CLK15": "FMC1"}
-        orig_block = {"CLK0": "AMC", "CLK1": "AMC", "CLK2": "AMC", "CLK3": "AMC",
-                      "CLK4": "AMC", "CLK5": "S7IN", "CLK6": "FPGAIN",
-                      "CLK7": "OSC", "CLK8": "SI"}
+        """Compact system view with the 8V54816A port configuration."""
         active = sum(1 for j in range(7)
                      if (self.clock_matrix[9 + j] & 0x80)
                      and ((self.clock_matrix[9 + j] & 0x0F) < len(self.CLOCK_INPUTS)))
         lines = ["digraph clocking {", "  rankdir=LR;",
-                 ('  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true,'
+                 ('  graph [fontname="Helvetica", nodesep=0.12, ranksep=0.55, compound=true,'
                   '         label="uFC clocking — 8V54816A @0x70 ch2 · Si5345 @0x69 · %d active route(s)",'
-                  '         labelloc="t", fontsize=11];' % active),
+                  '         labelloc="t", fontsize=9];' % active),
                  '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
-                 '        color="#E4DED2", fontname="Helvetica", fontsize=9];',
-                 '  edge [color="#9A968C", fontname="Helvetica", fontsize=8];',
-                 '  subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";',
-                 '    AMC [label="AMC\nTCLKA-D · TCLKC · TCLKB · FCLKA\n(bidirectional)"];',
-                 '    OSC [label="156.25 MHz osc"];',
-                 '    S7IN [label="S7_CLK_INOUT\n(bidirectional)"];',
-                 '    FPGAIN [label="FPGA_CLK_INOUT\n(bidirectional)"]; }',
-                 '  subgraph cluster_mux { label="8V54816A — port configuration";',
-                 '        fontsize=9; color="#FAF9F5";']
+                 '        color="#E4DED2", fontname="Helvetica", fontsize=8];',
+                 '  edge [fontname="Helvetica", fontsize=7];',
+                 '  AMC [label="AMC\nTCLK/FCLK\n(bidir)"]; OSC [label="156.25 MHz"];',
+                 '  S7IN [label="S7_INOUT\n(bidir)"]; FPGAIN [label="FPGA_INOUT\n(bidir)"];',
+                 '  subgraph cluster_mux { label="8V54816A"; fontsize=8; color="#FAF9F5";',
+                 '    {rank=same; n0; n1; n2; n3; n4; n5; n6; n7; n8;}',
+                 '    {rank=same; n9; n10; n11; n12; n13; n14; n15;}']
+        short = {"AMC_TCLKD": "TCLKD", "AMC_TCLKC": "TCLKC", "AMC_TCLKA": "TCLKA",
+                 "AMC_TCLKB": "TCLKB", "AMC_FCLKA": "FCLKA", "S7_INOUT": "S7_INOUT",
+                 "FPGA_INOUT": "FPGA_IN", "156M": "156M", "PLL_OUT": "PLL_OUT",
+                 "PLL_IN_P2": "PLL_IN_P2", "PLL_IN_P1": "PLL_IN_P1", "PLL_IN_P0": "PLL_IN_P0",
+                 "FMC0_GBTCLK": "FMC0_GBT", "FMC0_CLK": "FMC0_CLK",
+                 "FMC1_CLK": "FMC1_CLK", "FMC1_GBTCLK": "FMC1_GBT"}
         for i in range(16):
             if i < 9:
                 port, name = self.CLOCK_INPUTS[i]
             else:
                 port, name = self.CLOCK_OUTPUTS[i - 9]
             cfg = self.clock_matrix[i]
+            lab = "%s %s" % (port, short.get(name, name))
             if cfg & 0x80:
                 src = cfg & 0x0F
-                src_txt = ("CLK%d" % src) if src < 16 else "?"
-                bits = ["out", "src " + src_txt]
+                lab += "\n0x%02x \u2190 CLK%d" % (cfg, src)
                 if cfg & 0x40:
-                    bits.append("term")
-                bits.append("non-inv" if (cfg & 0x20) else "inv")
+                    lab += " term"
             else:
-                bits = ["in"]
-                if cfg & 0x40:
-                    bits.append("term")
-            lines.append('    n%d [label="%s %s\n%s  [0x%02x]"];'
-                         % (i, port, name, ", ".join(bits), cfg))
+                lab += "\n" + ("0x%02x" % cfg)
+            lines.append('    n%d [label="%s"];' % (i, lab))
         lines.append("  }")
-        lines.append('  subgraph cluster_dst { label="destinations"; fontsize=9; color="#FAF9F5";')
-        lines.append('    SI [label="Si5345 (0x69)\nPLL 4:10\nGTX_CLK0-3 · FPGA_CLK0"];')
-        lines.append('    FMC0 [label="FMC0\nGBTCLK0 · M2C_CLK0\n(bidirectional)"];')
-        lines.append('    FMC1 [label="FMC1\nGBTCLK1 · M2C_CLK1\n(bidirectional)"];')
-        lines.append('    S7 [label="Spartan 7\nS7_CLK"]; K7 [label="Kintex 7\nMGTCLK / Bank14"];')
-        lines.append('    WR [label="WR\n125 MHz"];')
-        lines.append('    VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];')
-        lines.append('    OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }')
-
-        # fixed topology — AMC TCLK/FCLK and S7/FPGA inputs are bidirectional
-        bidir = {"AMC", "S7IN", "FPGAIN"}
-        for i, blk in orig_block.items():
-            idx = [p for (p, _n) in self.CLOCK_INPUTS].index(i)
-            style = ', dir="both"' if blk in bidir else ""
-            lines.append('  %s -> n%d [color="#C9CFC9"%s];' % (blk, idx, style))
-        for port, blk in dest_block.items():
-            idx = 9 + [p for (p, _n) in self.CLOCK_OUTPUTS].index(port)
-            style = ', dir="both"' if blk in ("FMC0", "FMC1") else ""
-            lines.append('  n%d -> %s [color="#C9CFC9"%s];' % (idx, blk, style))
-        lines.append('  SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];')
-        lines.append('  SI -> SI [style=invis];')
-        lines.append('  FMC0 -> K7 [label="GBTCLK0/M2C0"];')
-        lines.append('  FMC1 -> K7 [label="GBTCLK1/M2C1"];')
-        lines.append('  WR -> S7 [label="125 MHz"]; WR -> K7 [label="125 MHz"];')
-        lines.append('  VCXO -> WR; OSC8 -> MCU; MCU -> S7; OSC200 -> K7; LEMO -> K7;')
-
-        # active routing through the switch
+        lines.append('  SI [label="Si5345\n0x69\nPLL 4:10"];')
+        lines.append('  FMC0 [label="FMC0\n(bidir)"]; FMC1 [label="FMC1\n(bidir)"];')
+        lines.append('  K7 [label="Kintex 7\nMGTCLK/Bank14"];')
+        lines.append('  OTH [label="other clocks\n8 MHz → MCU\n200 MHz → K7\nLEMO → K7\nWR 125 MHz → K7/S7\nVCXO → WR", shape=note];')
+        lines.append('  AMC -> {n0 n1 n2 n3 n4} [dir=both, color="#C9CFC9"];')
+        lines.append('  OSC -> n7 [color="#C9CFC9"];')
+        lines.append('  S7IN -> n5 [dir=both, color="#C9CFC9"];')
+        lines.append('  FPGAIN -> n6 [dir=both, color="#C9CFC9"];')
+        lines.append('  n9 -> SI [color="#C9CFC9"]; n10 -> SI [color="#C9CFC9"];')
+        lines.append('  n11 -> SI [color="#C9CFC9"];')
+        lines.append('  n12 -> FMC0 [dir=both, color="#C9CFC9"]; n13 -> FMC0 [dir=both, color="#C9CFC9"];')
+        lines.append('  n14 -> FMC1 [dir=both, color="#C9CFC9"]; n15 -> FMC1 [dir=both, color="#C9CFC9"];')
+        lines.append('  SI -> K7 [label="GTX/FPGA_CLK"]; FMC0 -> K7; FMC1 -> K7;')
+        lines.append('  OTH -> K7 [style=dashed, color="#C9CFC9"];')
         for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
             cfg = self.clock_matrix[9 + j]
             if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
-                src = cfg & 0x0F
-                lines.append('  n%d -> n%d [label="0x%02x", color="#0E6B5E", penwidth=2.2];'
-                             % (src, 9 + j, cfg))
+                lines.append('  n%d -> n%d [label="0x%02x", color="#0E6B5E", penwidth=2];'
+                             % (cfg & 0x0F, 9 + j, cfg))
         lines.append("}")
         return "\n".join(lines) + "\n"
 
