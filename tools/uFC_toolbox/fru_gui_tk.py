@@ -566,86 +566,112 @@ class FruEditor(tk.Tk):
         return None
 
     def _clocking_draw(self, c, w, h):
+        """Schematic-style drawing: inputs left, outputs right, jumped lines."""
         doc = self._load_clocking()
-        if not doc or "devices" not in doc:
+        if not doc or "devices" not in doc or not all(
+                "box" in d for d in doc["devices"].values()):
             return self._clocking_draw_builtin(c, w, h)
-        devices = doc.get("devices", {})
-        if not all("box" in d for d in devices.values()):
-            return self._clocking_draw_builtin(c, w, h)
+        devices = doc["devices"]
         points = {p["id"]: p for p in doc.get("points", [])}
         ed = self.CLK_EDGE
         c.delete("all")
 
-        # board box wraps the chip boxes
+        # board box
         xs = [d["box"][0] for d in devices.values()]
         ys = [d["box"][1] for d in devices.values()]
         x2 = [d["box"][0] + d["box"][2] for d in devices.values()]
         y2 = [d["box"][1] + d["box"][3] for d in devices.values()]
-        bx0, by0, bx1, by1 = min(xs) - 12, min(ys) - 34, max(x2) + 12, max(y2) + 12
+        bx0, by0, bx1, by1 = min(xs) - 10, min(ys) - 30, max(x2) + 10, max(y2) + 10
         board = next(iter(doc.get("boards", {}).values()), {"label": "uFC"})
-        c.create_rectangle(bx0, by0, bx1, by1, outline="#C9C2B2", width=1, dash=(4, 3))
+        c.create_rectangle(bx0, by0, bx1, by1, outline="#C9C2B2", dash=(4, 3))
         c.create_text(bx0 + 8, by0 + 10, text="board %s" % board.get("label", "uFC"),
                       anchor="w", font=(UI_FONT, 9, "bold"), fill=ed)
 
-        coords = {}
         fills = {"chip": self.CLK_BLUE, "oscillator": self.CLK_GREEN,
                  "connector": self.CLK_SALMON}
+        anchors = {}
+        port_labels = []
         for did, dev in devices.items():
             x, y, bw, bh = dev["box"]
             c.create_rectangle(x, y, x + bw, y + bh,
                                fill=fills.get(dev.get("class"), "#FFFFFF"),
                                outline=ed, width=1)
-            c.create_text(x + bw / 2, y + 9, text=dev.get("label", did),
+            c.create_text(x + 4, y + 8, text=dev.get("label", did), anchor="w",
                           font=(UI_FONT, 8, "bold"), fill=ed)
             pts = [p for p in doc.get("points", []) if p.get("parent") == did]
-            ins = [p for p in pts if p["dir"] in ("in", "inout")]
-            outs = [p for p in pts if p["dir"] == "out"]
-            is_mux = did.upper() == "MUX" or str(dev.get("part", "")).startswith("8V54816A")
-            columns = [(ins, x + 6, "w"), (outs, x + bw - 6, "e")] if is_mux and outs \
-                else [(pts, x + 6, "w")]
-            for col, cx, anch in columns:
-                if not col:
-                    continue
-                rh = (bh - 22) / max(1, len(col))
-                for i, p in enumerate(col):
-                    cy = y + 18 + rh * (i + 0.5)
-                    label = p["name"] + (" · " + p["pin"] if p.get("pin") else "")
-                    t = c.create_text(cx, cy, text=label, anchor=anch,
-                                      font=(UI_FONT, 7), fill=ed)
-                    c.create_rectangle(*c.bbox(t),
-                                       fill=fills.get(dev.get("class"), "#FFFFFF"),
-                                       outline="")
-                    c.tag_raise(t)
-                    coords[p["id"]] = (cx, cy)
+            left = [p for p in pts if p["dir"] in ("in", "inout")]
+            right = [p for p in pts if p["dir"] in ("out", "inout")]
 
-        def line(a, b, color, width=1, dash=None, arrow=False):
-            if a not in coords or b not in coords:
-                return
-            c.create_line(*coords[a], *coords[b], fill=color, width=width,
-                          dash=dash, arrow=tk.LAST if arrow else None,
-                          arrowshape=(6, 8, 3))
+            def row_y(n, i):
+                return y + 18 + (bh - 26) * (i + 0.5) / max(1, n)
 
-        pts_by_id = {p["id"]: p for p in doc.get("points", [])}
+            for i, p in enumerate(left):
+                yy = row_y(len(left), i)
+                anchors.setdefault(p["id"], {})["l"] = (x, yy)
+                port_labels.append((x + 5, yy, p["name"], "w",
+                                    fills.get(dev.get("class"), "#FFFFFF")))
+            for i, p in enumerate(right):
+                yy = row_y(len(right), i)
+                anchors.setdefault(p["id"], {})["r"] = (x + bw, yy)
+                port_labels.append((x + bw - 5, yy, p["name"], "e",
+                                    fills.get(dev.get("class"), "#FFFFFF")))
+
+        h_segs, v_segs = [], []
         for link in doc.get("links", []):
             a, b = link["a"], link["b"]
-            da = pts_by_id.get(a, {}).get("dir")
-            db = pts_by_id.get(b, {}).get("dir")
-            if da == "in" and db == "out":
-                a, b = b, a
-            color = "#9A968C"
-            if "inout" in (da, db):
-                c.create_line(*coords.get(a, (0, 0)), *coords.get(b, (0, 0)),
-                              fill="#0E6B5E", width=1)
+            if a not in anchors or b not in anchors:
                 continue
-            if da == db:
-                line(a, b, color, 1, dash=(3, 2), arrow=False)
-            elif link.get("verified") is False:
-                line(a, b, color, 1, dash=(3, 2), arrow=True)
-            else:
-                line(a, b, color, 1, arrow=True)
+            da = points.get(a, {}).get("dir")
+            db = points.get(b, {}).get("dir")
+            if da == "in" and db == "out":
+                a, b, da, db = b, a, db, da
+            sa = anchors[a].get("r") or anchors[a].get("l")
+            dbp = anchors[b].get("l") or anchors[b].get("r")
+            if not sa or not dbp:
+                continue
+            both = "inout" in (da, db)
+            color = "#0E6B5E" if both else "#9A968C"
+            dash = (3, 2) if link.get("verified") is False else None
+            if sa[0] <= dbp[0]:
+                mx = (sa[0] + dbp[0]) / 2
+                pts = [sa, (mx, sa[1]), (mx, dbp[1]), dbp]
+            else:  # backwards: route around the right
+                mx = max(sa[0], dbp[0]) + 40
+                pts = [sa, (mx, sa[1]), (mx, dbp[1]), dbp]
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                if abs(y0 - y1) < 0.5:
+                    h_segs.append((x0, y0, x1, y1, color, dash))
+                else:
+                    v_segs.append((x0, y0, x1, y1, color))
+            c.create_line(*pts, fill=color, width=1, dash=dash,
+                          arrow=None if both else tk.LAST,
+                          arrowshape=(7, 9, 3))
+
+        # jumper marks where a horizontal segment crosses a vertical one
+        for hx0, hy, hx1, _, hcolor, _dash in h_segs:
+            xa, xb = min(hx0, hx1), max(hx0, hx1)
+            for vx, vy0, _vx1, vy1, _vc in v_segs:
+                if xa + 3 < vx < xb - 3 and min(vy0, vy1) - 3 < hy < max(vy0, vy1) + 3:
+                    c.create_oval(vx - 4, hy - 4, vx + 4, hy + 4,
+                                  fill=BG, outline="")
+                    c.create_arc(vx - 5, hy - 5, vx + 5, hy + 5, start=0,
+                                 extent=180, style=tk.ARC, outline=hcolor)
+
+        for lx, ly, text, anch, bg in port_labels:
+            t = c.create_text(lx, ly, text=text, anchor=anch,
+                              font=(UI_FONT, 7), fill=ed)
+            c.create_rectangle(*c.bbox(t), fill=bg, outline="")
+            c.tag_raise(t)
+
         for pid, route in doc.get("routing", {}).items():
-            if route.get("source"):
-                line(route["source"], pid, "#B07A3A", 2)
+            if route.get("source") and pid in anchors and route["source"] in anchors:
+                sa = anchors[route["source"]].get("r") or anchors[route["source"]].get("l")
+                db = anchors[pid].get("l") or anchors[pid].get("r")
+                if sa and db:
+                    mx = (sa[0] + db[0]) / 2
+                    c.create_line(*sa, mx, sa[1], mx, db[1], *db,
+                                  fill="#B07A3A", width=2, arrow=tk.LAST,
+                                  arrowshape=(7, 9, 3))
 
         content = "8V54816A @0x70 ch2  ·  Si5345 @0x69  ·  %d active route(s)" % \
                   sum(1 for r in doc.get("routing", {}).values() if r.get("source"))
