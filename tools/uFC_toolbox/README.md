@@ -47,7 +47,7 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
 # Linux: Tkinter is a separate package on most distributions
 sudo apt install python3-tk ipmitool
 
-python3 tools/fru_gui/fru_gui_tk.py --mch 192.168.1.41 --target 0x7e --bus 7
+python3 tools/uFC_toolbox/fru_gui_tk.py --mch 192.168.1.41 --target 0x7e --bus 7
 ```
 
 Windows: install Python from python.org (Tkinter is included) and put
@@ -62,10 +62,10 @@ produces a single-file executable.
 pip install pyinstaller
 
 # Linux
-tools/fru_gui/build-linux.sh        # → tools/fru_gui/dist/ufc-toolbox
+tools/uFC_toolbox/build-linux.sh        # → tools/uFC_toolbox/dist/ufc-toolbox
 
 # Windows
-tools\fru_gui\build-windows.bat     # → tools\fru_gui\dist\ufc-toolbox.exe
+tools\uFC_toolbox\build-windows.bat     # → tools\uFC_toolbox\dist\ufc-toolbox.exe
 ```
 
 `ipmitool` is still an external program: install it system-wide, or place

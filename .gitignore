@@ -35,6 +35,6 @@ cmake_install.cmake
 /firmware/ufc-v2/BUILD_INFO.txt
 
 # FRU GUI build artifacts
-tools/fru_gui/dist/
-tools/fru_gui/build/
-tools/fru_gui/__pycache__/
+tools/uFC_toolbox/dist/
+tools/uFC_toolbox/build/
+tools/uFC_toolbox/__pycache__/
