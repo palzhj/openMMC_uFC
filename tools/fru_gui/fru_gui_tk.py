@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-fru_gui_tk.py -- desktop FRU editor for the uFC MMC (Tkinter).
+fru_gui_tk.py -- uFC Toolbox: FRU / I2C / PMBus desktop tool (Tkinter).
 
 Reads/writes the FRU EEPROM through a NAT-MCH (IPMI raw commands 0x32/0x12,
 0x13), edits the board/product fields, saves or loads the raw image.
@@ -18,7 +18,7 @@ from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # no
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
                       mfg_minutes_to_str, mfg_str_to_minutes)
 
-APP_TITLE = "FRU editor"
+APP_TITLE = "uFC Toolbox"
 
 # ---- house palette --------------------------------------------------------
 BG = "#FAF9F5"          # paper ground
@@ -153,7 +153,7 @@ class FruEditor(tk.Tk):
         title = ttk.Frame(header)
         title.pack(side="left", padx=(10, 0))
         ttk.Label(title, text=APP_TITLE, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(title, text="IPMI  ·  FRU EEPROM image",
+        ttk.Label(title, text="FRU  ·  I\u00b2C  ·  PMBus  over IPMI",
                   style="Sub.TLabel").pack(anchor="w")
 
         actions = ttk.Frame(header)

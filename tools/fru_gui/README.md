@@ -1,6 +1,7 @@
-# uFC FRU editor
+# uFC Toolbox
 
-Desktop application to read and update the uFC **FRU EEPROM** through the MMC,
+Desktop application for the uFC module: **FRU EEPROM editing** and
+**generic I²C transfers** (EEPROM, PMBus, clock chips) through the MMC,
 using the firmware's raw EEPROM commands (custom NetFn `0x32`):
 
 | Cmd | Meaning |
@@ -12,7 +13,7 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
 
 ## Look
 
-![uFC FRU editor](docs/ui.png)
+![uFC Toolbox](docs/ui.png)
 
 ## Features
 
@@ -57,10 +58,10 @@ produces a single-file executable.
 pip install pyinstaller
 
 # Linux
-tools/fru_gui/build-linux.sh        # → tools/fru_gui/dist/ufc-fru-editor
+tools/fru_gui/build-linux.sh        # → tools/fru_gui/dist/ufc-toolbox
 
 # Windows
-tools\fru_gui\build-windows.bat     # → tools\fru_gui\dist\ufc-fru-editor.exe
+tools\fru_gui\build-windows.bat     # → tools\fru_gui\dist\ufc-toolbox.exe
 ```
 
 `ipmitool` is still an external program: install it system-wide, or place
