@@ -138,9 +138,11 @@ FCLKA, S7/FPGA inputs, 156M, PLL_OUT) and destinations on the right
 to connect it; click a destination alone to disconnect. The 16-byte matrix
 updates live.
 
-- Selecting a node shows its parameters: **Source** (for outputs), **100 Ω
-  termination**, **non-inverted** — changing any of them updates the matrix
-  immediately (a freshly connected output defaults to non-inverted)
+- **Per-port table**: all 16 ports of the 8V54816A are listed with direction
+  (in/out), source (CLK0…CLK8), 100 Ω termination and non-inverted polarity;
+  every change updates the matrix byte and the drawing immediately (a port
+  switched to output defaults to non-inverted)
+- The crossbar drawing stays editable: click a source, then a destination
 - **Read clocks** / **Write now** — read/write the switch matrix over I²C
   (mux 0x70 ch2, 0x58)
 - **Export DOT** — save the current routing as a Graphviz diagram
