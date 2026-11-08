@@ -1,6 +1,6 @@
 # Clock configuration store — on-flash format (FRU records)
 
-Reserved region: **7 KB** at `0x0801E000–0x0801FBFF` (`__ClockConfig_start/end`).
+Reserved region: **19 KB** at `0x0801B000–0x0801FBFF` (`__ClockConfig_start/end`).
 Purpose: hold clock/device configuration so it can be changed over IPMI without
 reflashing, with a built-in fallback in `.text`.
 
@@ -8,9 +8,9 @@ reflashing, with a built-in fallback in `.text`.
 
 | Range | Use |
 |---|---|
-| `0x0801E000–0x0801EBFF` | slot A (3 KB) |
-| `0x0801EC00–0x0801F7FF` | slot B (3 KB) |
-| `0x0801F800–0x0801FBFF` | pointer page (2 mirrored records) |
+| `0x0801B000–0x0801B3FF` | pointer page (2 mirrored records, A/B selection) |
+| `0x0801B400–0x0801D7FF` | slot A (9 KB) |
+| `0x0801D800–0x0801FBFF` | slot B (9 KB) |
 
 ### Selected: FRU record file inside a small wrapper
 

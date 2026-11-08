@@ -120,9 +120,9 @@ time and embedded in the image.
 | Region | Address | Size | Content |
 |---|---|---|---|
 | newboot | `0x08000000` | 8 KB | first‑stage bootloader (reset vector) |
-| app | `0x08002000` | 56 KB | openMMC |
-| staging | `0x08010000` | 56 KB | firmware upload target |
-| clock config | `0x0801E000` | 7 KB | clock profiles (Si5345 table + 8V54816A matrix) |
+| app | `0x08002000` | 50 KB | openMMC |
+| staging | `0x0800E800` | 50 KB | firmware upload target |
+| clock config | `0x0801B000` | 19 KB | pointer 1 KB + slot A 9 KB + slot B 9 KB |
 | `fw_info` | `0x0801FC00` | 1 KB | pending‑update flag used by newboot |
 
 OpenBLT has been dropped; the CPU starts newboot directly from `0x08000000`.
