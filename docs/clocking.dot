@@ -6,8 +6,13 @@ digraph clocking {
   edge [color="#9A968C", fontname="Helvetica", fontsize=8];
   subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";
     AMC [label="AMC
-TCLKA-D · TCLKC · TCLKB · FCLKA"]; OSC [label="156.25 MHz osc"];
-    S7IN [label="S7_CLK_INOUT"]; FPGAIN [label="FPGA_CLK_INOUT"]; }
+TCLKA-D · TCLKC · TCLKB · FCLKA
+(bidirectional)"];
+    OSC [label="156.25 MHz osc"];
+    S7IN [label="S7_CLK_INOUT
+(bidirectional)"];
+    FPGAIN [label="FPGA_CLK_INOUT
+(bidirectional)"]; }
   subgraph cluster_mux { label="8V54816A — port configuration";
         fontsize=9; color="#FAF9F5";
     n0 [label="CLK0 AMC_TCLKD
@@ -58,13 +63,13 @@ MGTCLK / Bank14"];
 125 MHz"];
     VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];
     OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }
-  AMC -> n0 [color="#C9CFC9"];
-  AMC -> n1 [color="#C9CFC9"];
-  AMC -> n2 [color="#C9CFC9"];
-  AMC -> n3 [color="#C9CFC9"];
-  AMC -> n4 [color="#C9CFC9"];
-  S7IN -> n5 [color="#C9CFC9"];
-  FPGAIN -> n6 [color="#C9CFC9"];
+  AMC -> n0 [color="#C9CFC9", dir="both"];
+  AMC -> n1 [color="#C9CFC9", dir="both"];
+  AMC -> n2 [color="#C9CFC9", dir="both"];
+  AMC -> n3 [color="#C9CFC9", dir="both"];
+  AMC -> n4 [color="#C9CFC9", dir="both"];
+  S7IN -> n5 [color="#C9CFC9", dir="both"];
+  FPGAIN -> n6 [color="#C9CFC9", dir="both"];
   OSC -> n7 [color="#C9CFC9"];
   SI -> n8 [color="#C9CFC9"];
   n9 -> SI [color="#C9CFC9"];

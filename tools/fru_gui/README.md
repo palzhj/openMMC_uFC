@@ -146,7 +146,8 @@ always shows the 16 bytes that are written to the device.
 - **System diagram** — renders the whole clocking (AMC, 156.25 MHz, oscillators,
   Si5345, FMC0/1, Kintex/Spartan, WR/VCXO) with every 8V54816A port and its
   configuration (in/out, source, termination, polarity, matrix byte); active
-  routes are drawn in green, following `uFCv2/readme/clocking.jpg`
+  routes are drawn in green and the AMC TCLK/FCLK plus S7/FPGA_INOUT links are
+  drawn bidirectional, following `uFCv2/readme/clocking.jpg`
 
 ## OTA update tab
 

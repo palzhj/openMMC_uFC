@@ -461,8 +461,10 @@ class FruEditor(tk.Tk):
                  '        color="#E4DED2", fontname="Helvetica", fontsize=9];',
                  '  edge [color="#9A968C", fontname="Helvetica", fontsize=8];',
                  '  subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";',
-                 '    AMC [label="AMC\nTCLKA-D · TCLKC · TCLKB · FCLKA"]; OSC [label="156.25 MHz osc"];',
-                 '    S7IN [label="S7_CLK_INOUT"]; FPGAIN [label="FPGA_CLK_INOUT"]; }',
+                 '    AMC [label="AMC\nTCLKA-D · TCLKC · TCLKB · FCLKA\n(bidirectional)"];',
+                 '    OSC [label="156.25 MHz osc"];',
+                 '    S7IN [label="S7_CLK_INOUT\n(bidirectional)"];',
+                 '    FPGAIN [label="FPGA_CLK_INOUT\n(bidirectional)"]; }',
                  '  subgraph cluster_mux { label="8V54816A — port configuration";',
                  '        fontsize=9; color="#FAF9F5";']
         for i in range(16):
@@ -494,10 +496,12 @@ class FruEditor(tk.Tk):
         lines.append('    VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];')
         lines.append('    OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }')
 
-        # fixed topology
+        # fixed topology — AMC TCLK/FCLK and S7/FPGA inputs are bidirectional
+        bidir = {"AMC", "S7IN", "FPGAIN"}
         for i, blk in orig_block.items():
             idx = [p for (p, _n) in self.CLOCK_INPUTS].index(i)
-            lines.append('  %s -> n%d [color="#C9CFC9"];' % (blk, idx))
+            style = ', dir="both"' if blk in bidir else ""
+            lines.append('  %s -> n%d [color="#C9CFC9"%s];' % (blk, idx, style))
         for port, blk in dest_block.items():
             idx = 9 + [p for (p, _n) in self.CLOCK_OUTPUTS].index(port)
             lines.append('  n%d -> %s [color="#C9CFC9"];' % (idx, blk))
