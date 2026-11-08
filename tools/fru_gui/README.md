@@ -136,7 +136,10 @@ Uploads a PICMG **HPM.1** image to the MMC and activates it (the MMC's HPM
 agent stages the image; `activate` writes the `fw_info` record and resets,
 then `newboot` copies staging to the application).
 
-- **HPM file** — the `.hpm` built by `bin2hpm` (Browse…)
+- **Firmware file** — `.hpm`, `.bin` or `.hex` (Browse…). A `.hpm` is used as
+  is; a `.bin` goes through `bin2hpm -c <component> -n -m 0x315A -p 0x0 -d 0`;
+  a `.hex` (Intel HEX) is first converted to a raw image by the tab, then
+  through the same `bin2hpm` call. `bin2hpm` must be in `PATH` for `.bin`/`.hex`.
 - **Component** — `1` MMC (default), `0` bootloader, `2` payload
 - **Check target** — `ipmitool hpm check`
 - **Upload** — `ipmitool hpm upgrade <file> -C <component>` (~1 min for 28 KB)

@@ -13,6 +13,8 @@ import queue
 import re
 import subprocess
 import sys
+import shutil
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -312,7 +314,7 @@ class FruEditor(tk.Tk):
 
         row = ttk.Frame(parent)
         row.pack(fill="x", pady=(0, 8))
-        ttk.Label(row, text="HPM file", style="FieldLabel.TLabel").pack(side="left")
+        ttk.Label(row, text="Firmware file (HPM / BIN / HEX)", style="FieldLabel.TLabel").pack(side="left")
         self.ota_file = tk.StringVar(value="")
         ttk.Entry(row, textvariable=self.ota_file, width=52).pack(side="left", padx=(6, 6))
         ttk.Button(row, text="Browse…", command=self._ota_browse).pack(side="left")
@@ -346,8 +348,80 @@ class FruEditor(tk.Tk):
                                highlightbackground=LINE, padx=8, pady=6)
         self.ota_out.pack(fill="both", expand=True)
 
+    @staticmethod
+    def _parse_intel_hex(text):
+        """Return the raw image of an Intel HEX file (lowest address first)."""
+        mem = {}
+        base = 0
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith(":"):
+                continue
+            try:
+                rec = bytes.fromhex(line[1:])
+            except ValueError:
+                continue
+            if len(rec) < 5:
+                continue
+            count, addr, rtype = rec[0], (rec[1] << 8) | rec[2], rec[3]
+            data = rec[4:4 + count]
+            if rtype == 0x00:
+                for i, b in enumerate(data):
+                    mem[base + addr + i] = b
+            elif rtype == 0x01:
+                break
+            elif rtype == 0x02:
+                base = ((data[0] << 8) | data[1]) << 4
+            elif rtype == 0x04:
+                base = ((data[0] << 8) | data[1]) << 16
+        if not mem:
+            raise ValueError("no data records in the HEX file")
+        lo, hi = min(mem), max(mem)
+        out = bytearray(b"\xff") * (hi - lo + 1)
+        for a, b in mem.items():
+            out[a - lo] = b
+        return bytes(out)
+
+    def _ota_resolve_image(self):
+        """Return an .hpm path for the selected file (.hpm/.bin/.hex)."""
+        path = self.ota_file.get().strip()
+        if not path or not os.path.isfile(path):
+            raise ValueError("choose an .hpm, .bin or .hex file first")
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".hpm":
+            return path
+
+        tool = shutil.which("bin2hpm")
+        if not tool:
+            raise ValueError("bin2hpm not found in PATH (needed for .bin/.hex input)")
+
+        workdir = tempfile.mkdtemp(prefix="ufc-ota-")
+        if ext == ".hex":
+            with open(path, "r", errors="replace") as f:
+                raw = self._parse_intel_hex(f.read())
+            src = os.path.join(workdir, "image.bin")
+            with open(src, "wb") as f:
+                f.write(raw)
+            self._ota_log("HEX parsed: %d bytes -> %s\n" % (len(raw), src))
+        else:
+            src = path
+
+        out = os.path.join(workdir, "image.hpm")
+        comp = self.ota_comp.get().strip() or "1"
+        cmd = [tool, "-c", comp, "-n", "-m", "0x315A", "-p", "0x0", "-d", "0",
+               src, "-o", out]
+        self._ota_log("$ %s\n" % " ".join(cmd))
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0 or not os.path.isfile(out):
+            raise ValueError("bin2hpm failed:\n%s" % (res.stderr or res.stdout))
+        self._ota_log("HPM built: %s (%d bytes)\n" % (out, os.path.getsize(out)))
+        return out
+
     def _ota_browse(self):
-        path = filedialog.askopenfilename(filetypes=[("HPM image", "*.hpm"), ("All files", "*.*")])
+        path = filedialog.askopenfilename(
+            filetypes=[("Firmware (HPM/BIN/HEX)", "*.hpm *.bin *.hex"),
+                       ("HPM image", "*.hpm"), ("Raw binary", "*.bin"),
+                       ("Intel HEX", "*.hex"), ("All files", "*.*")])
         if path:
             self.ota_file.set(path)
 
@@ -450,11 +524,12 @@ class FruEditor(tk.Tk):
         self._ota_run(["check"])
 
     def _ota_upload(self):
-        path = self.ota_file.get().strip()
-        if not path or not os.path.isfile(path):
-            messagebox.showwarning(APP_TITLE, "Choose an .hpm file first.")
+        try:
+            image = self._ota_resolve_image()
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, str(e))
             return
-        self._ota_run(["upgrade", path, "-C", self.ota_comp.get().strip()])
+        self._ota_run(["upgrade", image, "-C", self.ota_comp.get().strip()])
 
     def _ota_activate(self):
         if not messagebox.askyesno(APP_TITLE,
@@ -463,15 +538,16 @@ class FruEditor(tk.Tk):
         self._ota_run(["activate"], timeout=25)
 
     def _ota_upload_activate(self):
-        path = self.ota_file.get().strip()
-        if not path or not os.path.isfile(path):
-            messagebox.showwarning(APP_TITLE, "Choose an .hpm file first.")
+        try:
+            image = self._ota_resolve_image()
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, str(e))
             return
         if not messagebox.askyesno(APP_TITLE,
                                     "Upload and activate %s?\nThe MMC will reset after the upload."
-                                    % os.path.basename(path)):
+                                    % os.path.basename(image)):
             return
-        self._ota_run(["upgrade", path, "-C", self.ota_comp.get().strip()],
+        self._ota_run(["upgrade", image, "-C", self.ota_comp.get().strip()],
                       next_args=["activate"])
 
     def _build_i2c_tab(self, parent):
