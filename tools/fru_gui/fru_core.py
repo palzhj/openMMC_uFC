@@ -3,9 +3,14 @@
 fru_core.py -- FRU EEPROM access backend (IPMI raw commands 0x32/0x12, 0x13).
 
 The MMC exposes raw FRU EEPROM access through the custom NetFn 0x32 commands
-0x12 (write) / 0x13 (read).  This module reads the 256-byte FRU image through a
-NAT-MCH (double-bridged), parses the board/product areas and rebuilds them with
-fresh checksums.  Used by the desktop editor (fru_gui_tk.py).
+0x12 (write) / 0x13 (read).  This module reads the FRU image through a NAT-MCH
+(double-bridged), parses the board/product areas, and rebuilds the whole FRU
+(fields resized to any legal length, multirecord preserved) within the
+writable 128-byte half of the 24AA025E48.
+
+Field length limit per the IPMI FRU specification: the type/length byte has a
+6-bit length (max 63 bytes including the terminating NUL) -> 62 characters.
+The area size must stay within the EEPROM's writable area.
 
 Requires the firmware to be built with -DEEPROM_ACCESS=ON.
 """
@@ -16,13 +21,19 @@ import subprocess
 import sys
 
 # ---------------------------------------------------------------------------
-# FRU helpers
+# Constants
 # ---------------------------------------------------------------------------
 
 EEPROM_SIZE = 256
+FRU_MAX_SIZE = 128          # 24AA025E48: only the lower 128 bytes are writable
+FRU_MAX_STRING = 62         # 6-bit field length, including the NUL
 
 # IPMI FRU board-area manufacturing time: minutes since 1996-01-01 00:00 UTC.
 FRU_EPOCH = datetime.datetime(1996, 1, 1, tzinfo=datetime.timezone.utc)
+
+FIELD_NAMES_BOARD = ["manufacturer", "product_name", "serial", "part_number", "fru_file_id"]
+FIELD_NAMES_PRODUCT = ["manufacturer", "product_name", "part_number", "version",
+                       "serial", "asset_tag", "fru_file_id"]
 
 
 def mfg_minutes_to_str(minutes):
@@ -46,10 +57,11 @@ def mfg_str_to_minutes(text):
         except ValueError:
             pass
     raise ValueError("invalid manufacturing time %r (use YYYY-MM-DD HH:MM, UTC)" % text)
-FIELD_NAMES_BOARD = ["manufacturer", "product_name", "serial", "part_number", "fru_file_id"]
-FIELD_NAMES_PRODUCT = ["manufacturer", "product_name", "part_number", "version",
-                       "serial", "asset_tag", "fru_file_id"]
 
+
+# ---------------------------------------------------------------------------
+# IPMI transport
+# ---------------------------------------------------------------------------
 
 def ipmitool_cmd():
     """Use a bundled ipmitool next to the program when present."""
@@ -100,93 +112,145 @@ class FruAccess:
         return self.read(0, EEPROM_SIZE)
 
 
+# ---------------------------------------------------------------------------
+# FRU parsing / building
+# ---------------------------------------------------------------------------
+
 def _checksum(area):
     return (-sum(area)) & 0xFF
 
 
+def _parse_area(raw, area_off, names, is_board):
+    if area_off == 0:
+        return None
+    area = raw[area_off:]
+    if len(area) < 3:
+        raise ValueError("area at 0x%02x is truncated" % area_off)
+    length = area[1] * 8
+    if length == 0 or len(area) < length:
+        raise ValueError("bad area length at 0x%02x" % area_off)
+    area = area[:length]
+    info = {"offset": area_off, "length": length, "type": area[0],
+            "lang": area[2], "fields": [], "checksum": area[-1]}
+    pos = 3
+    if is_board:
+        if length < 6:
+            raise ValueError("board area too short")
+        info["mfg_time"] = area[3] | (area[4] << 8) | (area[5] << 16)
+        pos = 6
+    for name in names:
+        if pos >= length - 1:
+            break
+        hdr = area[pos]
+        n = hdr & 0x3F
+        if n == 0 or pos + 1 + n > length - 1:
+            break
+        data = area[pos + 1: pos + 1 + n]
+        info["fields"].append({"name": name, "len": n,
+                               "value": data.rstrip(b"\x00").decode("latin-1")})
+        pos += 1 + n
+    return info
+
+
 def parse_fru(raw):
-    """Return a dict with the board/product fields and their byte ranges."""
+    """Return the FRU fields, the multirecord blob and the area layout."""
     if len(raw) < 8 or raw[0] != 0x01:
         raise ValueError("not a FRU image (bad format byte)")
     board_off = raw[3] * 8
     product_off = raw[4] * 8
     multi_off = raw[5] * 8
 
-    result = {"raw": raw, "board_off": board_off, "product_off": product_off,
-              "multi_off": multi_off, "board": {}, "product": {}}
+    # FRU image extent: last non-0xFF byte inside the writable half.
+    end = 0
+    for i in range(min(FRU_MAX_SIZE, len(raw))):
+        if raw[i] != 0xFF:
+            end = i + 1
 
-    def area_fields(area_off, names, is_board):
-        if area_off == 0:
-            return None
-        area = raw[area_off:]
-        if area[0] not in (0x01, 0x02):
-            raise ValueError("bad area type at 0x%02x" % area_off)
-        length = area[1] * 8
-        if length == 0 or len(area) < length:
-            raise ValueError("bad area length at 0x%02x" % area_off)
-        area = area[:length]
-        fields = []
-        pos = 3
-        if is_board:             # board area has the 3-byte manufacturing time
-            mfg_time = area[3] | (area[4] << 8) | (area[5] << 16)
-            result["board"]["mfg_time"] = mfg_time
-            pos = 6
-        for name in names:
-            if pos >= length - 1:
-                break
-            hdr = area[pos]
-            n = hdr & 0x3F
-            data = area[pos + 1: pos + 1 + n]
-            text = data.rstrip(b"\x00").decode("latin-1")
-            fields.append({"name": name, "offset": area_off + pos,
-                           "len": n, "value": text})
-            pos += 1 + n
-        return {"offset": area_off, "length": length,
-                "lang": area[2], "fields": fields,
-                "checksum": area[-1]}
-
-    result["board_area"] = area_fields(board_off, FIELD_NAMES_BOARD, True)
-    result["product_area"] = area_fields(product_off, FIELD_NAMES_PRODUCT, False)
-    return result
+    parsed = {
+        "raw": raw,
+        "image_len": end,
+        "multi_off": multi_off,
+        "multi": raw[multi_off:end] if multi_off and multi_off < end else b"",
+        "board": {},
+        "board_area": _parse_area(raw, board_off, FIELD_NAMES_BOARD, True),
+        "product_area": _parse_area(raw, product_off, FIELD_NAMES_PRODUCT, False),
+    }
+    if parsed["board_area"]:
+        parsed["board"]["mfg_time"] = parsed["board_area"]["mfg_time"]
+    return parsed
 
 
-def build_areas(raw, parsed, values):
-    """Apply the new string values in place and return the two updated areas."""
-    updated = {}
-    for key, area_key in (("board", "board_area"), ("product", "product_area")):
-        area_info = parsed[area_key]
-        if area_info is None:
-            continue
-        area = bytearray(raw[area_info["offset"]: area_info["offset"] + area_info["length"]])
-        vals = values.get(key, {})
-        for field in area_info["fields"]:
-            name = field["name"]
-            if name not in vals:
-                continue
-            text = vals[name]
-            try:
-                data = text.encode("latin-1")
-            except UnicodeEncodeError:
-                raise ValueError("%s: only latin-1 characters are allowed" % name)
-            cap = field["len"]
-            if len(data) + 1 > cap:
-                raise ValueError("%s: max %d characters (got %d)" % (name, cap - 1, len(data)))
-            rel = field["offset"] - area_info["offset"]
-            area[rel + 1: rel + 1 + cap] = data + b"\x00" * (cap - len(data))
-        if key == "board" and "mfg_time" in vals:
-            try:
-                t = int(vals["mfg_time"])
-            except ValueError:
-                t = mfg_str_to_minutes(vals["mfg_time"])
-            if t < 0 or t > 0xFFFFFF:
-                raise ValueError("mfg_time out of range")
-            area[3], area[4], area[5] = t & 0xFF, (t >> 8) & 0xFF, (t >> 16) & 0xFF
-        area[-1] = 0
-        area[-1] = _checksum(area)
-        updated[key] = (area_info["offset"], bytes(area))
-    return updated
+def _encode_area(area_type, lang, fields, prefix=b""):
+    body = bytearray([area_type, 0, lang]) + bytearray(prefix)
+    for text in fields:
+        data = (text or "").encode("latin-1")
+        if len(data) > FRU_MAX_STRING:
+            raise ValueError("string too long (%d > %d): %r" % (len(data), FRU_MAX_STRING, text))
+        body += bytes([0xC0 | (len(data) + 1)]) + data + b"\x00"
+    body.append(0xC1)          # end-of-fields marker (openMMC convention)
+    while len(body) % 8:
+        body.append(0)
+    body[1] = len(body) // 8
+    body[-1] = 0
+    body[-1] = _checksum(body)
+    return bytes(body)
 
 
-# ---------------------------------------------------------------------------
-# HTTP server
-# ---------------------------------------------------------------------------
+def build_image(parsed, values):
+    """Rebuild the full FRU image from the edited fields (<= 128 bytes)."""
+    board_vals = values.get("board", {})
+    product_vals = values.get("product", {})
+
+    def val(area, name, default=""):
+        v = area.get(name)
+        return default if v is None else v
+
+    mfg = board_vals.get("mfg_time", parsed["board"].get("mfg_time", 0))
+    try:
+        mfg = int(mfg)
+    except (TypeError, ValueError):
+        mfg = mfg_str_to_minutes(mfg)
+    if not 0 <= mfg <= 0xFFFFFF:
+        raise ValueError("manufacturing time out of range")
+
+    board_info = parsed["board_area"]
+    product_info = parsed["product_area"]
+    board_type = board_info["type"] if board_info else 0x01
+    product_type = product_info["type"] if product_info else 0x01
+    board_lang = board_info["lang"] if board_info else 0x00
+    product_lang = product_info["lang"] if product_info else 0x00
+
+    board = _encode_area(
+        board_type, board_lang,
+        [val(board_vals, n) for n in FIELD_NAMES_BOARD],
+        prefix=bytes([mfg & 0xFF, (mfg >> 8) & 0xFF, (mfg >> 16) & 0xFF]))
+    product = _encode_area(
+        product_type, product_lang,
+        [val(product_vals, n) for n in FIELD_NAMES_PRODUCT])
+
+    header = bytearray(8)
+    header[0] = 0x01                     # format version
+    header[1] = 0x00                     # internal use area offset
+    header[2] = 0x00                     # chassis info area offset
+    header[3] = (8 // 8)                 # board area offset (always 8)
+    product_off = 8 + len(board)
+    header[4] = product_off // 8
+    multi = parsed["multi"]
+    multi_off = product_off + len(product)
+    header[5] = (multi_off // 8) if multi else 0
+    header[6] = 0x00
+    header[7] = 0
+    header[7] = _checksum(header)
+
+    image = bytes(header) + board + product + multi
+    if len(image) > FRU_MAX_SIZE:
+        raise ValueError("FRU image would be %d bytes; the writable area is %d bytes"
+                         % (len(image), FRU_MAX_SIZE))
+    return image
+
+
+def image_for_eeprom(image):
+    """Pad the image to the 128-byte writable area with 0xFF."""
+    if len(image) > FRU_MAX_SIZE:
+        raise ValueError("image too large")
+    return image + b"\xFF" * (FRU_MAX_SIZE - len(image))
