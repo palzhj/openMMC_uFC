@@ -52,14 +52,30 @@ PLL 4:10"];
   FMC0 [label="FMC0
 (bidir)"]; FMC1 [label="FMC1
 (bidir)"];
-  K7 [label="Kintex 7
-MGTCLK/Bank14"];
+  K7 [label="Kintex 7 (XC7K325T)
+REFCLK T26 (200M)
+SRCC R28 (156M)
+MRCC0 AD23 (100M)
+MRCC1 AB27 (125M WR)
+MRCC2 AG29 (20M VCXO)
+MRCC3 C25 (250M DDR)
+LEMO U27
+MGTCLK116 L8/N8
+MGTCLK117 G8/J8
+MGTCLK118 C8/E8"];
+  S7 [label="Spartan 7 (XC7S25)
+CLK_INOUT F14 (156M)
+CLK_IN_P0 N15 (100M)
+CLK_IN_P1 D14 (125M WR)
+FMC0_GTX G16 · FMC0_CLK D18
+FMC1_GTX R14 · FMC1_CLK P14
+FPGA_GTX U17"];
   OTH [label="other clocks
 8 MHz → MCU
-200 MHz → K7
-LEMO → K7
-WR 125 MHz → K7/S7
-VCXO → WR", shape=note];
+200 MHz → K7 T26
+LEMO → K7 U27
+WR 125 MHz → K7 AB27 / S7 D14
+VCXO 20 MHz → K7 AG29", shape=note];
   AMC -> {n0 n1 n2 n3 n4} [dir=both, color="#C9CFC9"];
   OSC -> n7 [color="#C9CFC9"];
   S7IN -> n5 [dir=both, color="#C9CFC9"];
@@ -68,8 +84,11 @@ VCXO → WR", shape=note];
   n11 -> SI [color="#C9CFC9"];
   n12 -> FMC0 [dir=both, color="#C9CFC9"]; n13 -> FMC0 [dir=both, color="#C9CFC9"];
   n14 -> FMC1 [dir=both, color="#C9CFC9"]; n15 -> FMC1 [dir=both, color="#C9CFC9"];
-  SI -> K7 [label="GTX/FPGA_CLK"]; FMC0 -> K7; FMC1 -> K7;
+  SI -> K7 [label="GTX_CLK0-3 → MGTCLK116/117/118"];
+  FMC0 -> S7 [label="FMC0_GTX G16 / FMC0_CLK D18"];
+  FMC1 -> S7 [label="FMC1_GTX R14 / FMC1_CLK P14"];
   OTH -> K7 [style=dashed, color="#C9CFC9"];
+  OTH -> S7 [style=dashed, color="#C9CFC9"];
   n7 -> n11 [label="0xe7", color="#0E6B5E", penwidth=2];
   n8 -> n12 [label="0xa8", color="#0E6B5E", penwidth=2];
   n7 -> n14 [label="0xa7", color="#0E6B5E", penwidth=2];

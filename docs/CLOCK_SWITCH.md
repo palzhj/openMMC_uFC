@@ -78,3 +78,41 @@ termination, non-inverted), e.g. `0x88` = output driven by port 8.
 > The routing that the FPGA design expects is a board decision; the switch is
 > just a crossbar. The MMC can read/write the whole matrix over IPMI so the
 > payload does not have to own it.
+
+## FPGA clock pins
+
+From the FPGA constraint files (`uFCv2/template/S7/top.xdc`,
+`uFCv2/template/K7/top.xdc`):
+
+**Spartan 7 — XC7S25‑1CSGA324C**
+
+| Port | Pin (P/N) | Frequency |
+|---|---|---|
+| `CLK_INOUT_P` | F14 / F15 | 156.25 MHz |
+| `CLK_IN_P[0]` | N15 / P16 | 100 MHz |
+| `CLK_IN_P[1]` | D14 / D15 | 125 MHz (WR) |
+| `CLK_OUT_P[0..3]` | B16/A16, B17/A17, F18/E18, C17/B18 | — |
+| `FMC0_GTXCLK_M2C_P` | G16 / G17 | — |
+| `FMC1_GTXCLK_M2C_P` | R14 / T14 | — |
+| `FMC0_CLK_M2C_P` | D18 / C18 | — |
+| `FMC1_CLK_M2C_P` | P14 / P15 | — |
+| `FMC0_CLK_C2M_P` | E16 / E17 | — |
+| `FMC1_CLK_C2M_P` | R15 / T15 | — |
+| `FPGA_GTXCLK_P[0]` | U17 / U18 | — |
+
+**Kintex 7 — XC7K325T‑2FFG900**
+
+| Port | Pin (P/N) | Frequency |
+|---|---|---|
+| `REFCLK_P` | T26 / T27 | 200 MHz |
+| `SRCC_P` | R28 / T28 | 156.25 MHz |
+| `MRCC_P[0]` | AD23 / AE24 | 100 MHz |
+| `MRCC_P[1]` | AB27 / AC27 | 125 MHz (WR) |
+| `MRCC_P[2]` | AG29 / AH29 | 20 MHz (VCXO) |
+| `MRCC_P[3]` | C25 / B25 | 250 MHz (DDR) |
+| `MRCC_P[4..6]` | D27, F20, D17 | — |
+| `LEMO_CLK_IN_P` | U27 / U28 | 40 MHz |
+| `MGTCLK116_P0/P1` | L8 / N8 | — |
+| `MGTCLK117_P0/P1` | G8 / J8 | — |
+| `MGTCLK118_P0/P1` | C8 / E8 | — |
+| `MGTCLK115_P0` | R8 | — |
