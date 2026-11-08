@@ -287,6 +287,9 @@ first (register/command byte), then `rlen` bytes are read with a repeated
 START; `rlen = 0` makes it a pure write. Failures trigger the same bus
 recovery as the EEPROM commands.
 
+> Full manual for these commands (formats, limits, mux chain, examples,
+> error handling): **[docs/I2C_ACCESS.md](I2C_ACCESS.md)**.
+
 `0x12`/`0x13` use the board FRU EEPROM (24AA025E48 at 0x50). `0x14`/`0x15`
 take an explicit 7-bit I²C address for other EEPROMs on the same bus; they
 probe the device first, and an absent address fails with an error instead of
