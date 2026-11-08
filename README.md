@@ -174,7 +174,7 @@ once — the builder writes the FRU and verifies it:
 Returns the free FreeRTOS heap in bytes (u32, little‑endian):
 
 ```sh
-ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x01
+ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x7e -b 7 raw 0x32 0x01
 ```
 
 ### Commit hash read
@@ -182,8 +182,23 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x01
 Returns the 20‑byte git SHA‑1 embedded at build time:
 
 ```sh
-ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
+ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x7e -b 7 raw 0x32 0x02
 ```
+
+### Raw EEPROM access (opt‑in, `-DEEPROM_ACCESS=ON`)
+
+Write / read the FRU EEPROM (24AA025E48, 256 bytes, mux channel 0):
+
+```sh
+# read:  [addr_lo addr_hi length] -> data
+ipmitool ... raw 0x32 0x13 0x00 0x00 0x08
+
+# write: [addr_lo addr_hi data...]   (max 30 data bytes)
+ipmitool ... raw 0x32 0x12 0x70 0x00 0x5A 0xA5
+```
+
+`length` is 1…32 bytes; the address range is checked against the 256‑byte
+EEPROM. Writes are raw — they can corrupt the FRU, use with care.
 
 Clock switch configuration is **not used** on the uFC‑v2: the 8V54816 and
 SI5345A clock devices are mapped on the I2C mux but the board firmware does not
