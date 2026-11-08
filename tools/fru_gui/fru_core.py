@@ -168,6 +168,14 @@ class FruAccess:
         data += bytes([dev & 0xFF, len(wdata)]) + bytes(wdata) + bytes([rlen])
         return self._ipmi("0x32", "0x20", *["0x%02x" % b for b in data])
 
+    def clock_program(self):
+        """Trigger the Si5345 programming (firmware command 0x16)."""
+        return self._ipmi("0x32", "0x16")
+
+    def clock_status(self):
+        """Clock programming status: [state, fail_addr_hi, fail_addr_lo]."""
+        return self._ipmi("0x32", "0x17")
+
     def device_id(self):
         """IPMI Get Device ID (NetFn App 0x06, cmd 0x01) through the bridge."""
         return self._ipmi("0x06", "0x01")

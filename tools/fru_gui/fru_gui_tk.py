@@ -274,6 +274,10 @@ class FruEditor(tk.Tk):
         self.nb.add(self.i2c_tab, text="I²C transfer")
         self._build_i2c_tab(self.i2c_tab)
 
+        self.clock_tab = ttk.Frame(self.nb, padding=12)
+        self.nb.add(self.clock_tab, text="Clock")
+        self._build_clock_tab(self.clock_tab)
+
         self.ota_tab = ttk.Frame(self.nb, padding=12)
         self.nb.add(self.ota_tab, text="OTA update")
         self._build_ota_tab(self.ota_tab)
@@ -306,6 +310,57 @@ class FruEditor(tk.Tk):
         bottom = ttk.Frame(self, padding=(16, 6))
         bottom.pack(fill="x")
         ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
+
+    def _build_clock_tab(self, parent):
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=(0, 8))
+        ttk.Button(row, text="Program Si5345", style="Primary.TButton",
+                   command=self.clock_program).pack(side="left")
+        ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
+        ttk.Label(row, text="(firmware built with -DCLOCK_PROGRAM=ON)",
+                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
+
+        ttk.Label(parent,
+                  text="Writes the ClockBuilder register table (3 preamble + 518 + 5 postamble) "
+                       "into the Si5345 RAM, then a soft reset applies it. NVM is not touched, "
+                       "so a power cycle restores the factory configuration.",
+                  style="Hint.TLabel", wraplength=1000, justify="left").pack(anchor="w", pady=(0, 8))
+
+        self.clock_out = tk.Text(parent, height=8, font=(MONO_FONT, 9), state="disabled",
+                                 bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
+                                 highlightbackground=LINE, padx=8, pady=6)
+        self.clock_out.pack(fill="x")
+
+    def _clock_log(self, text):
+        self.clock_out.configure(state="normal")
+        self.clock_out.insert("end", text + "\n")
+        self.clock_out.see("end")
+        self.clock_out.configure(state="disabled")
+
+    def clock_program(self):
+        try:
+            self._access().clock_program()
+            self._clock_log("program command accepted — waiting for the status")
+            self.after(1500, self.clock_status)
+        except Exception as e:
+            self._status("Clock programming failed", "error")
+            self._clock_log("ERROR: %s" % e)
+
+    def clock_status(self):
+        try:
+            d = self._access().clock_status()
+            names = {0: "idle", 1: "running", 2: "OK", 3: "error"}
+            state = d[0] if d else 0
+            fail = (d[1] << 8 | d[2]) if len(d) >= 3 else 0
+            text = "status: %s" % names.get(state, str(state))
+            if state == 3:
+                text += " (failed at register 0x%04X)" % fail
+            self._clock_log(text)
+            self._status("Clock: " + text.split(":", 1)[1].strip(),
+                         "ok" if state == 2 else ("error" if state == 3 else "idle"))
+        except Exception as e:
+            self._status("Clock status failed", "error")
+            self._clock_log("ERROR: %s" % e)
 
     def _build_ota_tab(self, parent):
         self.ota_proc = None

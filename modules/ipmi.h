@@ -474,6 +474,8 @@
 #define IPMI_CUSTOM_CMD_EEPROM_READ                             0x13
 #define IPMI_CUSTOM_CMD_EEPROM_WRITE_AT                          0x14
 #define IPMI_CUSTOM_CMD_EEPROM_READ_AT                           0x15
+#define IPMI_CUSTOM_CMD_CLOCK_PROGRAM                            0x16
+#define IPMI_CUSTOM_CMD_CLOCK_STATUS                             0x17
 #define IPMI_CUSTOM_CMD_I2C_TRANSFER                             0x20
 /**
  * @}
