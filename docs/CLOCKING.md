@@ -57,9 +57,38 @@ Kintex box, etc.
 | `parent` | owning device (chip) |
 | `device` | key into `devices` |
 | `name` | signal name at the device |
+| `capability` | what the point **can** be configured as (see below) |
 | `signal` | net name (optional, e.g. `AMC_TCLKD`) |
 | `pin` | package/connector pin (optional; P/N pairs as `"6/7"`) |
 | `dir` | `in`, `out` or `inout` |
+
+### `capability` — input / output / tristate
+
+```json
+"capability": {"in": true, "out": true, "tristate": true, "default": "in"}
+```
+
+| Key | Meaning |
+|---|---|
+| `in` | can be configured as an input |
+| `out` | can be configured as an output |
+| `tristate` | the output can be disabled (high‑Z / tri‑state) |
+| `default` | safe/default configuration (`in`, `out` or `tristate`) |
+
+The current `dir` must be allowed by the capability (the validator enforces
+this). Examples from the file:
+
+| Point | `dir` | capability |
+|---|---|---|
+| `mux.CLK0` (AMC TCLKD) | inout | in/out/tristate |
+| `mux.CLK7` (156M) | in | in only |
+| `mux.CLK9` (PLL in) | out | out/tristate |
+| `mux.CLK12` (FMC clock) | inout | in/out/tristate |
+| `k7.REFCLK_P` | in | in only |
+| `s7.CLK_INOUT_P` | inout | in/out/tristate |
+
+The toolbox uses the mux capability to decide which directions are legal in
+the port table (CLK9‑11 output only, CLK7/8 input only, the rest in/out).
 
 ### `links`
 

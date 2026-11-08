@@ -351,14 +351,9 @@ class FruEditor(tk.Tk):
         self.port_vars = []
         for i in range(16):
             port, name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
-            # hardware directions: CLK9-11 are the only outputs, CLK7/CLK8 inputs,
-            # everything else is bidirectional
-            if i in (9, 10, 11):
-                allowed = ("out",)
-            elif i in (7, 8):
-                allowed = ("in",)
-            else:
-                allowed = ("in", "out")
+            # capabilities come from ufc-clocking.json (fallback: built-in rules)
+            allowed = self._mux_allowed().get(
+                i, ("out",) if i in (9, 10, 11) else ("in",) if i in (7, 8) else ("in", "out"))
             rowf = ttk.Frame(tbl)
             rowf.pack(fill="x", pady=0)
             ttk.Label(rowf, text="%s %s" % (port, name), width=22, anchor="w",
@@ -396,6 +391,23 @@ class FruEditor(tk.Tk):
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
+
+    def _mux_allowed(self):
+        doc = self._load_clocking()
+        res = {}
+        if not doc:
+            return res
+        for pt in doc.get("points", []):
+            if pt.get("parent") != "mux":
+                continue
+            cap = pt.get("capability") or {}
+            ways = tuple(k for k in ("in", "out") if cap.get(k))
+            if ways:
+                try:
+                    res[int(pt["name"].upper().replace("CLK", ""))] = ways
+                except ValueError:
+                    pass
+        return res
 
     def _port_load_all(self):
         self.clock_loading = True
