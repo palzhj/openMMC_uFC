@@ -45,8 +45,8 @@ MEMORY
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 8K
 }
 
-/* Layout (128 KB): newboot 7 KB, application 60 KB, staging 60 KB,
- * fw_info 1 KB at the end. */
+/* Layout (128 KB): newboot 8 KB, application 50 KB, staging 50 KB,
+ * clock config 19 KB (1 KB pointer + 9 KB A/B), fw_info 1 KB at the end. */
 __BootFlash_start     = 0x08000000;   /* newboot (first stage), 8 KB */
 __BootFlash_end       = 0x08001FFF;
 __AppFlash_start      = 0x08002000;   /* Application start address (vector table) */

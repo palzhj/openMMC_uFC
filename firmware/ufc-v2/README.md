@@ -12,7 +12,7 @@ Flash with J-Link from this directory:
 JLinkExe -CommanderScript flash.jlink
 ```
 
-Both load `newboot.bin` at `0x08002000` and `openMMC.bin` at `0x08004000`;
+Both load `newboot.bin` at `0x08000000` and `openMMC.bin` at `0x08002000`;
 `0x08000000-0x08001FFF` (OpenBLT) is **not** erased or written.
 
 OpenBLT validates the newboot vector table with a 32-bit sum, and `newboot.bin`

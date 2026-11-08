@@ -104,8 +104,8 @@ Unknown types are skipped using `len` (forward compatibility).
 | end marker + alignment | ~4 |
 | **total** | **≈ 1 662** |
 
-3 KB per slot leaves ~1.3 KB for an additional device (e.g. an ADN4604 map of
-~550 B, an oscillator, or a PMBus rail controller).
+A 9 KB slot leaves ~7 KB for additional devices: two Si5345 tables
+(2 × 1.6 KB) plus an ADN4604 map (~550 B) fit with room to spare.
 
 ## Update flow (atomic)
 
