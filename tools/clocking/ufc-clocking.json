@@ -1,0 +1,791 @@
+{
+  "format": "ufc-clocking",
+  "version": 1,
+  "meta": {
+    "board": "uFC v2.0",
+    "sources": [
+      "uFCv2/UFCV2.pdf (sheet 5 clock, sheets 3/8-12 FPGA, MGT banks)",
+      "uFCv2/template/S7/top.xdc",
+      "uFCv2/template/K7/top.xdc",
+      "uFCv2/readme/clocking.jpg"
+    ],
+    "notes": [
+      "links with \"verified\": false need a schematic check",
+      "pin numbers are package pins; for the 8V54816A they are the connector/differential pair pins"
+    ]
+  },
+  "devices": {
+    "amc": {
+      "part": "AMC backplane"
+    },
+    "mux": {
+      "part": "8V54816A",
+      "bus": 1,
+      "mux": [
+        [
+          112,
+          2
+        ]
+      ],
+      "addr": 88
+    },
+    "pll": {
+      "part": "Si5345A-D-GM",
+      "bus": 1,
+      "mux": [
+        [
+          112,
+          2
+        ]
+      ],
+      "addr": 105
+    },
+    "fmc0": {
+      "part": "FMC0 connector"
+    },
+    "fmc1": {
+      "part": "FMC1 connector"
+    },
+    "k7": {
+      "part": "XC7K325T-2FFG900"
+    },
+    "s7": {
+      "part": "XC7S25-1CSGA324C"
+    },
+    "osc156": {
+      "part": "570BAB000544DG",
+      "freq": "156.25MHz"
+    },
+    "osc200": {
+      "freq": "200MHz"
+    },
+    "osc8": {
+      "freq": "8MHz"
+    },
+    "vcxo": {
+      "freq": "20MHz"
+    },
+    "wr": {
+      "part": "White Rabbit"
+    },
+    "lemo": {
+      "part": "LEMO clock in"
+    },
+    "mcu": {
+      "part": "STM32F100 (MMC)"
+    }
+  },
+  "points": [
+    {
+      "id": "amc.TCLKA",
+      "device": "amc",
+      "name": "TCLKA",
+      "dir": "inout"
+    },
+    {
+      "id": "amc.TCLKB",
+      "device": "amc",
+      "name": "TCLKB",
+      "dir": "inout"
+    },
+    {
+      "id": "amc.TCLC",
+      "device": "amc",
+      "name": "TCLC",
+      "dir": "inout"
+    },
+    {
+      "id": "amc.TCLKD",
+      "device": "amc",
+      "name": "TCLKD",
+      "dir": "inout"
+    },
+    {
+      "id": "amc.FCLKA",
+      "device": "amc",
+      "name": "FCLKA",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK0",
+      "device": "mux",
+      "name": "CLK0",
+      "signal": "AMC_TCLKD",
+      "pin": "6/7",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK1",
+      "device": "mux",
+      "name": "CLK1",
+      "signal": "AMC_TCLKC",
+      "pin": "10/11",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK2",
+      "device": "mux",
+      "name": "CLK2",
+      "signal": "AMC_TCLKA",
+      "pin": "15/16",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK3",
+      "device": "mux",
+      "name": "CLK3",
+      "signal": "AMC_TCLKB",
+      "pin": "19/20",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK4",
+      "device": "mux",
+      "name": "CLK4",
+      "signal": "AMC_FCLKA",
+      "pin": "31/32",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK5",
+      "device": "mux",
+      "name": "CLK5",
+      "signal": "S7_CLK_INOUT",
+      "pin": "35/36",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK6",
+      "device": "mux",
+      "name": "CLK6",
+      "signal": "FPGA_CLK_INOUT",
+      "pin": "40/41",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK7",
+      "device": "mux",
+      "name": "CLK7",
+      "signal": "156M",
+      "pin": "44/45",
+      "dir": "in"
+    },
+    {
+      "id": "mux.CLK8",
+      "device": "mux",
+      "name": "CLK8",
+      "signal": "PLL_OUT",
+      "pin": "56/57",
+      "dir": "in"
+    },
+    {
+      "id": "mux.CLK9",
+      "device": "mux",
+      "name": "CLK9",
+      "signal": "PLL_IN_P2",
+      "pin": "60/61",
+      "dir": "out"
+    },
+    {
+      "id": "mux.CLK10",
+      "device": "mux",
+      "name": "CLK10",
+      "signal": "PLL_IN_P1",
+      "pin": "65/66",
+      "dir": "out"
+    },
+    {
+      "id": "mux.CLK11",
+      "device": "mux",
+      "name": "CLK11",
+      "signal": "PLL_IN_P0",
+      "pin": "69/70",
+      "dir": "out"
+    },
+    {
+      "id": "mux.CLK12",
+      "device": "mux",
+      "name": "CLK12",
+      "signal": "FMC0_GBTCLK",
+      "pin": "81/82",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK13",
+      "device": "mux",
+      "name": "CLK13",
+      "signal": "FMC0_CLK",
+      "pin": "85/86",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK14",
+      "device": "mux",
+      "name": "CLK14",
+      "signal": "FMC1_CLK",
+      "pin": "89/90",
+      "dir": "inout"
+    },
+    {
+      "id": "mux.CLK15",
+      "device": "mux",
+      "name": "CLK15",
+      "signal": "FMC1_GBTCLK",
+      "pin": "94/95",
+      "dir": "inout"
+    },
+    {
+      "id": "pll.IN2",
+      "device": "pll",
+      "name": "IN2",
+      "dir": "in"
+    },
+    {
+      "id": "pll.IN1",
+      "device": "pll",
+      "name": "IN1",
+      "dir": "in"
+    },
+    {
+      "id": "pll.IN0",
+      "device": "pll",
+      "name": "IN0",
+      "dir": "in"
+    },
+    {
+      "id": "pll.FB",
+      "device": "pll",
+      "name": "FB (PLL_OUT)",
+      "dir": "out"
+    },
+    {
+      "id": "pll.GTX_CLK0",
+      "device": "pll",
+      "name": "GTX_CLK0",
+      "dir": "out"
+    },
+    {
+      "id": "pll.GTX_CLK1",
+      "device": "pll",
+      "name": "GTX_CLK1",
+      "dir": "out"
+    },
+    {
+      "id": "pll.GTX_CLK2",
+      "device": "pll",
+      "name": "GTX_CLK2",
+      "dir": "out"
+    },
+    {
+      "id": "pll.GTX_CLK3",
+      "device": "pll",
+      "name": "GTX_CLK3",
+      "dir": "out"
+    },
+    {
+      "id": "pll.FPGA_CLK0",
+      "device": "pll",
+      "name": "FPGA_CLK0",
+      "dir": "out"
+    },
+    {
+      "id": "fmc0.GBTCLK_M2C",
+      "device": "fmc0",
+      "name": "GBTCLK_M2C",
+      "dir": "inout"
+    },
+    {
+      "id": "fmc0.CLK_M2C",
+      "device": "fmc0",
+      "name": "CLK_M2C",
+      "dir": "inout"
+    },
+    {
+      "id": "fmc0.CLK_C2M",
+      "device": "fmc0",
+      "name": "CLK_C2M",
+      "dir": "inout"
+    },
+    {
+      "id": "fmc1.GBTCLK_M2C",
+      "device": "fmc1",
+      "name": "GBTCLK_M2C",
+      "dir": "inout"
+    },
+    {
+      "id": "fmc1.CLK_M2C",
+      "device": "fmc1",
+      "name": "CLK_M2C",
+      "dir": "inout"
+    },
+    {
+      "id": "fmc1.CLK_C2M",
+      "device": "fmc1",
+      "name": "CLK_C2M",
+      "dir": "inout"
+    },
+    {
+      "id": "k7.REFCLK_P",
+      "device": "k7",
+      "name": "REFCLK_P",
+      "pin": "T26",
+      "dir": "in"
+    },
+    {
+      "id": "k7.SRCC_P",
+      "device": "k7",
+      "name": "SRCC_P",
+      "pin": "R28",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P0",
+      "device": "k7",
+      "name": "MRCC_P[0]",
+      "pin": "AD23",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P1",
+      "device": "k7",
+      "name": "MRCC_P[1]",
+      "pin": "AB27",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P2",
+      "device": "k7",
+      "name": "MRCC_P[2]",
+      "pin": "AG29",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P3",
+      "device": "k7",
+      "name": "MRCC_P[3]",
+      "pin": "C25",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P4",
+      "device": "k7",
+      "name": "MRCC_P[4]",
+      "pin": "D27",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P5",
+      "device": "k7",
+      "name": "MRCC_P[5]",
+      "pin": "F20",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MRCC_P6",
+      "device": "k7",
+      "name": "MRCC_P[6]",
+      "pin": "D17",
+      "dir": "in"
+    },
+    {
+      "id": "k7.LEMO_CLK_IN_P",
+      "device": "k7",
+      "name": "LEMO_CLK_IN_P",
+      "pin": "U27",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK115_P0",
+      "device": "k7",
+      "name": "MGTCLK115_P0",
+      "pin": "R8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK116_P0",
+      "device": "k7",
+      "name": "MGTCLK116_P0",
+      "pin": "L8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK116_P1",
+      "device": "k7",
+      "name": "MGTCLK116_P1",
+      "pin": "N8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK117_P0",
+      "device": "k7",
+      "name": "MGTCLK117_P0",
+      "pin": "G8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK117_P1",
+      "device": "k7",
+      "name": "MGTCLK117_P1",
+      "pin": "J8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK118_P0",
+      "device": "k7",
+      "name": "MGTCLK118_P0",
+      "pin": "C8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.MGTCLK118_P1",
+      "device": "k7",
+      "name": "MGTCLK118_P1",
+      "pin": "E8",
+      "dir": "in"
+    },
+    {
+      "id": "k7.FPGA_CLK_INOUT",
+      "device": "k7",
+      "name": "FPGA_CLK_INOUT",
+      "dir": "inout"
+    },
+    {
+      "id": "s7.CLK_INOUT_P",
+      "device": "s7",
+      "name": "CLK_INOUT_P",
+      "pin": "F14",
+      "dir": "inout"
+    },
+    {
+      "id": "s7.CLK_IN_P0",
+      "device": "s7",
+      "name": "CLK_IN_P[0]",
+      "pin": "N15",
+      "dir": "in"
+    },
+    {
+      "id": "s7.CLK_IN_P1",
+      "device": "s7",
+      "name": "CLK_IN_P[1]",
+      "pin": "D14",
+      "dir": "in"
+    },
+    {
+      "id": "s7.CLK_OUT_P0",
+      "device": "s7",
+      "name": "CLK_OUT_P[0]",
+      "pin": "B16",
+      "dir": "out"
+    },
+    {
+      "id": "s7.CLK_OUT_P1",
+      "device": "s7",
+      "name": "CLK_OUT_P[1]",
+      "pin": "B17",
+      "dir": "out"
+    },
+    {
+      "id": "s7.CLK_OUT_P2",
+      "device": "s7",
+      "name": "CLK_OUT_P[2]",
+      "pin": "F18",
+      "dir": "out"
+    },
+    {
+      "id": "s7.CLK_OUT_P3",
+      "device": "s7",
+      "name": "CLK_OUT_P[3]",
+      "pin": "C17",
+      "dir": "out"
+    },
+    {
+      "id": "s7.FMC0_GTXCLK_M2C_P",
+      "device": "s7",
+      "name": "FMC0_GTXCLK_M2C_P",
+      "pin": "G16",
+      "dir": "in"
+    },
+    {
+      "id": "s7.FMC0_CLK_M2C_P",
+      "device": "s7",
+      "name": "FMC0_CLK_M2C_P",
+      "pin": "D18",
+      "dir": "in"
+    },
+    {
+      "id": "s7.FMC1_GTXCLK_M2C_P",
+      "device": "s7",
+      "name": "FMC1_GTXCLK_M2C_P",
+      "pin": "R14",
+      "dir": "in"
+    },
+    {
+      "id": "s7.FMC1_CLK_M2C_P",
+      "device": "s7",
+      "name": "FMC1_CLK_M2C_P",
+      "pin": "P14",
+      "dir": "in"
+    },
+    {
+      "id": "s7.FMC0_CLK_C2M_P",
+      "device": "s7",
+      "name": "FMC0_CLK_C2M_P",
+      "pin": "E16",
+      "dir": "out"
+    },
+    {
+      "id": "s7.FMC1_CLK_C2M_P",
+      "device": "s7",
+      "name": "FMC1_CLK_C2M_P",
+      "pin": "R15",
+      "dir": "out"
+    },
+    {
+      "id": "s7.FPGA_GTXCLK_P0",
+      "device": "s7",
+      "name": "FPGA_GTXCLK_P[0]",
+      "pin": "U17",
+      "dir": "in"
+    },
+    {
+      "id": "osc156.OUT",
+      "device": "osc156",
+      "name": "OUT",
+      "dir": "out"
+    },
+    {
+      "id": "osc200.OUT",
+      "device": "osc200",
+      "name": "OUT",
+      "dir": "out"
+    },
+    {
+      "id": "osc8.OUT",
+      "device": "osc8",
+      "name": "OUT",
+      "dir": "out"
+    },
+    {
+      "id": "vcxo.OUT",
+      "device": "vcxo",
+      "name": "OUT",
+      "dir": "out"
+    },
+    {
+      "id": "wr.OUT",
+      "device": "wr",
+      "name": "125MHz",
+      "dir": "out"
+    },
+    {
+      "id": "lemo.OUT",
+      "device": "lemo",
+      "name": "CLK_IN",
+      "dir": "out"
+    },
+    {
+      "id": "mcu.CLK",
+      "device": "mcu",
+      "name": "CLK_IN",
+      "dir": "in"
+    }
+  ],
+  "links": [
+    {
+      "a": "amc.TCLKD",
+      "b": "mux.CLK0",
+      "kind": "bidir"
+    },
+    {
+      "a": "amc.TCLC",
+      "b": "mux.CLK1",
+      "kind": "bidir"
+    },
+    {
+      "a": "amc.TCLKA",
+      "b": "mux.CLK2",
+      "kind": "bidir"
+    },
+    {
+      "a": "amc.TCLKB",
+      "b": "mux.CLK3",
+      "kind": "bidir"
+    },
+    {
+      "a": "amc.FCLKA",
+      "b": "mux.CLK4",
+      "kind": "bidir"
+    },
+    {
+      "a": "s7.CLK_INOUT_P",
+      "b": "mux.CLK5",
+      "kind": "bidir"
+    },
+    {
+      "a": "k7.FPGA_CLK_INOUT",
+      "b": "mux.CLK6",
+      "kind": "bidir",
+      "verified": false
+    },
+    {
+      "a": "osc156.OUT",
+      "b": "mux.CLK7",
+      "kind": "forward"
+    },
+    {
+      "a": "pll.FB",
+      "b": "mux.CLK8",
+      "kind": "forward"
+    },
+    {
+      "a": "mux.CLK9",
+      "b": "pll.IN2",
+      "kind": "forward"
+    },
+    {
+      "a": "mux.CLK10",
+      "b": "pll.IN1",
+      "kind": "forward"
+    },
+    {
+      "a": "mux.CLK11",
+      "b": "pll.IN0",
+      "kind": "forward"
+    },
+    {
+      "a": "mux.CLK12",
+      "b": "fmc0.GBTCLK_M2C",
+      "kind": "bidir"
+    },
+    {
+      "a": "mux.CLK13",
+      "b": "fmc0.CLK_M2C",
+      "kind": "bidir"
+    },
+    {
+      "a": "mux.CLK14",
+      "b": "fmc1.CLK_M2C",
+      "kind": "bidir"
+    },
+    {
+      "a": "mux.CLK15",
+      "b": "fmc1.GBTCLK_M2C",
+      "kind": "bidir"
+    },
+    {
+      "a": "fmc0.GBTCLK_M2C",
+      "b": "s7.FMC0_GTXCLK_M2C_P",
+      "kind": "forward"
+    },
+    {
+      "a": "fmc0.CLK_M2C",
+      "b": "s7.FMC0_CLK_M2C_P",
+      "kind": "forward"
+    },
+    {
+      "a": "fmc1.GBTCLK_M2C",
+      "b": "s7.FMC1_GTXCLK_M2C_P",
+      "kind": "forward"
+    },
+    {
+      "a": "fmc1.CLK_M2C",
+      "b": "s7.FMC1_CLK_M2C_P",
+      "kind": "forward"
+    },
+    {
+      "a": "pll.GTX_CLK0",
+      "b": "k7.MGTCLK116_P0",
+      "kind": "forward",
+      "verified": false
+    },
+    {
+      "a": "pll.GTX_CLK1",
+      "b": "k7.MGTCLK116_P1",
+      "kind": "forward",
+      "verified": false
+    },
+    {
+      "a": "pll.GTX_CLK2",
+      "b": "k7.MGTCLK117_P0",
+      "kind": "forward",
+      "verified": false
+    },
+    {
+      "a": "pll.GTX_CLK3",
+      "b": "k7.MGTCLK117_P1",
+      "kind": "forward",
+      "verified": false
+    },
+    {
+      "a": "pll.FPGA_CLK0",
+      "b": "k7.MRCC_P3",
+      "kind": "forward",
+      "verified": false
+    },
+    {
+      "a": "osc200.OUT",
+      "b": "k7.REFCLK_P",
+      "kind": "forward"
+    },
+    {
+      "a": "osc200.OUT",
+      "b": "k7.MRCC_P0",
+      "kind": "forward",
+      "verified": false
+    },
+    {
+      "a": "wr.OUT",
+      "b": "k7.MRCC_P1",
+      "kind": "forward"
+    },
+    {
+      "a": "wr.OUT",
+      "b": "s7.CLK_IN_P1",
+      "kind": "forward"
+    },
+    {
+      "a": "vcxo.OUT",
+      "b": "k7.MRCC_P2",
+      "kind": "forward"
+    },
+    {
+      "a": "lemo.OUT",
+      "b": "k7.LEMO_CLK_IN_P",
+      "kind": "forward"
+    },
+    {
+      "a": "osc8.OUT",
+      "b": "mcu.CLK",
+      "kind": "forward"
+    }
+  ],
+  "routing": {
+    "mux.CLK9": {
+      "source": null
+    },
+    "mux.CLK10": {
+      "source": null
+    },
+    "mux.CLK11": {
+      "source": "mux.CLK7",
+      "term": true,
+      "inverted": false
+    },
+    "mux.CLK12": {
+      "source": "mux.CLK8",
+      "term": false,
+      "inverted": false
+    },
+    "mux.CLK13": {
+      "source": null
+    },
+    "mux.CLK14": {
+      "source": "mux.CLK7",
+      "term": false,
+      "inverted": false
+    },
+    "mux.CLK15": {
+      "source": null
+    }
+  }
+}

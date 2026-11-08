@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Loader / validator for ufc-clocking.json files.
+
+The file describes clocking points (device, name, pin, direction) and the
+connection relationships between them, plus the mutable 8V54816A routing.
+
+Usage:
+    clocking.py check  ufc-clocking.json
+    clocking.py matrix ufc-clocking.json
+    clocking.py dot    ufc-clocking.json   > clocking.dot
+"""
+import json
+import sys
+
+DIRS = ("in", "out", "inout")
+KINDS = ("forward", "bidir")
+MUX_DEVICE = "mux"
+
+
+def load(path):
+    with open(path) as f:
+        return json.load(f)
+
+
+def validate(doc):
+    """Return (errors, warnings)."""
+    errors, warnings = [], []
+    points = {}
+    devices = doc.get("devices", {})
+    for p in doc.get("points", []):
+        pid = p.get("id")
+        if not pid:
+            errors.append("point without id: %r" % (p,))
+            continue
+        if pid in points:
+            errors.append("duplicate point id %s" % pid)
+        points[pid] = p
+        if p.get("dir") not in DIRS:
+            errors.append("%s: bad dir %r" % (pid, p.get("dir")))
+        if p.get("device") not in devices:
+            errors.append("%s: unknown device %r" % (pid, p.get("device")))
+
+    for link in doc.get("links", []):
+        a, b = link.get("a"), link.get("b")
+        for pid in (a, b):
+            if pid not in points:
+                errors.append("link endpoint %r does not exist" % (pid,))
+        if link.get("kind") not in KINDS:
+            errors.append("link %s-%s: bad kind %r" % (a, b, link.get("kind")))
+        if a in points and b in points:
+            da, db = points[a]["dir"], points[b]["dir"]
+            if link.get("kind") == "forward":
+                if da not in ("out", "inout"):
+                    errors.append("forward link %s-%s: %s is %s" % (a, b, a, da))
+                if db not in ("in", "inout"):
+                    errors.append("forward link %s-%s: %s is %s" % (a, b, b, db))
+            if link.get("kind") == "bidir" and "inout" not in (da, db):
+                warnings.append("bidir link %s-%s: neither end is inout" % (a, b))
+        if link.get("verified") is False:
+            warnings.append("unverified link %s-%s" % (a, b))
+
+    mux_ports = [pid for pid, p in points.items() if p.get("device") == MUX_DEVICE]
+    for pid, route in doc.get("routing", {}).items():
+        if pid not in mux_ports:
+            errors.append("routing: %s is not a mux port" % pid)
+        src = route.get("source")
+        if src is not None and src not in mux_ports:
+            errors.append("routing: %s source %r is not a mux port" % (pid, src))
+    return errors, warnings
+
+
+def matrix(doc):
+    """Return the 16-byte 8V54816A configuration for the routing section."""
+    points = {p["id"]: p for p in doc["points"]}
+    inputs = [pid for pid in points
+              if points[pid].get("device") == MUX_DEVICE
+              and points[pid]["dir"] == "in" and pid.split(".")[1] < "CLK9"]
+    data = bytearray(16)
+    for port in range(16):
+        pid = "%s.CLK%d" % (MUX_DEVICE, port)
+        route = doc.get("routing", {}).get(pid)
+        if port < 9:
+            data[port] = 0
+            continue
+        if not route or not route.get("source"):
+            data[port] = 0
+            continue
+        src = int(route["source"].split("CLK")[1])
+        byte = 0x80 | (src & 0x0F) | (0x40 if route.get("term") else 0)
+        if not route.get("inverted", False):
+            byte |= 0x20
+        data[port] = byte
+    return bytes(data)
+
+
+def dot(doc):
+    """Render the file as a Graphviz diagram."""
+    points = {p["id"]: p for p in doc["points"]}
+    out = ["digraph clocking {", '  rankdir=LR;',
+           '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
+           '        color="#E4DED2", fontname="Helvetica", fontsize=8];',
+           '  edge [fontname="Helvetica", fontsize=7];']
+    for pid, p in points.items():
+        pin = p.get("pin")
+        label = "%s %s" % (pid, p["dir"])
+        if pin:
+            label += "\\npin %s" % pin
+        shape = ", shape=note" if p.get("device") == MUX_DEVICE else ""
+        out.append('  "%s" [label="%s"%s];' % (pid, label, shape))
+    for link in doc.get("links", []):
+        a, b = link["a"], link["b"]
+        color = "#0E6B5E" if link.get("kind") == "bidir" else "#8A8A80"
+        style = ", dir=both" if link.get("kind") == "bidir" else ""
+        dashed = ", style=dashed" if link.get("verified") is False else ""
+        out.append('  "%s" -> "%s" [color="%s"%s%s];' % (a, b, color, style, dashed))
+    for pid, route in doc.get("routing", {}).items():
+        if route.get("source"):
+            out.append('  "%s" -> "%s" [label="routing", color="#B07A3A", penwidth=2];'
+                       % (route["source"], pid))
+    out.append("}")
+    return "\n".join(out) + "\n"
+
+
+def main():
+    if len(sys.argv) < 3:
+        print(__doc__)
+        return 2
+    cmd, path = sys.argv[1], sys.argv[2]
+    doc = load(path)
+    if cmd == "check":
+        errors, warnings = validate(doc)
+        for w in warnings:
+            print("warning:", w)
+        for e in errors:
+            print("error:  ", e)
+        print("%d points, %d links, %d errors, %d warnings"
+              % (len(doc.get("points", [])), len(doc.get("links", [])), len(errors), len(warnings)))
+        return 1 if errors else 0
+    if cmd == "matrix":
+        print(" ".join("%02x" % b for b in matrix(doc)))
+        return 0
+    if cmd == "dot":
+        sys.stdout.write(dot(doc))
+        return 0
+    print("unknown command", cmd)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
