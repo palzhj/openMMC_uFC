@@ -41,14 +41,14 @@ _Min_Stack_Size = 512;   /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 8K
+  FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 8K
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 8K
 }
 
-/* 0x08000000 - 0x08001FFF is reserved for OpenBLT (first-stage bootloader).
- * Never erase or program this region from openMMC. */
-__BootFlash_start     = 0x08002000;   /* Bootloader start address (vector table) */
-__BootFlash_end       = 0x08003FFF;   /* Bootloader end address (last byte) */
+/* OpenBLT is no longer used: newboot itself sits at the reset vector
+ * (0x08000000) and is the first-stage bootloader. */
+__BootFlash_start     = 0x08000000;   /* Bootloader start address (vector table) */
+__BootFlash_end       = 0x08001FFF;   /* Bootloader end address (last byte) */
 __AppFlash_start      = 0x08004000;   /* Application start address (vector table) */
 __AppFlash_end        = 0x08011FFF;   /* 56K Application end address (last byte) */
 __FWUpdateFlash_start = 0x08012000;   /* Firmware update region start address */

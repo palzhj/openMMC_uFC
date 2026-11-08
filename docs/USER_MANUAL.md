@@ -12,8 +12,7 @@ Management Controller) runs **openMMC**, an open‑source IPMI/IPMB firmware.
 | Item | Value |
 |---|---|
 | MCU | **STM32F100CBT6** — Cortex‑M3 value line, 128 KB flash, 8 KB SRAM |
-| Bootloader | OpenBLT at `0x08000000` (8 KB, **never modified by updates**) |
-| Secondary boot | newboot at `0x08002000` (8 KB) |
+| Bootloader | **newboot** at `0x08000000` (8 KB) — first stage, applies staged updates |
 | Application | openMMC at `0x08004000` (56 KB) |
 | Update staging | `0x08012000` (56 KB) |
 | Console | USART1, PA9 (TX) / PA10 (RX), **115200 8N1** |
@@ -39,9 +38,8 @@ cmake -S . -B build-ufc \
       -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-ufc -j
 
-# 2. flash the application through OpenBLT (XCP over UART)
-BootCommander -s=xcp -t=xcp_rs232 -d=/dev/ttyUSB0 -b=115200 \
-              -t6=500 -t1=500 build-ufc/out/openMMC.srec
+# 2. flash newboot + application over SWD (J-Link)
+cd firmware/ufc-v2 && ./flash-jlink.sh uart-debug
 
 # 3. watch the console
 picocom -b 115200 /dev/ttyUSB0
@@ -76,8 +74,7 @@ Reset FPGA
 | `arm-none-eabi-gcc` | 10+ (14.2.1 tested) |
 | CMake | **≥ 3.10** (4.2.3 tested; no extra flags needed) |
 | GNU make | any |
-| `Bin2HPM` (optional) | for `.hpm` firmware update files |
-| `BootCommander` (optional) | OpenBLT host for UART updates |
+| `bin2hpm` (optional) | builds `.hpm` files for IPMI OTA updates |
 | J‑Link software (optional) | SWD programming |
 
 ```sh
@@ -122,39 +119,50 @@ time and embedded in the image.
 
 | Region | Address | Size | Content |
 |---|---|---|---|
-| OpenBLT | `0x08000000` | 8 KB | bootloader — **do not erase** |
-| newboot | `0x08002000` | 8 KB | OpenBLT application, vector checksum at `0x080021D0` |
+| newboot | `0x08000000` | 8 KB | first‑stage bootloader (reset vector) |
+| *(unused)* | `0x08002000` | 8 KB | free |
 | app | `0x08004000` | 56 KB | openMMC |
 | staging | `0x08012000` | 56 KB | firmware upload target |
 | `fw_info` | `0x0801FF00` | 256 B | pending‑update flag used by newboot |
 
+OpenBLT has been dropped; the CPU starts newboot directly from `0x08000000`.
+
 Boot sequence:
 
-1. OpenBLT starts, verifies the newboot vector table checksum, jumps to newboot.
-2. newboot reads `fw_info`; if an update is pending it copies staging → app.
-3. newboot jumps to the application (`0x08004000`).
-4. openMMC initialises clocks, UART, I²C and the FRU, then starts FreeRTOS.
-
-**Never write to `0x08000000–0x08001FFF`.** The normal update flow never touches
-it.
+1. newboot reads `fw_info`; if an update is pending it copies staging → app and
+   clears the flag.
+2. newboot jumps to the application (`0x08004000`).
+3. openMMC initialises clocks, UART, I²C and the FRU, then starts FreeRTOS.
 
 ---
 
 ## 5. Flashing
 
-### 5.1 Application over UART (OpenBLT XCP) — recommended
+### 5.1 Over IPMI (HPM.1 OTA) — recommended in a crate
+
+Through a NAT‑MCH (double‑bridged; see the NAT‑MCH manual Appendix B.3):
 
 ```sh
-BootCommander -s=xcp -t=xcp_rs232 -d=/dev/ttyUSB0 -b=115200 \
-              -t6=500 -t1=500 build-ufc/out/openMMC.srec
+ipmitool -I lan -H <mch-ip> -A none -T 0x82 -B 0 -t 0x7e -b 7 \
+         hpm upgrade openMMC.hpm
+ipmitool -I lan -H <mch-ip> -A none -T 0x82 -B 0 -t 0x7e -b 7 \
+         hpm activate
 ```
 
-* The base address (`0x08004000`) is in the S‑record.
-* If the backdoor times out, power‑cycle the board while BootCommander is
-  connecting.
-* newboot is flashed the same way: pass `out/newboot.srec` (base `0x08002000`).
+* `-t 0x7e` is the MMC’s IPMB‑L address (AMC7) and `-b 7` the IPMB‑L bus;
+  `-T 0x82 -B 0` is the carrier transit address/bus.
+* Build the HPM image with `bin2hpm`:
 
-### 5.2 Application / newboot over SWD (J‑Link)
+  ```sh
+  bin2hpm -c 1 -n -m 0x315A -p 0x0 -d 0 out/openMMC.bin -o out/openMMC.hpm
+  ```
+
+* `hpm upgrade` stages the image; `hpm activate` writes `fw_info` and resets.
+  newboot then applies the image automatically and clears the flag.
+* Check the target first with `hpm check`, `hpm compprop 0 1`,
+  `hpm upgstatus`.
+
+### 5.2 newboot / application over SWD (J‑Link)
 
 A ready script ships in `firmware/ufc-v2/flash.jlink`:
 
@@ -164,7 +172,7 @@ si SWD
 speed 1000
 VTREF 3300
 connect
-loadfile uart-debug/newboot.bin 0x08002000
+loadfile uart-debug/newboot.bin 0x08000000
 loadfile uart-debug/openMMC.bin 0x08004000
 r
 g
@@ -173,42 +181,12 @@ q
 
 ```sh
 cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
+# or: ./flash-jlink.sh uart-debug
 ```
 
 `VTREF 3300` only takes effect after a J‑Link power cycle, or with the J‑Link
-VTref pin wired to the board’s 3.3 V.
-
-**OpenBLT checksum caveat.** A raw `loadbin` of `newboot.bin` writes the
-*seed* `0x55AA11EE` at `0x080021D0`, but OpenBLT requires the 32-bit sum of the
-words at `app+0x00..0x18` plus the word at `app+0x1D0` to be zero. Without the
-fix-up the bootloader stays in its loop and never starts newboot.
-
-`firmware/ufc-v2/flash.jlink` therefore ends with
-
-```
-w4 0x080021D0 0xAFFEF27A
-```
-
-which is the correct value for the shipped `newboot.bin`. Recompute it whenever
-newboot changes, or use the helper which computes and injects it:
-
-```sh
-cd firmware/ufc-v2
-./flash-jlink.sh uart-debug      # or: ./flash-jlink.sh normal
-```
-
-The helper never touches `0x08000000-0x08001FFF` (OpenBLT).
-
-### 5.3 Bootloader (factory only)
-
-OpenBLT at `0x08000000` is programmed once with SWD. Do this **only** to restore
-a bricked bootloader:
-
-```
-loadbin openblt_stm32f100.bin 0x08000000
-```
-
----
+VTref pin wired to the board’s 3.3 V. newboot is linked at `0x08000000`;
+no OpenBLT checksum fix‑up is needed.
 
 ## 6. FRU information
 
@@ -308,13 +286,13 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
 | Symptom | Likely cause | Action |
 |---|---|---|
 | No console output at all | Wrong baud, TX/RX swapped, UART_DEBUG not built, or app not running | Check 115200 8N1; verify `-DUART_DEBUG=ON`; flash a known‑good image |
-| Bootloader prints `jump app=…` but nothing else | App vector table invalid | Verify newboot checksum word at `0x080021D0`; reflash newboot |
+| newboot prints `jump app=…` but nothing else | App vector table invalid | Reflash the application (J‑Link or OTA) |
 | App starts then resets immediately | `fw_info` pending flag with empty staging | Clear `0x0801FF00–0x0801FFFF` to `0xFF` |
 | `COMMON HEADER checksum` error | FRU blank or unreadable | Reprogram FRU (`-DFRU_BUILD=ON`); check I²C |
 | `FRU info is healthy!` never appears | I²C mux/bus fault | Verify `0x70` ACKs; check SCL/SDA pull‑ups |
 | Board reboots every ~1 s | Watchdog enabled but tasks starved | Check heap usage, stack sizes; rebuild with `-DDISABLE_WATCHDOG=ON` to confirm |
 | `Target voltage too low` (J‑Link) | VTref not detected | Power‑cycle the J‑Link after setting `VTREF 3300` |
-| Backdoor timeout in BootCommander | App not responding to XCP | Hold reset / power‑cycle while connecting |
+| `hpm upgrade` times out | MMC not responding on IPMB‑L | Check `-T 0x82 -B 0 -t 0x7e -b 7`; verify the MCH sees AMC7 |
 | `Version: …-NOTFOUND` | Built outside a git checkout | Build from the repository root |
 
 ---
@@ -322,12 +300,10 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
 ## 11. Recovery (unbricking)
 
 1. **Application won’t boot, newboot still healthy**
-   Flash `openMMC.srec` over OpenBLT XCP (§5.1).
+   Flash the application over SWD (§5.2) or via IPMI OTA (§5.1).
 2. **newboot corrupt**
-   Flash `newboot.srec` over OpenBLT XCP, or use SWD at `0x08002000`.
-3. **Bootloader corrupt**
-   SWD‑program OpenBLT at `0x08000000` (factory image).
-4. **FRU corrupted**
+   SWD‑program `newboot.bin` at `0x08000000`.
+3. **FRU corrupted**
    Build with `-DFRU_BUILD=ON`, flash, power‑cycle once, rebuild production.
 
 ---
@@ -363,7 +339,6 @@ Third‑party components keep their own licenses — see
 * FreeRTOS — MIT
 * STM32F10x StdPeriph — ST SLA0044
 * CMSIS — ARM LEC‑PRE‑00425‑V2.0
-* OpenBLT — separate program, not included in this repository
 
 ---
 

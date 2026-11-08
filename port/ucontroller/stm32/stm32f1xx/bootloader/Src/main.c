@@ -227,13 +227,13 @@ void update(enum fw_update_type ftype)
     {
         startAddr = (uint32_t)&__AppFlash_start;
         stopAddr = (uint32_t)&__AppFlash_end;
-        nbrOfPage = (stopAddr - startAddr) / FLASH_PAGE_SIZE;
+        nbrOfPage = (stopAddr - startAddr + 1) / FLASH_PAGE_SIZE;
     }
     else if (ftype == FW_UPDATE_BOOT)
     {
         startAddr = (uint32_t)&__BootFlash_start;
         stopAddr = (uint32_t)&__BootFlash_end;
-        nbrOfPage = (stopAddr - startAddr) / FLASH_PAGE_SIZE;
+        nbrOfPage = (stopAddr - startAddr + 1) / FLASH_PAGE_SIZE;
     }
     else
     {
@@ -279,14 +279,19 @@ void update(enum fw_update_type ftype)
         }
     }
 
-    // Erase flash firmware update section
-    for (counter = 0; counter < nbrOfPage; counter++)
+    // Erase the whole firmware update (staging) section. This also clears the
+    // page that holds the fw_info record, so a completed update is not applied
+    // again on the next reset (the magic word must not survive the update).
     {
-        if (FLASH_ErasePage(sourceAddr + (FLASH_PAGE_SIZE * counter)) != FLASH_COMPLETE)
+        const uint32_t stagingPages = ((uint32_t)&__FWUpdateFlash_end - (uint32_t)&__FWUpdateFlash_start + 1) / FLASH_PAGE_SIZE;
+        for (counter = 0; counter < stagingPages; counter++)
         {
-            // Error occurred while page erase
-            uart1_write_str_blocking("[BOOTLOADER] Page erase ERROR for update section");
-            return;
+            if (FLASH_ErasePage((uint32_t)&__FWUpdateFlash_start + (FLASH_PAGE_SIZE * counter)) != FLASH_COMPLETE)
+            {
+                // Error occurred while page erase
+                uart1_write_str_blocking("[BOOTLOADER] Page erase ERROR for update section");
+                return;
+            }
         }
     }
 

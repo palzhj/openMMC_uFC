@@ -48,6 +48,7 @@ enum {
     CHIP_ID_EEPROM,
     CHIP_ID_8V54816,
     CHIP_ID_SI5345_0,
+    CHIP_ID_PMBUS_0,
     I2C_CHIP_CNT
 };
 
