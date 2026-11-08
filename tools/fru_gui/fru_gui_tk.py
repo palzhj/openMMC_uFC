@@ -332,6 +332,10 @@ class FruEditor(tk.Tk):
             ttk.Entry(muxrow, textvariable=c, width=4).pack(side="left", padx=(4, 14))
             self.mux_vars.append((a, c))
 
+        ttk.Label(parent,
+                  text="empty write bytes = read only   ·   read length 0 = write only   ·   both = write then read",
+                  style="Hint.TLabel").pack(anchor="w", pady=(0, 8))
+
         presets = ttk.Frame(parent)
         presets.pack(fill="x", pady=(0, 8))
         ttk.Label(presets, text="Presets", style="Hint.TLabel").pack(side="left", padx=(0, 8))

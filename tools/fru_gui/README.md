@@ -115,8 +115,9 @@ A generic I²C transaction over IPMI (firmware `-DI2C_ACCESS=ON`, command
 
 - bus (I2C2 by default — everything on the uFC hangs off it),
 - up to three mux stages (address, channel),
-- device address, write bytes (hex), read length →
-  *write bytes first, then read length bytes back*.
+- device address, write bytes (hex), read length, where the two lengths pick
+  the operation: empty write bytes → **read only**, read length 0 →
+  **write only**, both → **write then read**.
 
 Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 0x11, `8B` → READ_VOUT), **Clock 8V54816** (0x70 ch2, 0x58) and **Si5345**
