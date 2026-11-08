@@ -21,7 +21,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fru_gui import FruAccess, parse_fru, build_areas, EEPROM_SIZE  # noqa: E402
+from fru_core import FruAccess, parse_fru, build_areas, EEPROM_SIZE  # noqa: E402
 
 APP_TITLE = "uFC FRU Editor"
 FIELD_LABELS = {
