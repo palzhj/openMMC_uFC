@@ -522,28 +522,145 @@ class FruEditor(tk.Tk):
         lines.append("}")
         return "\n".join(lines) + "\n"
 
+    # clocking block colours (as in uFCv2/readme/clocking.jpg)
+    CLK_GREEN = "#C9DBA8"
+    CLK_SALMON = "#E9C6C6"
+    CLK_BLUE = "#AEC6E4"
+    CLK_GREY = "#8A8A80"
+    CLK_EDGE = "#5B6152"
+
+    def _clocking_draw(self, c, w, h):
+        c.delete("all")
+        g, sa, bl = self.CLK_GREEN, self.CLK_SALMON, self.CLK_BLUE
+        ed = self.CLK_EDGE
+
+        def block(x0, y0, x1, y1, text, fill, fs=9):
+            c.create_rectangle(x0, y0, x1, y1, fill=fill, outline=ed, width=1)
+            if text:
+                c.create_text((x0 + x1) / 2, (y0 + y1) / 2, text=text,
+                              font=(UI_FONT, fs, "bold"))
+
+        def arrow(x0, y0, x1, y1, both=False, color=None, width=2, dash=None):
+            c.create_line(x0, y0, x1, y1, fill=color or ed, width=width,
+                          arrow=tk.BOTH if both else tk.LAST, arrowshape=(8, 10, 4),
+                          dash=dash)
+
+        def label(x, y, text, color=None, anchor="w", fs=8):
+            c.create_text(x, y, text=text, anchor=anchor, font=(UI_FONT, fs),
+                          fill=color or ed)
+
+        # ---- left column ------------------------------------------------
+        block(20, 60, 110, 240, "AMC", g)
+        for i, name in enumerate(("TCLKA", "TCLKB", "TCLC", "TCLKD")):
+            y = 80 + i * 30
+            arrow(115, y, 198, y, both=True)
+            label(120, y - 9, name, fs=8)
+        arrow(115, 230, 198, 230, both=True)
+        label(120, 221, "FCLKA", fs=8)
+
+        block(20, 290, 120, 330, "156.25MHz", g, 8)
+        arrow(125, 310, 198, 310)
+
+        block(20, 360, 120, 396, "S7_INOUT", g, 8)
+        arrow(125, 378, 198, 378, both=True)
+        block(20, 410, 120, 446, "FPGA_INOUT", g, 8)
+        arrow(125, 428, 198, 428, both=True)
+
+        # ---- MUX with the 16 ports -------------------------------------
+        block(200, 40, 470, 560, "", bl)
+        c.create_text(335, 52, text="MUX  8V54816A  16", font=(UI_FONT, 9, "bold"))
+        in_y = [80 + i * 52 for i in range(9)]
+        out_y = [80 + j * 68 for j in range(7)]
+        c.create_rectangle(206, 62, 464, 548, outline="", fill="")
+
+        # crossbar pattern first, labels on top
+        for i in range(9):
+            for j in range(7):
+                c.create_line(210, in_y[i], 460, out_y[j], fill="#C7CDBE", width=1)
+        for j in range(7):
+            cfg = self.clock_matrix[9 + j]
+            if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
+                i = cfg & 0x0F
+                c.create_line(210, in_y[i], 460, out_y[j], fill="#0E6B5E", width=3)
+        for i, (port, name) in enumerate(self.CLOCK_INPUTS):
+            t = c.create_text(212, in_y[i], text="%s %s" % (port, name), anchor="w",
+                              font=(UI_FONT, 7), fill=ed)
+            c.create_rectangle(*c.bbox(t), fill=bl, outline="")
+            c.tag_raise(t)
+        for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
+            t = c.create_text(458, out_y[j], text="%s %s" % (port, name), anchor="e",
+                              font=(UI_FONT, 7), fill=ed)
+            c.create_rectangle(*c.bbox(t), fill=bl, outline="")
+            c.tag_raise(t)
+        for j in range(7):
+            cfg = self.clock_matrix[9 + j]
+            if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
+                i = cfg & 0x0F
+                c.create_text(335, (in_y[i] + out_y[j]) / 2,
+                              text="0x%02x" % cfg, font=(UI_FONT, 7), fill="#0E6B5E")
+
+        # ---- right side blocks ------------------------------------------
+        block(510, 60, 620, 130, "FMC0", sa)
+        block(510, 150, 620, 220, "FMC1", sa)
+        arrow(470, 95, 510, 95, both=True)
+        arrow(510, 185, 470, 185, both=True)
+        label(630, 100, "GBTCLK / M2C / C2M", fs=7)
+
+        block(510, 270, 650, 400, "PLL  Si5345A\n4:10", bl, 9)
+        arrow(470, 335, 510, 335)
+        arrow(510, 315, 470, 315)
+
+        block(820, 40, 970, 190, "FPGA\nSpartan 7", bl)
+        arrow(650, 300, 820, 120)
+        label(700, 205, "S7_CLK_0", fs=7)
+        block(820, 230, 970, 460, "FPGA\nKintex 7", bl)
+        arrow(650, 350, 820, 330)
+        label(700, 385, "GTX_CLK0-3 / FPGA_CLK0", fs=7)
+
+        block(990, 30, 1070, 70, "8MHz", g, 8)
+        block(990, 90, 1070, 130, "MCU", sa, 8)
+        arrow(1030, 70, 1030, 90)
+        arrow(990, 110, 970, 110)
+
+        block(990, 400, 1070, 440, "WR", bl, 8)
+        block(990, 460, 1070, 496, "VCXO 20MHz", g, 8)
+        arrow(1030, 460, 1030, 440)
+        arrow(990, 420, 970, 420)
+        arrow(1030, 400, 970, 160, dash=(3, 3))
+
+        block(620, 500, 710, 536, "200MHz", g, 8)
+        arrow(710, 518, 820, 430)
+        block(620, 550, 710, 586, "LEMO_CLK_IN", g, 8)
+        arrow(710, 568, 820, 450)
+
+        # legend
+        c.create_line(20, 600, 50, 600, fill="#0E6B5E", width=3)
+        label(58, 600, "active route", fs=8)
+        content = "8V54816A @0x70 ch2  ·  Si5345 @0x69  ·  %d active route(s)" % \
+                  sum(1 for j in range(7) if (self.clock_matrix[9 + j] & 0x80))
+        c.create_text(w - 10, h - 10, text=content, anchor="se", font=(UI_FONT, 8), fill=MUTED)
+
     def clock_show_system(self):
-        import tempfile, subprocess, os, shutil
-        try:
-            dot = self._clock_system_dot()
-            work = tempfile.mkdtemp(prefix="ufc-clock-")
-            dot_path = os.path.join(work, "clocking.dot")
-            png_path = os.path.join(work, "clocking.png")
-            open(dot_path, "w").write(dot)
-            tool = shutil.which("dot")
-            if not tool:
-                self._clock_log("dot not found — diagram saved to " + dot_path)
-                return
-            subprocess.run([tool, "-Tpng", dot_path, "-o", png_path], check=True)
-            win = tk.Toplevel(self)
-            win.title("uFC clocking — system view")
-            img = tk.PhotoImage(file=png_path)
-            lbl = tk.Label(win, image=img, bg=BG)
-            lbl.image = img
-            lbl.pack(padx=8, pady=8)
-            self._clock_log("system diagram: " + png_path)
-        except Exception as e:
-            self._clock_log("ERROR: %s" % e)
+        win = tk.Toplevel(self)
+        win.title("uFC clocking — system view")
+        bar = ttk.Frame(win, padding=(8, 6))
+        bar.pack(fill="x")
+        ttk.Button(bar, text="Refresh", command=lambda: draw()).pack(side="left")
+        ttk.Label(bar, text="block diagram of the uFC clocking (reference: uFCv2/readme/clocking.jpg)",
+                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
+        cv = tk.Canvas(win, width=1080, height=620, bg=BG, highlightthickness=0)
+        cv.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+
+        def draw():
+            self._clocking_draw(cv, 1080, 620)
+
+        draw()
+
+    def _clock_log(self, text):
+        self.clock_out.configure(state="normal")
+        self.clock_out.insert("end", text + "\n")
+        self.clock_out.see("end")
+        self.clock_out.configure(state="disabled")
 
     def clock_export_dot(self):
         try:
@@ -555,12 +672,6 @@ class FruEditor(tk.Tk):
             self._clock_log("DOT written: " + path)
         except Exception as e:
             self._clock_log("ERROR: %s" % e)
-
-    def _clock_log(self, text):
-        self.clock_out.configure(state="normal")
-        self.clock_out.insert("end", text + "\n")
-        self.clock_out.see("end")
-        self.clock_out.configure(state="disabled")
 
     def clock_switch_read(self):
         try:
@@ -579,12 +690,6 @@ class FruEditor(tk.Tk):
         except Exception as e:
             self._status("Clock switch write failed", "error")
             self._clock_log("ERROR: %s" % e)
-
-    def _clock_log(self, text):
-        self.clock_out.configure(state="normal")
-        self.clock_out.insert("end", text + "\n")
-        self.clock_out.see("end")
-        self.clock_out.configure(state="disabled")
 
     def clock_program(self):
         try:

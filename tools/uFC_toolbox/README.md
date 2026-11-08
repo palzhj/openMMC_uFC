@@ -145,12 +145,14 @@ always shows the 16 bytes that are written to the device.
   (mux 0x70 ch2, 0x58)
 - **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
 - **Status** — command `0x17`
-- **Export diagram** — save the merged clocking diagram as a Graphviz `.dot`
-- **System diagram** — renders the whole clocking (AMC, 156.25 MHz, oscillators,
-  Si5345, FMC0/1, Kintex/Spartan, WR/VCXO) with every 8V54816A port and its
-  configuration (in/out, source, termination, polarity, matrix byte); active
-  routes are drawn in green and the AMC TCLK/FCLK plus S7/FPGA_INOUT links are
-  drawn bidirectional, following `uFCv2/readme/clocking.jpg`
+- **Export diagram** — save the merged Graphviz `.dot` (includes the FPGA
+  port/pin tables)
+- **System diagram** — opens a block diagram drawn on a canvas, modelled on
+  `uFCv2/readme/clocking.jpg`: AMC (TCLKA-D, FCLKA), 156.25 MHz, S7/FPGA
+  INOUT, the 8V54816A mux with all 16 ports and the current crossbar routing
+  (active routes in green), FMC0/FMC1, the Si5345 PLL with its feedback, the
+  Spartan 7 and Kintex 7 FPGAs, 8 MHz/MCU, WR/VCXO, 200 MHz and LEMO_CLK_IN;
+  **Refresh** redraws after editing the matrix
 
 ## OTA update tab
 
