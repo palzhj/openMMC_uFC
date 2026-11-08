@@ -146,9 +146,11 @@ updates live.
 - **Read clocks** / **Write now** — read/write the switch matrix over I²C
   (mux 0x70 ch2, 0x58)
 - **Export DOT** — save the current routing as a Graphviz diagram
-- **System diagram** — renders the whole clocking (AMC, 156.25 MHz, 8V54816A,
-  FMC0/1, Si5345, Kintex/Spartan, WR/VCXO) with the active routes highlighted,
-  following `uFCv2/readme/clocking.jpg`
+- **System diagram** — one merged view: the whole clocking (AMC, 156.25 MHz,
+  oscillators, Si5345, FMC0/1, Kintex/Spartan, WR/VCXO) **with every 8V54816A
+  port and its configuration** (in/out, source, termination, polarity, matrix
+  byte); the active routes are drawn in green, following
+  `uFCv2/readme/clocking.jpg`
 - **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
 - **Status** — command `0x17`
 - **Save to flash** — next step: the 19 KB FRU-format clock store

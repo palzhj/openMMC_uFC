@@ -1,40 +1,74 @@
 digraph clocking {
   rankdir=LR;
-  graph [fontname="Helvetica", nodesep=0.35, ranksep=0.9];
+  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true];
   node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",
         color="#E4DED2", fontname="Helvetica", fontsize=9];
-  edge [color="#8A8A80", fontname="Helvetica", fontsize=8];
-  AMC [label="AMC
-TCLKA-D / FCLKA"];
-  OSC [label="156.25 MHz"];
-  MUX [label="8V54816A
-16-port mux"];
-  FMC0 [label="FMC0"];
-  FMC1 [label="FMC1"];
-  SI [label="Si5345
-PLL 4:10"];
-  S7 [label="Spartan 7"];
-  K7 [label="Kintex 7"];
-  WR [label="WR"];
-  VCXO [label="VCXO 20 MHz"];
-  OSC8 [label="8 MHz"];
-  MCU [label="MCU"];
-  OSC200 [label="200 MHz"];
-  LEMO [label="LEMO_CLK_IN"];
-  AMC -> MUX;
-  OSC -> MUX;
-  MUX -> FMC0 [label="GBTCLK0/M2C0"];
-  MUX -> FMC1 [label="GBTCLK1/M2C1"];
-  MUX -> SI [label="PLL in"];
-  SI -> MUX [label="FB / PLL_OUT"];
+  edge [color="#9A968C", fontname="Helvetica", fontsize=8];
+  subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";
+    AMC [label="AMC
+TCLKA-D / FCLKA"]; OSC [label="156.25 MHz"];
+    S7IN [label="S7_INOUT"]; FPGAIN [label="FPGA_INOUT"]; }
+  subgraph cluster_mux { label="8V54816A — port configuration";
+        fontsize=9; color="#FAF9F5";
+    n0 [label="CLK0 AMC_TCLKD
+in  [0x00]"];
+    n1 [label="CLK1 AMC_TCLKC
+in  [0x00]"];
+    n2 [label="CLK2 AMC_TCLKA
+in  [0x00]"];
+    n3 [label="CLK3 AMC_TCLKB
+in  [0x00]"];
+    n4 [label="CLK4 AMC_FCLKA
+in  [0x00]"];
+    n5 [label="CLK5 S7_INOUT
+in  [0x00]"];
+    n6 [label="CLK6 FPGA_INOUT
+in  [0x00]"];
+    n7 [label="CLK7 156M
+in  [0x00]"];
+    n8 [label="CLK8 PLL_OUT
+in  [0x00]"];
+    n9 [label="CLK9 PLL_IN_P2
+in  [0x00]"];
+    n10 [label="CLK10 PLL_IN_P1
+in  [0x00]"];
+    n11 [label="CLK11 PLL_IN_P0
+out, src CLK7, term, non-inv  [0xe7]"];
+    n12 [label="CLK12 FMC0_GBTCLK
+out, src CLK8, non-inv  [0xa8]"];
+    n13 [label="CLK13 FMC0_CLK
+in  [0x00]"];
+    n14 [label="CLK14 FMC1_CLK
+out, src CLK7, non-inv  [0xa7]"];
+    n15 [label="CLK15 FMC1_GBTCLK
+in  [0x00]"];
+  }
+  subgraph cluster_dst { label="destinations"; fontsize=9; color="#FAF9F5";
+    SI [label="Si5345
+PLL 4:10"]; FMC0 [label="FMC0"]; FMC1 [label="FMC1"];
+    S7 [label="Spartan 7"]; K7 [label="Kintex 7"]; WR [label="WR"];
+    VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];
+    OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }
+  AMC -> n0 [color="#C9CFC9"];
+  AMC -> n1 [color="#C9CFC9"];
+  AMC -> n2 [color="#C9CFC9"];
+  AMC -> n3 [color="#C9CFC9"];
+  AMC -> n4 [color="#C9CFC9"];
+  S7IN -> n5 [color="#C9CFC9"];
+  FPGAIN -> n6 [color="#C9CFC9"];
+  OSC -> n7 [color="#C9CFC9"];
+  SI -> n8 [color="#C9CFC9"];
+  n9 -> SI [color="#C9CFC9"];
+  n10 -> SI [color="#C9CFC9"];
+  n11 -> SI [color="#C9CFC9"];
+  n12 -> FMC0 [color="#C9CFC9"];
+  n13 -> FMC0 [color="#C9CFC9"];
+  n14 -> FMC1 [color="#C9CFC9"];
+  n15 -> FMC1 [color="#C9CFC9"];
   SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];
-  WR -> S7 [label="125 MHz"];
-  WR -> K7 [label="125 MHz"];
-  VCXO -> WR;
-  OSC8 -> MCU;
-  MCU -> S7;
-  OSC200 -> K7;
-  LEMO -> K7;
-  MUX -> SI [label="156M → PLL_IN_P0", color="#0E6B5E", penwidth=2];
-  MUX -> FMC0 [label="PLL_OUT → FMC0_GBTCLK", color="#0E6B5E", penwidth=2];
+  WR -> S7 [label="125 MHz"]; WR -> K7 [label="125 MHz"];
+  VCXO -> WR; OSC8 -> MCU; MCU -> S7; OSC200 -> K7; LEMO -> K7;
+  n7 -> n11 [label="0xe7", color="#0E6B5E", penwidth=2.2];
+  n8 -> n12 [label="0xa8", color="#0E6B5E", penwidth=2.2];
+  n7 -> n14 [label="0xa7", color="#0E6B5E", penwidth=2.2];
 }
