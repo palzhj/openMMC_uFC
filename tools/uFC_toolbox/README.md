@@ -147,12 +147,12 @@ always shows the 16 bytes that are written to the device.
 - **Status** — command `0x17`
 - **Export diagram** — save the merged Graphviz `.dot` (includes the FPGA
   port/pin tables)
-- **System diagram** — opens a block diagram drawn on a canvas, modelled on
-  `uFCv2/readme/clocking.jpg`: AMC (TCLKA-D, FCLKA), 156.25 MHz, S7/FPGA
-  INOUT, the 8V54816A mux with all 16 ports and the current crossbar routing
-  (active routes in green), FMC0/FMC1, the Si5345 PLL with its feedback, the
-  Spartan 7 and Kintex 7 FPGAs, 8 MHz/MCU, WR/VCXO, 200 MHz and LEMO_CLK_IN;
-  **Refresh** redraws after editing the matrix
+- **System diagram** — schematic-style drawing from
+  `tools/clocking/ufc-clocking.json`: one box per device with its **inputs on
+  the left edge and outputs on the right edge**, orthogonal connection lines
+  (arrow direction from the points' `dir`), **jumper marks where lines
+  cross**, the active 8V54816A routing in orange, and a board frame around
+  everything; **Refresh** redraws after editing the matrix
 
 ## OTA update tab
 

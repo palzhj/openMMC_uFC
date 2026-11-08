@@ -15,10 +15,11 @@ the title:
 ![uFC clocking system with port configuration](clocking.png)
 
 The picture is rendered by the toolbox from
-[tools/clocking/ufc-clocking.json](../tools/clocking/ufc-clocking.json):
-one box per device (board → chip/connector/oscillator → ports), arrow
-direction derived from each point's `dir` (`out`→`in`), and the active
-8V54816A routing shown in orange.
+[tools/clocking/ufc-clocking.json](../tools/clocking/ufc-clocking.json) in a
+schematic style: inputs on the left edge of each device box, outputs on the
+right edge, orthogonal connection lines whose arrow direction derives from
+the points' `dir`, jumper marks where lines cross, and the active 8V54816A
+routing in orange.
 
 ## The device
 
