@@ -1,13 +1,13 @@
 digraph clocking {
   rankdir=LR;
-  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true];
+  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true,         label="uFC clocking — 8V54816A @0x70 ch2 · Si5345 @0x69 · 3 active route(s)",         labelloc="t", fontsize=11];
   node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",
         color="#E4DED2", fontname="Helvetica", fontsize=9];
   edge [color="#9A968C", fontname="Helvetica", fontsize=8];
   subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";
     AMC [label="AMC
-TCLKA-D / FCLKA"]; OSC [label="156.25 MHz"];
-    S7IN [label="S7_INOUT"]; FPGAIN [label="FPGA_INOUT"]; }
+TCLKA-D · TCLKC · TCLKB · FCLKA"]; OSC [label="156.25 MHz osc"];
+    S7IN [label="S7_CLK_INOUT"]; FPGAIN [label="FPGA_CLK_INOUT"]; }
   subgraph cluster_mux { label="8V54816A — port configuration";
         fontsize=9; color="#FAF9F5";
     n0 [label="CLK0 AMC_TCLKD
@@ -44,9 +44,18 @@ out, src CLK7, non-inv  [0xa7]"];
 in  [0x00]"];
   }
   subgraph cluster_dst { label="destinations"; fontsize=9; color="#FAF9F5";
-    SI [label="Si5345
-PLL 4:10"]; FMC0 [label="FMC0"]; FMC1 [label="FMC1"];
-    S7 [label="Spartan 7"]; K7 [label="Kintex 7"]; WR [label="WR"];
+    SI [label="Si5345 (0x69)
+PLL 4:10
+GTX_CLK0-3 · FPGA_CLK0"];
+    FMC0 [label="FMC0
+GBTCLK0 · M2C_CLK0"];
+    FMC1 [label="FMC1
+GBTCLK1 · M2C_CLK1"];
+    S7 [label="Spartan 7
+S7_CLK"]; K7 [label="Kintex 7
+MGTCLK / Bank14"];
+    WR [label="WR
+125 MHz"];
     VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];
     OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }
   AMC -> n0 [color="#C9CFC9"];
@@ -66,6 +75,9 @@ PLL 4:10"]; FMC0 [label="FMC0"]; FMC1 [label="FMC1"];
   n14 -> FMC1 [color="#C9CFC9"];
   n15 -> FMC1 [color="#C9CFC9"];
   SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];
+  SI -> SI [style=invis];
+  FMC0 -> K7 [label="GBTCLK0/M2C0"];
+  FMC1 -> K7 [label="GBTCLK1/M2C1"];
   WR -> S7 [label="125 MHz"]; WR -> K7 [label="125 MHz"];
   VCXO -> WR; OSC8 -> MCU; MCU -> S7; OSC200 -> K7; LEMO -> K7;
   n7 -> n11 [label="0xe7", color="#0E6B5E", penwidth=2.2];

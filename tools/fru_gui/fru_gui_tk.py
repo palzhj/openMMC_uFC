@@ -330,56 +330,45 @@ class FruEditor(tk.Tk):
         ttk.Button(row, text="Write now", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Program Si5345", command=self.clock_program).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
-        ttk.Button(row, text="Export DOT", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
+        ttk.Button(row, text="Export diagram", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="System diagram", command=self.clock_show_system).pack(side="left", padx=(8, 0))
+        ttk.Label(row, text="8V54816A @0x70-ch2 · Si5345 @0x69",
+                  style="Hint.TLabel").pack(side="left", padx=(16, 0))
 
-        main = ttk.Frame(parent)
-        main.pack(fill="both", expand=True, pady=(0, 6))
-        left = ttk.Frame(main)
-        left.pack(side="left", fill="both", expand=True)
-        right = ttk.Frame(main, padding=(10, 0, 0, 0))
-        right.pack(side="right", fill="y")
+        tbl = ttk.Frame(parent)
+        tbl.pack(fill="both", expand=True, pady=(0, 6))
+        ttk.Label(tbl, text="8V54816A ports — direction, source, 100 Ω termination, polarity",
+                  style="Hint.TLabel").pack(anchor="w")
+
+        hdr = ttk.Frame(tbl)
+        hdr.pack(fill="x", pady=(2, 2))
+        for text, w in (("port / signal", 22), ("dir", 4), ("source", 8), ("term", 4),
+                        ("polarity", 6), ("byte", 5)):
+            ttk.Label(hdr, text=text, style="Hint.TLabel", width=w, anchor="w").pack(side="left")
 
         self.clock_matrix = bytearray(16)
         self.clock_loading = False
-        self.clock_pending_src = None
-        self.clock_canvas = tk.Canvas(left, height=500, bg=BG, highlightthickness=1,
-                                      highlightbackground=LINE)
-        self.clock_canvas.pack(fill="both", expand=True)
-        self.clock_canvas.bind("<Button-1>", self._clock_click)
-        self.clock_canvas.bind("<Configure>", lambda e: self._clock_redraw())
-
-        ttk.Label(right, text="8V54816A ports", style="Hint.TLabel").pack(anchor="w")
-        hdr = ttk.Frame(right)
-        hdr.pack(fill="x", pady=(2, 2))
-        for text, w in (("port", 11), ("dir", 3), ("source", 5), ("term", 3), ("pol", 3)):
-            ttk.Label(hdr, text=text, style="Hint.TLabel", width=w).pack(side="left")
-
         self.port_vars = []
         for i in range(16):
             port, name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
-            short = {"AMC_TCLKD":"TCLKD","AMC_TCLKC":"TCLKC","AMC_TCLKA":"TCLKA",
-                     "AMC_TCLKB":"TCLKB","AMC_FCLKA":"FCLKA","S7_INOUT":"S7",
-                     "FPGA_INOUT":"FPGA","156M":"156M","PLL_OUT":"PLLOUT",
-                     "PLL_IN_P2":"IN_P2","PLL_IN_P1":"IN_P1","PLL_IN_P0":"IN_P0",
-                     "FMC0_GBTCLK":"F0GBT","FMC0_CLK":"F0CLK","FMC1_CLK":"F1CLK",
-                     "FMC1_GBTCLK":"F1GBT"}.get(name, name)
-            rowf = ttk.Frame(right)
+            rowf = ttk.Frame(tbl)
             rowf.pack(fill="x", pady=0)
-            ttk.Label(rowf, text="%s %s" % (port, short), width=11, anchor="w",
-                      font=(UI_FONT, 8)).pack(side="left")
+            ttk.Label(rowf, text="%s %s" % (port, name), width=22, anchor="w",
+                      font=(UI_FONT, 9)).pack(side="left")
             d = tk.StringVar(value="in")
-            ttk.Combobox(rowf, textvariable=d, values=("in", "out"), width=3,
-                         state="readonly").pack(side="left", padx=(0, 3))
+            ttk.Combobox(rowf, textvariable=d, values=("in", "out"), width=4,
+                         state="readonly").pack(side="left", padx=(0, 6))
             src = tk.StringVar(value="-")
-            srcbox = ttk.Combobox(rowf, textvariable=src, width=5, state="disabled")
-            srcbox.pack(side="left", padx=(0, 3))
+            srcbox = ttk.Combobox(rowf, textvariable=src, width=8, state="disabled")
+            srcbox.pack(side="left", padx=(0, 6))
             term = tk.BooleanVar(value=False)
-            ttk.Checkbutton(rowf, variable=term, width=1).pack(side="left", padx=(0, 10))
+            ttk.Checkbutton(rowf, variable=term).pack(side="left", padx=(0, 26))
             pol = tk.BooleanVar(value=True)
-            ttk.Checkbutton(rowf, variable=pol, width=1).pack(side="left")
+            ttk.Checkbutton(rowf, variable=pol).pack(side="left", padx=(0, 22))
+            byte = tk.StringVar(value="0x00")
+            ttk.Label(rowf, textvariable=byte, width=5, font=(MONO_FONT, 9)).pack(side="left")
             entry = {"dir": d, "src": src, "srcbox": srcbox, "term": term, "pol": pol,
-                     "frame": rowf}
+                     "byte": byte, "frame": rowf}
             self.port_vars.append(entry)
             d.trace_add("write", lambda *_a, idx=i: self._port_dir_changed(idx))
             src.trace_add("write", lambda *_a, idx=i: self._port_apply(idx))
@@ -390,10 +379,10 @@ class FruEditor(tk.Tk):
         srow.pack(fill="x", pady=(0, 6))
         ttk.Label(srow, text="matrix", style="FieldLabel.TLabel").pack(side="left")
         self.switch_var = tk.StringVar(value="")
-        ttk.Entry(srow, textvariable=self.switch_var, width=52, state="readonly").pack(side="left", padx=(6, 10))
+        ttk.Entry(srow, textvariable=self.switch_var, width=60, state="readonly").pack(side="left", padx=(6, 10))
         self._port_load_all()
 
-        self.clock_out = tk.Text(parent, height=5, font=(MONO_FONT, 9), state="disabled",
+        self.clock_out = tk.Text(parent, height=6, font=(MONO_FONT, 9), state="disabled",
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
@@ -406,6 +395,7 @@ class FruEditor(tk.Tk):
             d["dir"].set("out" if (cfg & 0x80) else "in")
             d["term"].set(bool(cfg & 0x40))
             d["pol"].set(bool(cfg & 0x20))
+            d["byte"].set("0x%02x" % cfg)
             if cfg & 0x80:
                 src = cfg & 0x0F
                 d["src"].set(self.CLOCK_INPUTS[src][0] if src < len(self.CLOCK_INPUTS) else "-")
@@ -421,7 +411,6 @@ class FruEditor(tk.Tk):
         if self.clock_loading:
             return
         d = self.port_vars[i]
-        # a port switched to output defaults to non-inverted
         if d["dir"].get() == "out" and not d["pol"].get():
             d["pol"].set(True)
         self._port_apply(i)
@@ -445,69 +434,10 @@ class FruEditor(tk.Tk):
             else:
                 src = [p for (p, _n) in self.CLOCK_INPUTS].index(src_name)
                 self.clock_matrix[i] = 0x80 | term | pol | src
-                self._clock_log("%s <- %s" % (self.CLOCK_OUTPUTS[i - 9][1] if i >= 9 else "CLK%d" % i,
-                                              src_name))
+                port, _name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
+                self._clock_log("%s <- %s" % (port, src_name))
+        d["byte"].set("0x%02x" % self.clock_matrix[i])
         self._clock_sync()
-        self._clock_redraw()
-
-    def _clock_geometry(self):
-        w = self.clock_canvas.winfo_width() or 960
-        left = 20
-        right = w - 190
-        row_h = 44
-        y0 = 30
-        return left, right, row_h, y0
-
-    def _clock_redraw(self):
-        c = self.clock_canvas
-        c.delete("all")
-        left, right, row_h, y0 = self._clock_geometry()
-        box_w = 170
-
-        for i, (port, name) in enumerate(self.CLOCK_INPUTS):
-            y = y0 + i * row_h
-            sel = (self.clock_pending_src == i)
-            c.create_rectangle(left, y - 13, left + box_w, y + 13,
-                               fill="#E7F0ED" if sel else PANEL,
-                               outline=ACCENT if sel else LINE, width=2 if sel else 1)
-            c.create_text(left + 8, y, text=port, anchor="w", fill=MUTED, font=(UI_FONT, 8))
-            c.create_text(left + 64, y, text=name, anchor="w", fill=INK, font=(UI_FONT, 9))
-
-        for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
-            y = y0 + j * row_h
-            cfg = self.clock_matrix[9 + j]
-            src = (cfg & 0x0F) if (cfg & 0x80) else None
-            c.create_rectangle(right, y - 13, right + box_w, y + 13,
-                               fill=PANEL, outline=LINE, width=1)
-            c.create_text(right + 8, y, text=port, anchor="w", fill=MUTED, font=(UI_FONT, 8))
-            c.create_text(right + 64, y, text=name, anchor="w", fill=INK, font=(UI_FONT, 9))
-            if src is not None and src < len(self.CLOCK_INPUTS):
-                sy = y0 + src * row_h
-                c.create_line(left + box_w + 5, sy, right - 5, y, fill=ACCENT, width=2)
-                c.create_oval(left + box_w + 2, sy - 3, left + box_w + 8, sy + 3, fill=ACCENT, outline="")
-                c.create_oval(right - 8, y - 3, right - 2, y + 3, fill=ACCENT, outline="")
-
-    def _clock_click(self, event):
-        left, right, row_h, y0 = self._clock_geometry()
-        box_w = 170
-        x, y = event.x, event.y
-        if left <= x <= left + box_w:
-            idx = int(round((y - y0) / row_h))
-            if 0 <= idx < len(self.CLOCK_INPUTS):
-                self.clock_pending_src = None if self.clock_pending_src == idx else idx
-                self._clock_redraw()
-                return
-        if right <= x <= right + box_w:
-            j = int(round((y - y0) / row_h))
-            if 0 <= j < len(self.CLOCK_OUTPUTS):
-                src = self.clock_pending_src
-                if src is not None:
-                    self.clock_matrix[9 + j] = 0x80 | 0x20 | src
-                    self.clock_pending_src = None
-                    self._clock_log("%s <- %s" % (self.CLOCK_OUTPUTS[j][1],
-                                                  self.CLOCK_INPUTS[src][1]))
-                    self._port_load_all()
-                    self._clock_redraw()
 
     def _clock_sync(self):
         self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
@@ -520,14 +450,19 @@ class FruEditor(tk.Tk):
         orig_block = {"CLK0": "AMC", "CLK1": "AMC", "CLK2": "AMC", "CLK3": "AMC",
                       "CLK4": "AMC", "CLK5": "S7IN", "CLK6": "FPGAIN",
                       "CLK7": "OSC", "CLK8": "SI"}
+        active = sum(1 for j in range(7)
+                     if (self.clock_matrix[9 + j] & 0x80)
+                     and ((self.clock_matrix[9 + j] & 0x0F) < len(self.CLOCK_INPUTS)))
         lines = ["digraph clocking {", "  rankdir=LR;",
-                 '  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true];',
+                 ('  graph [fontname="Helvetica", nodesep=0.2, ranksep=0.7, compound=true,'
+                  '         label="uFC clocking — 8V54816A @0x70 ch2 · Si5345 @0x69 · %d active route(s)",'
+                  '         labelloc="t", fontsize=11];' % active),
                  '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
                  '        color="#E4DED2", fontname="Helvetica", fontsize=9];',
                  '  edge [color="#9A968C", fontname="Helvetica", fontsize=8];',
                  '  subgraph cluster_src { label="sources"; fontsize=9; color="#FAF9F5";',
-                 '    AMC [label="AMC\nTCLKA-D / FCLKA"]; OSC [label="156.25 MHz"];',
-                 '    S7IN [label="S7_INOUT"]; FPGAIN [label="FPGA_INOUT"]; }',
+                 '    AMC [label="AMC\nTCLKA-D · TCLKC · TCLKB · FCLKA"]; OSC [label="156.25 MHz osc"];',
+                 '    S7IN [label="S7_CLK_INOUT"]; FPGAIN [label="FPGA_CLK_INOUT"]; }',
                  '  subgraph cluster_mux { label="8V54816A — port configuration";',
                  '        fontsize=9; color="#FAF9F5";']
         for i in range(16):
@@ -551,8 +486,11 @@ class FruEditor(tk.Tk):
                          % (i, port, name, ", ".join(bits), cfg))
         lines.append("  }")
         lines.append('  subgraph cluster_dst { label="destinations"; fontsize=9; color="#FAF9F5";')
-        lines.append('    SI [label="Si5345\nPLL 4:10"]; FMC0 [label="FMC0"]; FMC1 [label="FMC1"];')
-        lines.append('    S7 [label="Spartan 7"]; K7 [label="Kintex 7"]; WR [label="WR"];')
+        lines.append('    SI [label="Si5345 (0x69)\nPLL 4:10\nGTX_CLK0-3 · FPGA_CLK0"];')
+        lines.append('    FMC0 [label="FMC0\nGBTCLK0 · M2C_CLK0"];')
+        lines.append('    FMC1 [label="FMC1\nGBTCLK1 · M2C_CLK1"];')
+        lines.append('    S7 [label="Spartan 7\nS7_CLK"]; K7 [label="Kintex 7\nMGTCLK / Bank14"];')
+        lines.append('    WR [label="WR\n125 MHz"];')
         lines.append('    VCXO [label="VCXO 20 MHz"]; OSC8 [label="8 MHz"]; MCU [label="MCU"];')
         lines.append('    OSC200 [label="200 MHz"]; LEMO [label="LEMO_CLK_IN"]; }')
 
@@ -564,6 +502,9 @@ class FruEditor(tk.Tk):
             idx = 9 + [p for (p, _n) in self.CLOCK_OUTPUTS].index(port)
             lines.append('  n%d -> %s [color="#C9CFC9"];' % (idx, blk))
         lines.append('  SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];')
+        lines.append('  SI -> SI [style=invis];')
+        lines.append('  FMC0 -> K7 [label="GBTCLK0/M2C0"];')
+        lines.append('  FMC1 -> K7 [label="GBTCLK1/M2C1"];')
         lines.append('  WR -> S7 [label="125 MHz"]; WR -> K7 [label="125 MHz"];')
         lines.append('  VCXO -> WR; OSC8 -> MCU; MCU -> S7; OSC200 -> K7; LEMO -> K7;')
 
@@ -606,23 +547,7 @@ class FruEditor(tk.Tk):
                                                 filetypes=[("Graphviz DOT", "*.dot")])
             if not path:
                 return
-            lines = ["digraph ufc_clock {", "  rankdir=LR;",
-                     '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF", color="#E4DED2"];',
-                     '  edge [color="#0E6B5E", penwidth=1.6];',
-                     '  subgraph cluster_src { label="sources";']
-            for i, (p, n) in enumerate(self.CLOCK_INPUTS):
-                lines.append('    n%d [label="%s  %s"];' % (i, p, n))
-            lines.append("  }")
-            lines.append('  subgraph cluster_dst { label="destinations";')
-            for j, (p, n) in enumerate(self.CLOCK_OUTPUTS):
-                lines.append('    d%d [label="%s  %s"];' % (j, p, n))
-            lines.append("  }")
-            for j in range(len(self.CLOCK_OUTPUTS)):
-                cfg = self.clock_matrix[9 + j]
-                if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
-                    lines.append('  n%d -> d%d [label="0x%02x"];' % (cfg & 0x0F, j, cfg))
-            lines.append("}")
-            open(path, "w").write("\n".join(lines) + "\n")
+            open(path, "w").write(self._clock_system_dot())
             self._clock_log("DOT written: " + path)
         except Exception as e:
             self._clock_log("ERROR: %s" % e)
@@ -638,7 +563,6 @@ class FruEditor(tk.Tk):
             data = self._access().clock_switch_read()
             self.clock_matrix = bytearray(data)
             self._port_load_all()
-            self._clock_redraw()
             self._clock_log("switch matrix: " + " ".join("%02x" % b for b in self.clock_matrix))
         except Exception as e:
             self._clock_log("ERROR: %s" % e)
