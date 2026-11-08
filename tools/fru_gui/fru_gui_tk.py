@@ -311,7 +311,7 @@ class FruEditor(tk.Tk):
         self.i2c_rlen = tk.StringVar(value="8")
         ttk.Entry(row, textvariable=self.i2c_rlen, width=4).pack(side="left", padx=(6, 16))
 
-        ttk.Label(row, text="Write bytes (hex)", style="FieldLabel.TLabel").pack(side="left")
+        ttk.Label(row, text="Write data (hex, 1 byte each)", style="FieldLabel.TLabel").pack(side="left")
         self.i2c_wdata = tk.StringVar(value="00")
         ttk.Entry(row, textvariable=self.i2c_wdata, width=24).pack(side="left", padx=(6, 16))
 
@@ -333,8 +333,14 @@ class FruEditor(tk.Tk):
             self.mux_vars.append((a, c))
 
         ttk.Label(parent,
-                  text="empty write bytes = read only   ·   read length 0 = write only   ·   both = write then read",
-                  style="Hint.TLabel").pack(anchor="w", pady=(0, 8))
+                  text="empty write data = read only   ·   read length 0 = write only   ·   both = write then read",
+                  style="Hint.TLabel").pack(anchor="w")
+        self.i2c_mode = tk.StringVar(value="")
+        tk.Label(parent, textvariable=self.i2c_mode, bg=BG, fg=ACCENT,
+                 font=(UI_FONT, 9)).pack(anchor="w", pady=(0, 8))
+        for var in (self.i2c_wdata, self.i2c_rlen):
+            var.trace_add("write", lambda *_: self._update_i2c_mode())
+        self._update_i2c_mode()
 
         presets = ttk.Frame(parent)
         presets.pack(fill="x", pady=(0, 8))
@@ -352,6 +358,17 @@ class FruEditor(tk.Tk):
                                bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                highlightbackground=LINE, padx=10, pady=8)
         self.i2c_out.pack(fill="both", expand=True)
+
+    def _update_i2c_mode(self):
+        try:
+            w = len(self._hex_bytes(self.i2c_wdata.get()))
+            r = int(self.i2c_rlen.get().strip() or 0)
+        except Exception:
+            self.i2c_mode.set("write ? B · read ? B")
+            return
+        self.i2c_mode.set("write %d B  ·  read %d B  →  %s" % (
+            w, r,
+            "write then read" if w and r else ("read only" if r else ("write only" if w else "nothing to do"))))
 
     @staticmethod
     def _hex_bytes(text):
