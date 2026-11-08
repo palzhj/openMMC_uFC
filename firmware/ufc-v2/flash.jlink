@@ -1,3 +1,14 @@
+// uFC-v2 J-Link programming (SWD) — newboot + application.
+//
+// Run from firmware/ufc-v2/ :  JLinkExe -CommanderScript flash.jlink
+//
+// It does NOT touch 0x08000000-0x08001FFF (OpenBLT bootloader).
+//
+// IMPORTANT: OpenBLT validates the newboot vector table with a 32-bit sum:
+//   (words at app+0x00,0x04,0x08,0x0C,0x10,0x14,0x18) + (word at app+0x1D0) == 0
+// newboot.bin carries the seed 0x55AA11EE at 0x1D0, so after loadbin the real
+// checksum must be written explicitly.  The value below is for the current
+// newboot.bin; recompute it (see flash-jlink.sh) whenever newboot changes.
 device STM32F100CB
 si SWD
 speed 1000
@@ -5,6 +16,7 @@ VTREF 3300
 connect
 loadfile uart-debug/newboot.bin 0x08002000
 loadfile uart-debug/openMMC.bin 0x08004000
+w4 0x080021D0 0xAFFEF27A
 r
 g
 q
