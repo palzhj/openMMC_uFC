@@ -107,6 +107,9 @@
  */
 #define IPMB_RESP_HEADER_LENGTH     7
 
+/* Largest encoded IPMB frame: headers + data + data checksum */
+#define IPMB_MAX_MSG_LENGTH         ( IPMI_MSG_MAX_LENGTH + IPMB_RESP_HEADER_LENGTH + 1 )
+
 #define IPMB_NETFN_MASK         0xFC
 #define IPMB_DEST_LUN_MASK      0x03
 #define IPMB_SEQ_MASK           0xFC

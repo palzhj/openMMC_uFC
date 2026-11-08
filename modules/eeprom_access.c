@@ -41,7 +41,7 @@
 #define EEPROM_ACCESS_CHIP        CHIP_ID_EEPROM
 #define EEPROM_ACCESS_SIZE        256u                              /* 24AA025E48: 2 Kbit */
 #define EEPROM_ACCESS_WRITE_MAX   ( IPMI_MSG_MAX_LENGTH - 2u )      /* addr + payload */
-#define EEPROM_ACCESS_READ_MAX    ( IPMI_MSG_MAX_LENGTH )           /* response payload */
+#define EEPROM_ACCESS_READ_MAX    ( IPMI_MSG_MAX_LENGTH - 1u )      /* completion code + payload */
 
 /**
  * @brief Raw EEPROM write (custom command 0x12)

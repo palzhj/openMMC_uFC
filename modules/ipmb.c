@@ -99,7 +99,7 @@ static ipmi_msg_cfg *last_sent_req;
 void IPMB_TXTask ( void * pvParameters )
 {
     ipmi_msg_cfg *current_msg_tx;
-    uint8_t ipmb_buffer_tx[IPMI_MSG_MAX_LENGTH];
+    uint8_t ipmb_buffer_tx[IPMB_MAX_MSG_LENGTH];
 
     for ( ;; ) {
         xQueueReceive( ipmb_txqueue, &current_msg_tx, portMAX_DELAY);
