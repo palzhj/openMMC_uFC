@@ -67,6 +67,40 @@ tools\fru_gui\build-windows.bat     # → tools\fru_gui\dist\ufc-fru-editor.exe
 `ipmitool` / `ipmitool.exe` next to the built executable — the app prefers the
 local copy when present.
 
+## What the connection fields mean
+
+A request reaches the AMC's MMC through a **double bridge**, so the app carries
+all four IPMI routing parameters:
+
+| Field | Meaning |
+|---|---|
+| **MCH** | The NAT-MCH, the crate manager (IPMI over LAN). The host's entry point. |
+| **Transit** | First hop: the intermediate IPMI controller (NAT-MCH MCMC) that owns the AMC buses. |
+| **Transit ch** | Channel from the MCH to the transit controller (usually 0). |
+| **Target** | Final device that answers: the AMC7 MMC's IPMB address (`0x7E`). |
+| **Bus** | IPMB channel on the transit that reaches the target (`7` = AMC7 slot). |
+| **EEPROM size** | Bytes read from the EEPROM (16-bit addressing, max 65536). |
+| **FRU writable** | Bytes of the FRU image written (the 24AA025E48 allows the lower 128). |
+
+Single bridging (`-t 0x7e -b 7` without a transit) does not reach the MMC on
+this crate; the transit hop is required.
+
+Hover any field for a short explanation.
+
+## Auxiliary information
+
+Below the connection strip the app shows, for every read:
+
+```
+LAN → MCH 192.168.1.41 → transit 0x82 (ch 0) → target 0x7e (bus 7)
+128 B used · 0 B free · multirecord 56 B · checksums OK · mfg 2026-11-07 15:02
+· MMC 0x00  fw 1.01  IPMI 2.0
+```
+
+- the bridge path built from the fields,
+- FRU image use (used/free bytes), multirecord size and checksum state,
+- manufacturing time, and the MMC's Get Device ID (firmware/IPMI version).
+
 ## Files
 
 | File | Purpose |
