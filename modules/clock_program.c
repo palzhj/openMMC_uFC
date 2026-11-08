@@ -1,0 +1,160 @@
+/*
+ *   openMMC -- Open Source modular IPM Controller firmware
+ *
+ *   Copyright (C) 2025-2026  Jie Zhang <zhj@ihep.ac.cn>
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   @license GPL-3.0+ <http://spdx.org/licenses/GPL-3.0+>
+ */
+
+/**
+ * @file   clock_program.c
+ *
+ * @brief  Program the uFC Si5345 clock generator from the ClockBuilder table
+ *
+ * The register list in <board>/si5345_regs.h is generated from
+ * uFCv2/template/CLK/Si5345-RevD-Registers.txt:
+ *
+ *   preamble (3 writes) -> 300 ms calibration delay -> 518 registers
+ *   -> postamble (5 writes)
+ *
+ * Commands (NetFn 0x32):
+ *   0x16 start programming
+ *   0x17 status: [status, fail_addr_hi, fail_addr_lo]
+ *
+ * @ingroup CLOCK_PROGRAM
+ */
+
+#include "FreeRTOS.h"
+#include "task.h"
+#include "ipmi.h"
+#include "i2c.h"
+#include "i2c_mapping.h"
+#include "port.h"
+#include "clock_program.h"
+#include "si5345_regs.h"
+
+#define CLOCK_PROG_CHIP     CHIP_ID_SI5345_0
+#define CLOCK_PROG_TIMEOUT  pdMS_TO_TICKS(200)
+
+static volatile uint8_t clock_prog_status = CLOCK_PROG_IDLE;
+static volatile uint16_t clock_prog_fail;
+
+static uint8_t si5345_current_page = 0xFF;
+
+/* The Si5345 uses 8-bit register addresses with a page register at 0x01:
+ * the 16-bit ClockBuilder address is (page << 8) | register. */
+static uint8_t si5345_write8(uint8_t reg, uint8_t data)
+{
+    uint8_t i2c_addr, iface;
+    uint8_t buf[2] = { reg, data };
+
+    /* The first transaction after the mux selects channel 2 can NACK
+     * (TCA9548A power-up behaviour), so retry like the EEPROM driver. */
+    for (uint8_t attempt = 0; attempt < 10; attempt++) {
+        if (i2c_take_by_chipid(CLOCK_PROG_CHIP, &i2c_addr, &iface, CLOCK_PROG_TIMEOUT)) {
+            uint8_t written = xI2CMasterWrite(iface, i2c_addr, buf, 2);
+            i2c_give(iface);
+            if (written == 2) {
+                return 1;
+            }
+            vI2CBusRecover(iface);
+        }
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+    return 0;
+}
+
+static uint8_t si5345_read8(uint8_t reg, uint8_t *data)
+{
+    uint8_t i2c_addr, iface;
+    uint8_t rx = 0;
+
+    for (uint8_t attempt = 0; attempt < 10; attempt++) {
+        if (i2c_take_by_chipid(CLOCK_PROG_CHIP, &i2c_addr, &iface, CLOCK_PROG_TIMEOUT)) {
+            rx = xI2CMasterWriteRead(iface, i2c_addr, &reg, 1, data, 1);
+            i2c_give(iface);
+            if (rx == 1) {
+                return 1;
+            }
+            vI2CBusRecover(iface);
+        }
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+    return 0;
+}
+
+static uint8_t si5345_write(uint16_t addr, uint8_t data)
+{
+    uint8_t page = (uint8_t)(addr >> 8);
+    uint8_t reg = (uint8_t)addr;
+
+    if (page != si5345_current_page) {
+        if (!si5345_write8(0x01, page)) {
+            return 0;
+        }
+        si5345_current_page = page;
+    }
+    return si5345_write8(reg, data);
+}
+
+static uint8_t si5345_write_table(const si5345_reg_t *regs, uint16_t count)
+{
+    for (uint16_t i = 0; i < count; i++) {
+        if (!si5345_write(regs[i].addr, regs[i].data)) {
+            clock_prog_fail = regs[i].addr;
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static uint8_t clock_program_run(void)
+{
+    clock_prog_status = CLOCK_PROG_RUNNING;
+    clock_prog_fail = 0;
+
+    if (!si5345_write_table(si5345_preamble, SI5345_PREAMBLE_LEN)) {
+        clock_prog_status = CLOCK_PROG_ERROR;
+        return 0;
+    }
+
+    /* Si5345 calibration after the preamble (see ClockBuilder script) */
+    vTaskDelay(pdMS_TO_TICKS(SI5345_DELAY_MS));
+
+    if (!si5345_write_table(si5345_body, SI5345_BODY_LEN) ||
+        !si5345_write_table(si5345_postamble, SI5345_POSTAMBLE_LEN)) {
+        clock_prog_status = CLOCK_PROG_ERROR;
+        return 0;
+    }
+
+    clock_prog_status = CLOCK_PROG_OK;
+    return 1;
+}
+
+IPMI_HANDLER(ipmi_clock_program_start, NETFN_CUSTOM, IPMI_CUSTOM_CMD_CLOCK_PROGRAM, ipmi_msg *req, ipmi_msg *rsp)
+{
+    (void)req;
+    if (clock_prog_status == CLOCK_PROG_RUNNING) {
+        rsp->completion_code = IPMI_CC_NODE_BUSY;
+        return;
+    }
+    /* 526 I2C writes + 300 ms calibration: ~0.5 s in the IPMI task */
+    clock_program_run();
+    rsp->completion_code = (clock_prog_status == CLOCK_PROG_OK) ? IPMI_CC_OK
+                                                                : IPMI_CC_UNSPECIFIED_ERROR;
+}
+
+IPMI_HANDLER(ipmi_clock_program_status, NETFN_CUSTOM, IPMI_CUSTOM_CMD_CLOCK_STATUS, ipmi_msg *req, ipmi_msg *rsp)
+{
+    (void)req;
+    rsp->data[0] = clock_prog_status;
+    rsp->data[1] = (uint8_t)(clock_prog_fail >> 8);
+    rsp->data[2] = (uint8_t)clock_prog_fail;
+    rsp->data_len = 3;
+    rsp->completion_code = IPMI_CC_OK;
+}

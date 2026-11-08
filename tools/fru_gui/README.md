@@ -130,6 +130,16 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 0x11, `8B` → READ_VOUT), **Clock 8V54816** (0x70 ch2, 0x58) and **Si5345**
 (0x70 ch2, 0x69).
 
+## Clock tab
+
+- **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
+- **Status** — command `0x17`: idle / running / OK / error + failing register
+
+The table is the ClockBuilder Pro export
+(`uFCv2/template/CLK/Si5345-RevD-Registers.txt`), compiled into the firmware as
+`si5345_regs.h`. It programs RAM only (NVM untouched), so a power cycle restores
+the factory configuration.
+
 ## OTA update tab
 
 Uploads a PICMG **HPM.1** image to the MMC and activates it (the MMC's HPM

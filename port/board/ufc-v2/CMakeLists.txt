@@ -72,6 +72,11 @@ if (EEPROM_ACCESS)
   list(APPEND TARGET_MODULES "EEPROM_ACCESS")
 endif()
 
+option(CLOCK_PROGRAM "Program the Si5345 clock generator over IPMI" OFF)
+if (CLOCK_PROGRAM)
+  list(APPEND TARGET_MODULES "CLOCK_PROGRAM")
+endif()
+
 option(I2C_ACCESS "Enable generic I2C transfers over IPMI" OFF)
 if (I2C_ACCESS)
   list(APPEND TARGET_MODULES "I2C_ACCESS")

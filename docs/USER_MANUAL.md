@@ -278,6 +278,8 @@ All LEDs are **active low**; the LED task is enabled in this build.
 | EEPROM raw write at I²C addr | `0x32` | `0x14` | `[i2c_addr addr_lo addr_hi data…]` (0x08…0x77) |
 | EEPROM raw read at I²C addr | `0x32` | `0x15` | `[i2c_addr addr_lo addr_hi len]` → data |
 | Generic I²C transfer | `0x32` | `0x20` | `[bus n_mux (mux_addr mux_ch)… dev wlen wdata… rlen]` → `rlen` bytes |
+| Clock program (opt-in) | `0x32` | `0x16` | starts the Si5345 register download (no data) |
+| Clock status (opt-in) | `0x32` | `0x17` | → `[state fail_addr_hi fail_addr_lo]` (0 idle, 1 running, 2 OK, 3 error) |
 
 The generic transfer (build with `-DI2C_ACCESS=ON`) works for EEPROMs, PMBus
 devices and clock chips and selects up to three cascaded I²C multiplexers
