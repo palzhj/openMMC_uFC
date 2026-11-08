@@ -1,4 +1,4 @@
-# Clock configuration store — on-flash format
+# Clock configuration store — on-flash format (FRU records)
 
 Reserved region: **7 KB** at `0x0801E000–0x0801FBFF` (`__ClockConfig_start/end`).
 Purpose: hold clock/device configuration so it can be changed over IPMI without
@@ -11,6 +11,18 @@ reflashing, with a built-in fallback in `.text`.
 | `0x0801E000–0x0801EBFF` | slot A (3 KB) |
 | `0x0801EC00–0x0801F7FF` | slot B (3 KB) |
 | `0x0801F800–0x0801FBFF` | pointer page (2 mirrored records) |
+
+### Selected: FRU record file inside a small wrapper
+
+The payload is a **FRU multirecord file** (standard TLV + checksums), generated
+by `tools/gen_clock_fru.py`; the wrapper adds atomic A/B updates.
+
+Measured: Si5345 table (1 578 B) → **7 records** (record payload ≤ 249 B),
+switch matrix → 1 record → **FRU file 1 746 B**, slot 3 072 B.
+
+Record IDs: `0x30 + chunk` for the Si5345 table, `0x40` for the switch matrix.
+Each record data field is `mfr(3) 5A 31 00`, `rec_id`, `fmt_ver 0`, then
+`dev_type, chunk_idx, chunk_cnt, bus, dev_addr, n_mux, mux…, chunk`.
 
 ## Slot header (32 B)
 
