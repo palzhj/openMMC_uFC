@@ -143,7 +143,15 @@ always shows the 16 bytes that are written to the device.
 
 - **Read clocks** / **Write now** — read/write the switch matrix over I²C
   (mux 0x70 ch2, 0x58)
-- **Program Si5345** — firmware command `0x16` (build with `-DCLOCK_PROGRAM=ON`)
+- The **source** list of every output is taken from `ufc-clocking.json`: all
+  mux ports that are capable of being an input (CLK0‑8, CLK12‑15) with their
+  signal names
+- **Program (built-in)** — firmware command `0x16`, writes the compiled table
+- **Load Si5345 file…** — load a ClockBuilder register script
+  (e.g. `Si5345-RevD-Registers.txt`); the counts (pre/body/post) are shown
+- **Write Si5345** — writes the loaded table from the PC over I²C
+  (page‑aware 8‑bit addressing, 300 ms calibration pause); target selector
+  **device** / **flash** (flash needs the MMC clock store, not implemented)
 - **Status** — command `0x17`
 - **Export diagram** — save the merged Graphviz `.dot` (includes the FPGA
   port/pin tables)

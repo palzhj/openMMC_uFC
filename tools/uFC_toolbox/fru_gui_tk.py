@@ -23,7 +23,8 @@ from tkinter import filedialog, messagebox, ttk
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # noqa: E402
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
-                      mfg_minutes_to_str, mfg_str_to_minutes)
+                      mfg_minutes_to_str, mfg_str_to_minutes,
+                      parse_si5345_txt, program_si5345)
 
 APP_TITLE = "uFC Toolbox"
 
@@ -328,12 +329,23 @@ class FruEditor(tk.Tk):
         ttk.Button(row, text="Read clocks", style="Primary.TButton",
                    command=self.clock_switch_read).pack(side="left")
         ttk.Button(row, text="Write now", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
-        ttk.Button(row, text="Program Si5345", command=self.clock_program).pack(side="left", padx=(16, 0))
+        ttk.Button(row, text="Program (built-in)", command=self.clock_program).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Export diagram", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="System diagram", command=self.clock_show_system).pack(side="left", padx=(8, 0))
-        ttk.Label(row, text="8V54816A @0x70-ch2 · Si5345 @0x69",
-                  style="Hint.TLabel").pack(side="left", padx=(16, 0))
+
+        row2 = ttk.Frame(parent)
+        row2.pack(fill="x", pady=(0, 4))
+        ttk.Button(row2, text="Load Si5345 file…", command=self.si_load).pack(side="left")
+        self.si_target = tk.StringVar(value="device")
+        ttk.Radiobutton(row2, text="device", variable=self.si_target,
+                        value="device").pack(side="left", padx=(10, 0))
+        ttk.Radiobutton(row2, text="flash", variable=self.si_target,
+                        value="flash").pack(side="left", padx=(4, 0))
+        ttk.Button(row2, text="Write Si5345", command=self.si_write).pack(side="left", padx=(8, 0))
+        self.si_label = tk.StringVar(value="no Si5345 file loaded")
+        ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
+        self.si_groups = None
 
         tbl = ttk.Frame(parent)
         tbl.pack(fill="both", expand=True, pady=(0, 6))
@@ -364,7 +376,7 @@ class FruEditor(tk.Tk):
             ttk.Combobox(rowf, textvariable=d, values=("in", "out"), width=4,
                          state="readonly").pack(side="left", padx=(0, 6))
             src = tk.StringVar(value="-")
-            srcbox = ttk.Combobox(rowf, textvariable=src, width=8, state="disabled")
+            srcbox = ttk.Combobox(rowf, textvariable=src, width=12, state="disabled")
             srcbox.pack(side="left", padx=(0, 6))
             term = tk.BooleanVar(value=False)
             ttk.Checkbutton(rowf, variable=term).pack(side="left", padx=(0, 26))
@@ -391,6 +403,32 @@ class FruEditor(tk.Tk):
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
+
+    def _mux_sources(self):
+        """All input-capable mux ports from the clocking file: {port: name}."""
+        doc = self._load_clocking()
+        res = {}
+        if doc:
+            devices = doc.get("devices", {})
+            for p in doc.get("points", []):
+                parent = p.get("parent", "")
+                dev = devices.get(parent, {})
+                if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith("8V54816A"):
+                    continue
+                cap = p.get("capability") or {}
+                if not cap.get("in", p.get("dir") in ("in", "inout")):
+                    continue
+                try:
+                    idx = int(p["name"].upper().replace("CLK", ""))
+                except ValueError:
+                    continue
+                label = p.get("name") or ("CLK%d" % idx)
+                if p.get("signal") and p["signal"].upper() != label.upper():
+                    label += " " + p["signal"]
+                res[idx] = label
+        if not res:
+            res = {i: ("CLK%d %s" % (i, n)) for i, (_p, n) in enumerate(self.CLOCK_INPUTS)}
+        return res
 
     def _mux_allowed(self):
         doc = self._load_clocking()
@@ -423,9 +461,10 @@ class FruEditor(tk.Tk):
             d["byte"].set("0x%02x" % cfg)
             if cfg & 0x80:
                 src = cfg & 0x0F
-                d["src"].set(self.CLOCK_INPUTS[src][0] if src < len(self.CLOCK_INPUTS) else "-")
+                sources = self._mux_sources()
+                d["src"].set(sources.get(src, "-"))
                 d["srcbox"].configure(state="readonly",
-                                      values=["-"] + [p for (p, _n) in self.CLOCK_INPUTS])
+                                      values=["-"] + [sources[i] for i in sorted(sources)])
             else:
                 d["src"].set("-")
                 d["srcbox"].configure(state="disabled")
@@ -456,13 +495,17 @@ class FruEditor(tk.Tk):
             d["src"].set("-")
             d["srcbox"].configure(state="disabled")
         else:
+            sources = self._mux_sources()
             d["srcbox"].configure(state="readonly",
-                                  values=["-"] + [p for (p, _n) in self.CLOCK_INPUTS])
+                                  values=["-"] + [sources[i2] for i2 in sorted(sources)])
             src_name = d["src"].get()
             if src_name == "-":
                 self.clock_matrix[i] = 0x80 | term | pol
             else:
-                src = [p for (p, _n) in self.CLOCK_INPUTS].index(src_name)
+                try:
+                    src = int(src_name.split()[0].replace("CLK", ""))
+                except ValueError:
+                    src = 0
                 self.clock_matrix[i] = 0x80 | term | pol | src
                 port, _name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
                 self._clock_log("%s <- %s" % (port, src_name))
@@ -589,6 +632,35 @@ class FruEditor(tk.Tk):
 
         fills = {"chip": self.CLK_BLUE, "oscillator": self.CLK_GREEN,
                  "connector": self.CLK_SALMON}
+
+        # 1) size every box to fit its labels, then stack to avoid overlaps
+        sized = {}
+        for did, dev in devices.items():
+            hx, hy, hw, hh = dev["box"]
+            pts = [p for p in doc.get("points", []) if p.get("parent") == did]
+            left = [p for p in pts if p["dir"] == "in"]
+            right = [p for p in pts if p["dir"] in ("out", "inout")]
+            lw = max([len(p["name"]) for p in left] or [0]) * 5.2
+            rw = max([len(p["name"]) for p in right] or [0]) * 5.2
+            bw = max(hw, 24 + lw + rw)
+            bh = max(hh, 24 + max(len(left), len(right)) * 15)
+            sized[did] = [hx, hy, bw, bh]
+        placed = []
+        for did in sorted(sized, key=lambda d: (sized[d][0], sized[d][1])):
+            x, y, bw, bh = sized[did]
+            moved = True
+            while moved:
+                moved = False
+                for px, py, pw, ph in placed:
+                    if x < px + pw + 8 and px < x + bw + 8 and \
+                       y < py + ph + 8 and py < y + bh + 8:
+                        y = py + ph + 10
+                        moved = True
+            sized[did] = [x, y, bw, bh]
+            placed.append((x, y, bw, bh))
+        for did, (x, y, bw, bh) in sized.items():
+            devices[did]["box"] = [x, y, bw, bh]
+
         anchors = {}
         port_labels = []
         for did, dev in devices.items():
@@ -599,19 +671,21 @@ class FruEditor(tk.Tk):
             c.create_text(x + 4, y + 8, text=dev.get("label", did), anchor="w",
                           font=(UI_FONT, 8, "bold"), fill=ed)
             pts = [p for p in doc.get("points", []) if p.get("parent") == did]
-            left = [p for p in pts if p["dir"] in ("in", "inout")]
+            left = [p for p in pts if p["dir"] == "in"]
             right = [p for p in pts if p["dir"] in ("out", "inout")]
 
-            def row_y(n, i):
-                return y + 18 + (bh - 26) * (i + 0.5) / max(1, n)
+            rows = max(len(left), len(right))
+
+            def row_y(i):
+                return y + 18 + (bh - 26) * (i + 0.5) / max(1, rows)
 
             for i, p in enumerate(left):
-                yy = row_y(len(left), i)
+                yy = row_y(i)
                 anchors.setdefault(p["id"], {})["l"] = (x, yy)
                 port_labels.append((x + 5, yy, p["name"], "w",
                                     fills.get(dev.get("class"), "#FFFFFF")))
             for i, p in enumerate(right):
-                yy = row_y(len(right), i)
+                yy = row_y(i)
                 anchors.setdefault(p["id"], {})["r"] = (x + bw, yy)
                 port_labels.append((x + bw - 5, yy, p["name"], "e",
                                     fills.get(dev.get("class"), "#FFFFFF")))
@@ -810,6 +884,43 @@ class FruEditor(tk.Tk):
         self.clock_out.insert("end", text + "\n")
         self.clock_out.see("end")
         self.clock_out.configure(state="disabled")
+
+    def si_load(self):
+        path = filedialog.askopenfilename(
+            title="ClockBuilder register script",
+            filetypes=[("ClockBuilder text", "*.txt"), ("All files", "*")])
+        if not path:
+            return
+        try:
+            self.si_groups = parse_si5345_txt(path)
+            n = sum(len(v) for v in self.si_groups.values())
+            self.si_label.set("%s  (%d pre, %d body, %d post)" % (
+                os.path.basename(path), len(self.si_groups["pre"]),
+                len(self.si_groups["body"]), len(self.si_groups["post"])))
+            self._clock_log("Si5345 file loaded: %s — %d registers" % (path, n))
+        except Exception as e:
+            self._clock_log("ERROR: %s" % e)
+
+    def si_write(self):
+        if not self.si_groups:
+            self._clock_log("ERROR: load a Si5345 register file first")
+            return
+        if self.si_target.get() == "flash":
+            self._clock_log("flash target: the clock store write protocol is not implemented in the MMC yet")
+            return
+        try:
+            total = 0
+            def progress(n):
+                total = n
+                if n % 64 == 0:
+                    self._clock_log("Si5345: %d registers written" % n)
+                    self.update_idletasks()
+            n = program_si5345(self._access(), self.si_groups, progress=progress)
+            self._clock_log("Si5345 programmed: %d registers (preamble 300 ms, body, postamble)" % n)
+            self._status("Si5345 programmed", "ok")
+        except Exception as e:
+            self._status("Si5345 write failed", "error")
+            self._clock_log("ERROR: %s" % e)
 
     def clock_export_dot(self):
         try:

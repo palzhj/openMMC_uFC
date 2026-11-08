@@ -231,6 +231,69 @@ def _parse_area(raw, area_off, names, is_board):
     return info
 
 
+def parse_si5345_txt(path):
+    """Parse a ClockBuilder register script into pre/body/post groups."""
+    groups = {"pre": [], "body": [], "post": []}
+    section = None
+    for line in open(path):
+        line = line.strip()
+        if line.startswith("#"):
+            low = line.lower()
+            if "start configuration preamble" in low:
+                section = "pre"
+            elif "end configuration preamble" in low:
+                section = None
+            elif "start configuration registers" in low:
+                section = "body"
+            elif "end configuration registers" in low:
+                section = None
+            elif "start configuration postamble" in low:
+                section = "post"
+            elif "end configuration postamble" in low:
+                section = None
+            continue
+        if section and line.lower().startswith("0x"):
+            try:
+                a, d = line.split(",")
+                groups[section].append((int(a, 16), int(d, 16)))
+            except ValueError:
+                continue
+    return groups
+
+
+def program_si5345(access, groups, bus=1, muxes=((0x70, 2),), dev=0x69,
+                   delay=0.3, progress=None):
+    """Write a ClockBuilder table to the Si5345 with page-aware addressing."""
+    page = None
+
+    def wr(reg, data):
+        access.xfer(bus, list(muxes), dev, bytes([reg & 0xFF, data & 0xFF]))
+
+    def run(entries):
+        nonlocal page
+        n = 0
+        for addr, data in entries:
+            if (addr & 0xFF) == 0x01:      # page register itself
+                wr(0x01, data)
+                page = data
+            else:
+                p = addr >> 8
+                if page != p:
+                    wr(0x01, p)
+                    page = p
+                wr(addr & 0xFF, data)
+            n += 1
+            if progress and n % 32 == 0:
+                progress(n)
+        return n
+
+    total = run(groups.get("pre", []))
+    time.sleep(delay)
+    total += run(groups.get("body", []))
+    total += run(groups.get("post", []))
+    return total
+
+
 def parse_fru(raw, limit=FRU_MAX_SIZE):
     """Return the FRU fields, the multirecord blob and the area layout."""
     if len(raw) < 8 or raw[0] != 0x01:
