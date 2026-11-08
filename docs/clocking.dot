@@ -1,0 +1,40 @@
+digraph clocking {
+  rankdir=LR;
+  graph [fontname="Helvetica", nodesep=0.35, ranksep=0.9];
+  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",
+        color="#E4DED2", fontname="Helvetica", fontsize=9];
+  edge [color="#8A8A80", fontname="Helvetica", fontsize=8];
+  AMC [label="AMC
+TCLKA-D / FCLKA"];
+  OSC [label="156.25 MHz"];
+  MUX [label="8V54816A
+16-port mux"];
+  FMC0 [label="FMC0"];
+  FMC1 [label="FMC1"];
+  SI [label="Si5345
+PLL 4:10"];
+  S7 [label="Spartan 7"];
+  K7 [label="Kintex 7"];
+  WR [label="WR"];
+  VCXO [label="VCXO 20 MHz"];
+  OSC8 [label="8 MHz"];
+  MCU [label="MCU"];
+  OSC200 [label="200 MHz"];
+  LEMO [label="LEMO_CLK_IN"];
+  AMC -> MUX;
+  OSC -> MUX;
+  MUX -> FMC0 [label="GBTCLK0/M2C0"];
+  MUX -> FMC1 [label="GBTCLK1/M2C1"];
+  MUX -> SI [label="PLL in"];
+  SI -> MUX [label="FB / PLL_OUT"];
+  SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"];
+  WR -> S7 [label="125 MHz"];
+  WR -> K7 [label="125 MHz"];
+  VCXO -> WR;
+  OSC8 -> MCU;
+  MCU -> S7;
+  OSC200 -> K7;
+  LEMO -> K7;
+  MUX -> SI [label="156M → PLL_IN_P0", color="#0E6B5E", penwidth=2];
+  MUX -> FMC0 [label="PLL_OUT → FMC0_GBTCLK", color="#0E6B5E", penwidth=2];
+}
