@@ -85,6 +85,15 @@ all four IPMI routing parameters:
 Single bridging (`-t 0x7e -b 7` without a transit) does not reach the MMC on
 this crate; the transit hop is required.
 
+### Where the EEPROM address is
+
+None of the routing fields is the EEPROM's own address. The 24AA025E48 sits at
+**I²C 0x50 on the FRU bus, behind TCA9548A channel 0** — that is fixed in the
+firmware's chip map (`CHIP_ID_EEPROM`) and not exposed to the host. The raw
+commands carry a **16-bit byte offset into the EEPROM** (`0x0000`–`0x00FF` for
+the 256-byte part); the tool computes it from the FRU image, which starts at
+offset 0. The app shows the range under the connection strip.
+
 Hover any field for a short explanation.
 
 ## Auxiliary information

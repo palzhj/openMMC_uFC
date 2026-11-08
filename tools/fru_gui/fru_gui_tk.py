@@ -91,6 +91,8 @@ class FruEditor(tk.Tk):
                     self.bus_var):
             var.trace_add("write", lambda *_: self._update_path())
         self._update_path()
+        self._update_address()
+        self.size_var.trace_add("write", lambda *_: self._update_address())
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
 
     # ---------------------------------------------------------------- style
@@ -181,7 +183,7 @@ class FruEditor(tk.Tk):
             tip="IPMB channel on the transit that reaches the target\n(bus 7 = AMC7 slot).")
         self.size_var = self._labeled(
             strip, "EEPROM size (B)", str(eeprom_size), 7,
-            tip="Bytes read from the EEPROM. The raw command carries a\n16-bit address, so 65536 bytes is the maximum.")
+            tip="Bytes read from the EEPROM. The device sits at I2C 0x50 on\nthe FRU bus (fixed in firmware); the tool addresses it by\nbyte offset (16-bit, so 65536 bytes is the maximum).")
         self.limit_var = self._labeled(
             strip, "FRU writable (B)", str(fru_limit), 7,
             tip="Bytes of the FRU image that are written.\nThe 24AA025E48 only allows the lower 128 bytes.")
@@ -193,6 +195,9 @@ class FruEditor(tk.Tk):
         tk.Label(info, textvariable=self.path_var, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(fill="x")
         tk.Label(info, textvariable=self.fruinfo_var, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(fill="x")
+        self.addr_var = tk.StringVar()
+        tk.Label(info, textvariable=self.addr_var, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(fill="x")
 
         # notebook
@@ -311,6 +316,15 @@ class FruEditor(tk.Tk):
         update()
 
     # ------------------------------------------------------------- helpers
+    def _update_address(self):
+        try:
+            size = int(self.size_var.get().strip())
+        except ValueError:
+            size = 0
+        self.addr_var.set(
+            "EEPROM at I2C 0x50 on the FRU bus (mux ch 0) — addressed by byte offset, "
+            "0x0000–0x%04X" % (max(0, size - 1)))
+
     def _update_path(self):
         try:
             self.path_var.set(
