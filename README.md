@@ -209,6 +209,7 @@ program a clock crosspoint.
 | Document | Contents |
 |---|---|
 | [docs/USER_MANUAL.md](docs/USER_MANUAL.md) | Hardware, build, flashing, FRU, IPMI, troubleshooting, recovery |
+| [docs/I2C_ACCESS.md](docs/I2C_ACCESS.md) | Manual for the universal I²C access over IPMI (EEPROM, PMBus, clocks, mux chains) |
 | [docs/DEBUGGING.md](docs/DEBUGGING.md) | Bring-up log: every failure, root cause and fix |
 | [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) | Third-party components and their licenses |
 
