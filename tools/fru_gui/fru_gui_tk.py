@@ -324,20 +324,40 @@ class FruEditor(tk.Tk):
 
     def _build_clock_tab(self, parent):
         row = ttk.Frame(parent)
-        row.pack(fill="x", pady=(0, 8))
+        row.pack(fill="x", pady=(0, 6))
         ttk.Button(row, text="Read clocks", style="Primary.TButton",
                    command=self.clock_switch_read).pack(side="left")
         ttk.Button(row, text="Write now", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Program Si5345", command=self.clock_program).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
-        ttk.Label(row, text="click a source, then an output to connect; click an output alone to disconnect",
-                  style="Hint.TLabel").pack(side="left", padx=(16, 0))
+        ttk.Button(row, text="Export DOT", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
+        ttk.Label(row, text="click a source, then an output to connect — or select a node and edit its parameters",
+                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
+
+        props = ttk.Frame(parent)
+        props.pack(fill="x", pady=(0, 6))
+        self.clock_sel_label = tk.StringVar(value="no node selected")
+        ttk.Label(props, textvariable=self.clock_sel_label, style="FieldLabel.TLabel",
+                  width=22, anchor="w").pack(side="left")
+        ttk.Label(props, text="Source", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
+        self.clock_src_var = tk.StringVar(value="none")
+        self.clock_src_box = ttk.Combobox(props, textvariable=self.clock_src_var, width=14,
+                                          state="disabled")
+        self.clock_src_box.pack(side="left")
+        self.clock_src_box.bind("<<ComboboxSelected>>", lambda e: self._clock_apply_props())
+        self.clock_term_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(props, text="100 Ω termination", variable=self.clock_term_var,
+                        command=self._clock_apply_props).pack(side="left", padx=(14, 0))
+        self.clock_pol_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(props, text="non-inverted", variable=self.clock_pol_var,
+                        command=self._clock_apply_props).pack(side="left", padx=(10, 0))
 
         self.clock_matrix = bytearray(16)
-        self.clock_selected = None
-        self.clock_canvas = tk.Canvas(parent, height=500, bg=BG, highlightthickness=1,
+        self.clock_sel = None
+        self.clock_loading = False
+        self.clock_canvas = tk.Canvas(parent, height=480, bg=BG, highlightthickness=1,
                                       highlightbackground=LINE)
-        self.clock_canvas.pack(fill="both", expand=True, pady=(0, 8))
+        self.clock_canvas.pack(fill="both", expand=True, pady=(0, 6))
         self.clock_canvas.bind("<Button-1>", self._clock_click)
         self.clock_canvas.bind("<Configure>", lambda e: self._clock_redraw())
 
@@ -347,7 +367,7 @@ class FruEditor(tk.Tk):
         self.switch_var = tk.StringVar(value="")
         ttk.Entry(srow, textvariable=self.switch_var, width=52, state="readonly").pack(side="left", padx=(6, 10))
 
-        self.clock_out = tk.Text(parent, height=6, font=(MONO_FONT, 9), state="disabled",
+        self.clock_out = tk.Text(parent, height=5, font=(MONO_FONT, 9), state="disabled",
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
@@ -356,8 +376,8 @@ class FruEditor(tk.Tk):
         w = self.clock_canvas.winfo_width() or 960
         left = 20
         right = w - 190
-        row_h = 46
-        y0 = 34
+        row_h = 44
+        y0 = 30
         return left, right, row_h, y0
 
     def _clock_redraw(self):
@@ -368,9 +388,9 @@ class FruEditor(tk.Tk):
 
         for i, (port, name) in enumerate(self.CLOCK_INPUTS):
             y = y0 + i * row_h
-            sel = (self.clock_selected == i)
+            sel = (self.clock_sel == ("in", i))
             c.create_rectangle(left, y - 13, left + box_w, y + 13,
-                               fill=PANEL if not sel else "#E7F0ED",
+                               fill="#E7F0ED" if sel else PANEL,
                                outline=ACCENT if sel else LINE, width=2 if sel else 1)
             c.create_text(left + 8, y, text=port, anchor="w", fill=MUTED, font=(UI_FONT, 8))
             c.create_text(left + 64, y, text=name, anchor="w", fill=INK, font=(UI_FONT, 9))
@@ -378,15 +398,16 @@ class FruEditor(tk.Tk):
         for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
             y = y0 + j * row_h
             cfg = self.clock_matrix[9 + j]
-            src = cfg & 0x0F if (cfg & 0x80) else None
+            src = (cfg & 0x0F) if (cfg & 0x80) else None
+            sel = (self.clock_sel == ("out", j))
             c.create_rectangle(right, y - 13, right + box_w, y + 13,
-                               fill=PANEL, outline=LINE, width=1)
+                               fill="#E7F0ED" if sel else PANEL,
+                               outline=ACCENT if sel else LINE, width=2 if sel else 1)
             c.create_text(right + 8, y, text=port, anchor="w", fill=MUTED, font=(UI_FONT, 8))
             c.create_text(right + 64, y, text=name, anchor="w", fill=INK, font=(UI_FONT, 9))
             if src is not None and src < len(self.CLOCK_INPUTS):
                 sy = y0 + src * row_h
-                c.create_line(left + box_w + 5, sy, right - 5, y, fill=ACCENT, width=2,
-                              smooth=True)
+                c.create_line(left + box_w + 5, sy, right - 5, y, fill=ACCENT, width=2)
                 c.create_oval(left + box_w + 2, sy - 3, left + box_w + 8, sy + 3, fill=ACCENT, outline="")
                 c.create_oval(right - 8, y - 3, right - 2, y + 3, fill=ACCENT, outline="")
 
@@ -397,25 +418,100 @@ class FruEditor(tk.Tk):
         if left <= x <= left + box_w:
             idx = int(round((y - y0) / row_h))
             if 0 <= idx < len(self.CLOCK_INPUTS):
-                self.clock_selected = None if self.clock_selected == idx else idx
-                self._clock_redraw()
+                self._clock_select(("in", idx))
                 return
         if right <= x <= right + box_w:
             j = int(round((y - y0) / row_h))
             if 0 <= j < len(self.CLOCK_OUTPUTS):
-                if self.clock_selected is None:
-                    self.clock_matrix[9 + j] = 0x00
-                    self._clock_log("%s disconnected" % self.CLOCK_OUTPUTS[j][1])
-                else:
-                    self.clock_matrix[9 + j] = 0x80 | self.clock_selected
-                    self._clock_log("%s <- %s" % (self.CLOCK_OUTPUTS[j][1],
-                                                  self.CLOCK_INPUTS[self.clock_selected][1]))
-                self._clock_selected = None
-                self._clock_sync()
-                self._clock_redraw()
+                if self.clock_sel and self.clock_sel[0] == "in":
+                    src = self.clock_sel[1]
+                    # default for a new connection: output, non-inverted, no termination
+                    self.clock_matrix[9 + j] = 0x80 | 0x20 | src
+                    self._clock_log("%s <- %s" % (self.CLOCK_OUTPUTS[j][1], self.CLOCK_INPUTS[src][1]))
+                self._clock_select(("out", j))
+
+    def _clock_select(self, sel):
+        self.clock_sel = sel
+        self._clock_loading = True
+        if sel is None:
+            self.clock_sel_label.set("no node selected")
+            self.clock_src_box.configure(state="disabled")
+        elif sel[0] == "in":
+            i = sel[1]
+            port, name = self.CLOCK_INPUTS[i]
+            self.clock_sel_label.set("%s %s" % (port, name))
+            cfg = self.clock_matrix[i]
+            self.clock_term_var.set(bool(cfg & 0x40))
+            self.clock_pol_var.set(bool(cfg & 0x20))
+            self.clock_src_box.configure(state="disabled")
+            self.clock_src_var.set("none")
+        else:
+            j = sel[1]
+            port, name = self.CLOCK_OUTPUTS[j]
+            self.clock_sel_label.set("%s %s" % (port, name))
+            cfg = self.clock_matrix[9 + j]
+            connected = bool(cfg & 0x80)
+            self.clock_term_var.set(bool(cfg & 0x40))
+            # a disconnected port defaults to non-inverted (bit 5 = 1)
+            self.clock_pol_var.set(bool(cfg & 0x20) if connected else True)
+            self.clock_src_box.configure(state="readonly")
+            self.clock_src_box["values"] = ["none"] + [n for (_p, n) in self.CLOCK_INPUTS]
+            if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
+                self.clock_src_var.set(self.CLOCK_INPUTS[cfg & 0x0F][1])
+            else:
+                self.clock_src_var.set("none")
+        self._clock_loading = False
+        self._clock_sync()
+        self._clock_redraw()
+
+    def _clock_apply_props(self):
+        if self.clock_loading or self.clock_sel is None:
+            return
+        kind, idx = self.clock_sel
+        term = 0x40 if self.clock_term_var.get() else 0
+        pol = 0x20 if self.clock_pol_var.get() else 0
+        if kind == "in":
+            self.clock_matrix[idx] = term | pol
+        else:
+            src_name = self.clock_src_var.get()
+            if src_name == "none":
+                self.clock_matrix[9 + idx] = 0
+            else:
+                src = [n for (_p, n) in self.CLOCK_INPUTS].index(src_name)
+                self.clock_matrix[9 + idx] = 0x80 | term | pol | src
+                self._clock_log("%s <- %s" % (self.CLOCK_OUTPUTS[idx][1], src_name))
+        self._clock_sync()
+        self._clock_redraw()
 
     def _clock_sync(self):
         self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
+
+    def clock_export_dot(self):
+        try:
+            path = filedialog.asksaveasfilename(defaultextension=".dot",
+                                                filetypes=[("Graphviz DOT", "*.dot")])
+            if not path:
+                return
+            lines = ["digraph ufc_clock {", "  rankdir=LR;",
+                     '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF", color="#E4DED2"];',
+                     '  edge [color="#0E6B5E", penwidth=1.6];',
+                     '  subgraph cluster_src { label="sources";']
+            for i, (p, n) in enumerate(self.CLOCK_INPUTS):
+                lines.append('    n%d [label="%s  %s"];' % (i, p, n))
+            lines.append("  }")
+            lines.append('  subgraph cluster_dst { label="destinations";')
+            for j, (p, n) in enumerate(self.CLOCK_OUTPUTS):
+                lines.append('    d%d [label="%s  %s"];' % (j, p, n))
+            lines.append("  }")
+            for j in range(len(self.CLOCK_OUTPUTS)):
+                cfg = self.clock_matrix[9 + j]
+                if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
+                    lines.append('  n%d -> d%d [label="0x%02x"];' % (cfg & 0x0F, j, cfg))
+            lines.append("}")
+            open(path, "w").write("\n".join(lines) + "\n")
+            self._clock_log("DOT written: " + path)
+        except Exception as e:
+            self._clock_log("ERROR: %s" % e)
 
     def _clock_log(self, text):
         self.clock_out.configure(state="normal")
