@@ -600,7 +600,8 @@ class FruEditor(tk.Tk):
             pts = [p for p in doc.get("points", []) if p.get("parent") == did]
             ins = [p for p in pts if p["dir"] in ("in", "inout")]
             outs = [p for p in pts if p["dir"] == "out"]
-            columns = [(ins, x + 6, "w"), (outs, x + bw - 6, "e")] if did == "mux" and outs \
+            is_mux = did.upper() == "MUX" or str(dev.get("part", "")).startswith("8V54816A")
+            columns = [(ins, x + 6, "w"), (outs, x + bw - 6, "e")] if is_mux and outs \
                 else [(pts, x + 6, "w")]
             for col, cx, anch in columns:
                 if not col:
