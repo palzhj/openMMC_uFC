@@ -2,10 +2,13 @@
 
 Source: `uFCv2/UFCV2.pdf`, sheet 5 (“Clock”), symbol `U67`.
 
-Routing can be described with **Graphviz DOT** (`docs/clock_switch.dot`), which
-renders the crossbar from the same 16-byte matrix the firmware writes:
+Routing can be described with **Graphviz DOT**: `docs/clock_switch.dot` renders
+the crossbar, and `docs/clocking.dot` the full system view (matching
+`uFCv2/readme/clocking.jpg`; the green edges are the active switch routes):
 
 ![clock switch routes](clock_switch.png)
+
+![uFC clocking system](clocking.png)
 
 ## The device
 

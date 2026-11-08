@@ -331,6 +331,7 @@ class FruEditor(tk.Tk):
         ttk.Button(row, text="Program Si5345", command=self.clock_program).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
         ttk.Button(row, text="Export DOT", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
+        ttk.Button(row, text="System diagram", command=self.clock_show_system).pack(side="left", padx=(8, 0))
         ttk.Label(row, text="click a source, then an output to connect — or select a node and edit its parameters",
                   style="Hint.TLabel").pack(side="left", padx=(12, 0))
 
@@ -485,6 +486,63 @@ class FruEditor(tk.Tk):
 
     def _clock_sync(self):
         self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
+
+    def _clock_system_dot(self):
+        dest_block = {"CLK9": "SI", "CLK10": "SI", "CLK11": "SI",
+                      "CLK12": "FMC0", "CLK13": "FMC0",
+                      "CLK14": "FMC1", "CLK15": "FMC1"}
+        lines = ["digraph clocking {", "  rankdir=LR;",
+                 '  graph [fontname="Helvetica", nodesep=0.35, ranksep=0.9];',
+                 '  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",',
+                 '        color="#E4DED2", fontname="Helvetica", fontsize=9];',
+                 '  edge [color="#8A8A80", fontname="Helvetica", fontsize=8];',
+                 '  AMC [label="AMC\nTCLKA-D / FCLKA"];',
+                 '  OSC [label="156.25 MHz"];',
+                 '  MUX [label="8V54816A\n16-port mux"];',
+                 '  FMC0 [label="FMC0"];', '  FMC1 [label="FMC1"];',
+                 '  SI [label="Si5345\nPLL 4:10"];',
+                 '  S7 [label="Spartan 7"];', '  K7 [label="Kintex 7"];',
+                 '  WR [label="WR"];', '  VCXO [label="VCXO 20 MHz"];',
+                 '  OSC8 [label="8 MHz"];', '  MCU [label="MCU"];',
+                 '  OSC200 [label="200 MHz"];', '  LEMO [label="LEMO_CLK_IN"];']
+        for e in ('AMC -> MUX', 'OSC -> MUX', 'MUX -> FMC0 [label="GBTCLK0/M2C0"]',
+                  'MUX -> FMC1 [label="GBTCLK1/M2C1"]', 'MUX -> SI [label="PLL in"]',
+                  'SI -> MUX [label="FB / PLL_OUT"]',
+                  'SI -> K7 [label="GTX_CLK0-3, FPGA_CLK0"]',
+                  'WR -> S7 [label="125 MHz"]', 'WR -> K7 [label="125 MHz"]',
+                  'VCXO -> WR', 'OSC8 -> MCU', 'MCU -> S7', 'OSC200 -> K7', 'LEMO -> K7'):
+            lines.append("  " + e + ";")
+        for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
+            cfg = self.clock_matrix[9 + j]
+            if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
+                src = self.CLOCK_INPUTS[cfg & 0x0F][1]
+                lines.append('  MUX -> %s [label="%s → %s", color="#0E6B5E", penwidth=2];'
+                             % (dest_block[port], src, name))
+        lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    def clock_show_system(self):
+        import tempfile, subprocess, os, shutil
+        try:
+            dot = self._clock_system_dot()
+            work = tempfile.mkdtemp(prefix="ufc-clock-")
+            dot_path = os.path.join(work, "clocking.dot")
+            png_path = os.path.join(work, "clocking.png")
+            open(dot_path, "w").write(dot)
+            tool = shutil.which("dot")
+            if not tool:
+                self._clock_log("dot not found — diagram saved to " + dot_path)
+                return
+            subprocess.run([tool, "-Tpng", dot_path, "-o", png_path], check=True)
+            win = tk.Toplevel(self)
+            win.title("uFC clocking — system view")
+            img = tk.PhotoImage(file=png_path)
+            lbl = tk.Label(win, image=img, bg=BG)
+            lbl.image = img
+            lbl.pack(padx=8, pady=8)
+            self._clock_log("system diagram: " + png_path)
+        except Exception as e:
+            self._clock_log("ERROR: %s" % e)
 
     def clock_export_dot(self):
         try:
