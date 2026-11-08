@@ -133,19 +133,33 @@ IPMI_HANDLER(ipmi_i2c_transfer, NETFN_CUSTOM, IPMI_CUSTOM_CMD_I2C_TRANSFER, ipmi
 
     if ( ok )
     {
-        if ( rlen )
+        if ( rlen && wlen )
         {
+            /* write then read (register / PMBus / EEPROM address) */
             if ( xI2CMasterWriteRead( bus, dev, wdata, wlen, rsp->data, rlen ) != rlen )
+            {
+                ok = 0;
+            }
+        }
+        else if ( rlen )
+        {
+            /* pure read: no byte is written first */
+            if ( xI2CMasterRead( bus, dev, rsp->data, rlen ) != rlen )
+            {
+                ok = 0;
+            }
+        }
+        else if ( wlen )
+        {
+            /* pure write */
+            if ( xI2CMasterWrite( bus, dev, wdata, wlen ) != wlen )
             {
                 ok = 0;
             }
         }
         else
         {
-            if ( xI2CMasterWrite( bus, dev, wdata, wlen ) != wlen )
-            {
-                ok = 0;
-            }
+            ok = 0;     /* nothing to do */
         }
     }
 
