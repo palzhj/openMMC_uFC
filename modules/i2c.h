@@ -97,6 +97,11 @@ uint8_t i2c_get_mux_bus( uint8_t bus_id, i2c_mux_state_t *i2c_mux );
 bool i2c_take_by_busid( uint8_t bus_id, uint8_t *i2c_interface, uint32_t timeout );
 
 /**
+ * @brief Take the lock of a physical I2C interface (no logical bus mapping)
+ */
+bool i2c_take_by_interface( uint8_t i2c_interface, uint32_t timeout );
+
+/**
  * @brief Take control over an I2C bus given a chip id
  *
  * @param[in] chip_id Chip ID to communicate

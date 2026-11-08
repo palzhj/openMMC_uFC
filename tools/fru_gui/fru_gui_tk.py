@@ -259,6 +259,10 @@ class FruEditor(tk.Tk):
                                             pady=(0, 4))
         self._build_area(product_frame, "product", with_time=False, start_row=1)
 
+        self.i2c_tab = ttk.Frame(self.nb, padding=12)
+        self.nb.add(self.i2c_tab, text="I²C transfer")
+        self._build_i2c_tab(self.i2c_tab)
+
         self.hex_text = tk.Text(self.raw_tab, font=(MONO_FONT, 10), state="disabled",
                                 height=18, width=64, bg=PANEL, fg=INK,
                                 relief="flat", highlightthickness=1,
@@ -290,6 +294,136 @@ class FruEditor(tk.Tk):
         ttk.Button(bottom, text="Load image to EEPROM",
                    command=self.load_image).pack(side="left", padx=(8, 0))
         ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
+
+    def _build_i2c_tab(self, parent):
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=(0, 8))
+        ttk.Label(row, text="Bus", style="FieldLabel.TLabel").pack(side="left")
+        self.i2c_bus = tk.StringVar(value="I2C2")
+        ttk.Combobox(row, textvariable=self.i2c_bus, width=6, state="readonly",
+                     values=("I2C2", "I2C1")).pack(side="left", padx=(6, 16))
+
+        ttk.Label(row, text="Device", style="FieldLabel.TLabel").pack(side="left")
+        self.i2c_dev = tk.StringVar(value="0x50")
+        ttk.Entry(row, textvariable=self.i2c_dev, width=7).pack(side="left", padx=(6, 16))
+
+        ttk.Label(row, text="Read len", style="FieldLabel.TLabel").pack(side="left")
+        self.i2c_rlen = tk.StringVar(value="8")
+        ttk.Entry(row, textvariable=self.i2c_rlen, width=4).pack(side="left", padx=(6, 16))
+
+        ttk.Label(row, text="Write bytes (hex)", style="FieldLabel.TLabel").pack(side="left")
+        self.i2c_wdata = tk.StringVar(value="00")
+        ttk.Entry(row, textvariable=self.i2c_wdata, width=24).pack(side="left", padx=(6, 16))
+
+        ttk.Button(row, text="Transfer", style="Primary.TButton",
+                   command=self.i2c_transfer).pack(side="left")
+
+        muxrow = ttk.Frame(parent)
+        muxrow.pack(fill="x", pady=(0, 8))
+        ttk.Label(muxrow, text="Mux stages (address, channel; blank = unused)",
+                  style="Hint.TLabel").pack(side="left", padx=(0, 10))
+        self.mux_vars = []
+        for i in range(3):
+            ttk.Label(muxrow, text="addr", style="FieldLabel.TLabel").pack(side="left")
+            a = tk.StringVar(value="0x70" if i == 0 else "")
+            ttk.Entry(muxrow, textvariable=a, width=6).pack(side="left", padx=(4, 4))
+            ttk.Label(muxrow, text="ch", style="FieldLabel.TLabel").pack(side="left")
+            c = tk.StringVar(value="0" if i == 0 else "")
+            ttk.Entry(muxrow, textvariable=c, width=4).pack(side="left", padx=(4, 14))
+            self.mux_vars.append((a, c))
+
+        presets = ttk.Frame(parent)
+        presets.pack(fill="x", pady=(0, 8))
+        ttk.Label(presets, text="Presets", style="Hint.TLabel").pack(side="left", padx=(0, 8))
+        for label, fn in (("EEPROM FRU", self._preset_eeprom),
+                          ("UCD PMBus", self._preset_pmbus),
+                          ("Clock 8V54816", self._preset_clock),
+                          ("Si5345", self._preset_si5345)):
+            ttk.Button(presets, text=label, command=fn).pack(side="left", padx=(0, 6))
+
+        out = ttk.Frame(parent)
+        out.pack(fill="both", expand=True)
+        ttk.Label(out, text="Result", style="Hint.TLabel").pack(anchor="w")
+        self.i2c_out = tk.Text(out, height=6, font=(MONO_FONT, 10), state="disabled",
+                               bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
+                               highlightbackground=LINE, padx=10, pady=8)
+        self.i2c_out.pack(fill="both", expand=True)
+
+    @staticmethod
+    def _hex_bytes(text):
+        parts = [p for p in text.replace(",", " ").split() if p]
+        out = []
+        for p in parts:
+            v = int(p, 16) if not p.lower().startswith("0x") else int(p, 16)
+            if not 0 <= v <= 0xFF:
+                raise ValueError("byte out of range: %s" % p)
+            out.append(v)
+        return bytes(out)
+
+    @staticmethod
+    def _hex_val(text, default=0):
+        text = (text or "").strip()
+        if not text:
+            return default
+        return int(text, 16) if text.lower().startswith("0x") else int(text, 0)
+
+    def _i2c_params(self):
+        bus = 1 if self.i2c_bus.get() == "I2C2" else 0
+        muxes = []
+        for a, c in self.mux_vars:
+            if not a.get().strip():
+                continue
+            muxes.append((self._hex_val(a.get()), self._hex_val(c.get())))
+        dev = self._hex_val(self.i2c_dev.get())
+        wdata = self._hex_bytes(self.i2c_wdata.get())
+        rlen = int(self.i2c_rlen.get().strip() or 0)
+        return bus, muxes, dev, wdata, rlen
+
+    def i2c_transfer(self):
+        try:
+            bus, muxes, dev, wdata, rlen = self._i2c_params()
+            acc = self._access()
+            data = acc.xfer(bus, muxes, dev, wdata, rlen)
+            self._status("I2C transfer OK — %d byte(s) read" % len(data), "ok")
+            self._i2c_show(data)
+        except Exception as e:
+            self._status("I2C transfer failed", "error")
+            self._i2c_show(b"")
+            self.log("ERROR: %s" % e)
+            messagebox.showerror(APP_TITLE, "I2C transfer failed:\n%s" % e)
+
+    def _i2c_show(self, data):
+        self.i2c_out.configure(state="normal")
+        self.i2c_out.delete("1.0", "end")
+        if data:
+            self.i2c_out.insert("end", " ".join("%02x" % b for b in data) + "\n")
+            self.i2c_out.insert("end", "as bytes: %s" % " ".join(str(b) for b in data))
+        else:
+            self.i2c_out.insert("end", "(no data)")
+        self.i2c_out.configure(state="disabled")
+
+    def _preset(self, bus, muxes, dev, wdata, rlen):
+        self.i2c_bus.set("I2C2" if bus == 1 else "I2C1")
+        for i, (a, c) in enumerate(self.mux_vars):
+            if i < len(muxes):
+                a.set("0x%02x" % muxes[i][0]); c.set(str(muxes[i][1]))
+            else:
+                a.set(""); c.set("")
+        self.i2c_dev.set("0x%02x" % dev)
+        self.i2c_wdata.set(" ".join("%02x" % b for b in wdata))
+        self.i2c_rlen.set(str(rlen))
+
+    def _preset_eeprom(self):
+        self._preset(1, [(0x70, 0)], 0x50, b"\x00", 8)
+
+    def _preset_pmbus(self):
+        self._preset(1, [(0x70, 0)], 0x11, b"\x8b", 2)
+
+    def _preset_clock(self):
+        self._preset(1, [(0x70, 2)], 0x58, b"\x00", 1)
+
+    def _preset_si5345(self):
+        self._preset(1, [(0x70, 2)], 0x69, b"\x00", 1)
 
     def _labeled(self, parent, text, value, width, tip=None):
         box = ttk.Frame(parent)

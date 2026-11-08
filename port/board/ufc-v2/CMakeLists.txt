@@ -72,6 +72,11 @@ if (EEPROM_ACCESS)
   list(APPEND TARGET_MODULES "EEPROM_ACCESS")
 endif()
 
+option(I2C_ACCESS "Enable generic I2C transfers over IPMI" OFF)
+if (I2C_ACCESS)
+  list(APPEND TARGET_MODULES "I2C_ACCESS")
+endif()
+
 #Diagnostic PMBus probe for the UCD90320 (temporary, not for production)
 option(UCD_PROBE "Build the UCD90320 PMBus diagnostic probe" OFF)
 if (UCD_PROBE)

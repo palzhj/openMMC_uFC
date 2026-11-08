@@ -474,6 +474,7 @@
 #define IPMI_CUSTOM_CMD_EEPROM_READ                             0x13
 #define IPMI_CUSTOM_CMD_EEPROM_WRITE_AT                          0x14
 #define IPMI_CUSTOM_CMD_EEPROM_READ_AT                           0x15
+#define IPMI_CUSTOM_CMD_I2C_TRANSFER                             0x20
 /**
  * @}
  */
@@ -499,6 +500,7 @@
 #define IPMI_CC_CANT_RET_NUM_REQ_BYTES                          0xCA
 #define IPMI_CC_REQ_DATA_NOT_PRESENT                            0xCB
 #define IPMI_CC_INV_DATA_FIELD_IN_REQ                           0xCC
+#define IPMI_CC_NODE_BUSY                                       0xC0
 #define IPMI_CC_ILL_SENSOR_OR_RECORD                            0xCD
 #define IPMI_CC_RESP_COULD_NOT_BE_PRV                           0xCE
 #define IPMI_CC_CANT_RESP_DUPLI_REQ                             0xCF

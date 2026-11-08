@@ -143,6 +143,27 @@ class FruAccess:
     def dump(self):
         return self.read(0, self.eeprom_size)
 
+    def xfer(self, bus, muxes, dev, wdata=b"", rlen=0):
+        """Generic I2C transfer (custom command 0x20).
+
+        bus   : physical interface (0 = I2C1, 1 = I2C2)
+        muxes : [(address, channel), ...] up to 3 stages
+        dev   : 7-bit target address
+        wdata : bytes written first (register / command)
+        rlen  : bytes read back (0 for a write-only transfer)
+        """
+        if len(muxes) > 3:
+            raise ValueError("at most 3 mux stages")
+        if len(wdata) > 16:
+            raise ValueError("write data too long")
+        if not 0 <= rlen <= 31:
+            raise ValueError("read length must be 0..31")
+        data = bytearray([bus, len(muxes)])
+        for addr, ch in muxes:
+            data += bytes([addr & 0xFF, ch & 0xFF])
+        data += bytes([dev & 0xFF, len(wdata)]) + bytes(wdata) + bytes([rlen])
+        return self._ipmi("0x32", "0x20", *["0x%02x" % b for b in data])
+
     def device_id(self):
         """IPMI Get Device ID (NetFn App 0x06, cmd 0x01) through the bridge."""
         return self._ipmi("0x06", "0x01")
