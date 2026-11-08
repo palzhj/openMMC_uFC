@@ -59,7 +59,7 @@ and handle the EEPROM's page writes and write-cycle delays internally.
 
 | | bytes |
 |---|---|
-| request | `addr_lo addr_hi data…` (max 30 data bytes) |
+| request | `addr_lo addr_hi data…` (max 30 by the command, **23** over the IPMB transport) |
 | response | — |
 
 - writes are split into 8-byte pages with the 5 ms write-cycle wait
@@ -72,6 +72,7 @@ and handle the EEPROM's page writes and write-cycle delays internally.
 | `0x14` write | `i2c_addr addr_lo addr_hi data…` | — |
 
 - `i2c_addr` = 0x08…0x77; same 256-byte offset limit
+- write data: max 29 by the command, **22** over the IPMB transport
 - `0x14` **probes the device first** (1-byte read), so writing to an absent
   address returns an error immediately instead of sitting in the write-retry
   loop for tens of seconds
