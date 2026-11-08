@@ -273,9 +273,16 @@ All LEDs are **active low**; the LED task is enabled in this build.
 |---|---|---|---|
 | Get free heap | `0x32` | `0x01` | u32 free bytes, little‑endian |
 | Get commit hash | `0x32` | `0x02` | 20‑byte git SHA‑1 |
+| EEPROM raw write (opt‑in) | `0x32` | `0x12` | `[addr_lo addr_hi data…]`, max 30 data bytes |
+| EEPROM raw read (opt‑in) | `0x32` | `0x13` | `[addr_lo addr_hi len]` → `len` data bytes (1…32) |
 
 ```sh
-ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
+# double‑bridged through a NAT‑MCH (AMC7 example)
+ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x7e -b 7 raw 0x32 0x02
+
+# raw EEPROM access (build with -DEEPROM_ACCESS=ON)
+ipmitool ... raw 0x32 0x13 0x00 0x00 0x08     # read 8 bytes at offset 0
+ipmitool ... raw 0x32 0x12 0x70 0x00 0x5A 0xA5  # write 2 bytes at 0x70
 ```
 
 ---
@@ -286,7 +293,7 @@ ipmitool -I lan -H <mch> -A none -T 0x82 -m 0x20 -t <target> raw 0x32 0x02
 |---|---|---|
 | No console output at all | Wrong baud, TX/RX swapped, UART_DEBUG not built, or app not running | Check 115200 8N1; verify `-DUART_DEBUG=ON`; flash a known‑good image |
 | newboot prints `jump app=…` but nothing else | App vector table invalid | Reflash the application (J‑Link or OTA) |
-| App starts then resets immediately | `fw_info` pending flag with empty staging | Clear `0x0801FF00–0x0801FFFF` to `0xFF` |
+| App starts then resets immediately | `fw_info` pending flag with empty staging | Clear `0x0801FC00–0x0801FFFF` to `0xFF` |
 | `COMMON HEADER checksum` error | FRU blank or unreadable | Reprogram FRU (`-DFRU_BUILD=ON`); check I²C |
 | `FRU info is healthy!` never appears | I²C mux/bus fault | Verify `0x70` ACKs; check SCL/SDA pull‑ups |
 | Board reboots every ~1 s | Watchdog enabled but tasks starved | Check heap usage, stack sizes; rebuild with `-DDISABLE_WATCHDOG=ON` to confirm |

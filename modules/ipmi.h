@@ -470,6 +470,8 @@
 #define IPMI_CUSTOM_CMD_GET_GIT_HASH                            0x02
 #define IPMI_CUSTOM_CMD_WRITE_CLOCK_CONFIG                      0x03
 #define IPMI_CUSTOM_CMD_READ_CLOCK_CONFIG                       0x04
+#define IPMI_CUSTOM_CMD_EEPROM_WRITE                            0x12
+#define IPMI_CUSTOM_CMD_EEPROM_READ                             0x13
 /**
  * @}
  */
