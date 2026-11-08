@@ -235,7 +235,13 @@ static uint8_t hpm_finish_upload(uint32_t image_size)
 static uint8_t hpm_activate_firmware(enum fw_type type)
 {
     if (!hpm_finish_ok) {
-        return IPMI_CC_UNSPECIFIED_ERROR;
+        /* Some HPM clients do not send 'finish firmware upload'. Accept the
+         * activation when the staging region actually contains an image
+         * (a valid vector table starts with a stack pointer in SRAM). */
+        const uint32_t *img = (const uint32_t *)staging_start();
+        if (img[0] == 0xFFFFFFFFu || img[0] == 0x00000000u) {
+            return IPMI_CC_UNSPECIFIED_ERROR;
+        }
     }
 
     fw_info header;

@@ -129,6 +129,24 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 0x11, `8B` → READ_VOUT), **Clock 8V54816** (0x70 ch2, 0x58) and **Si5345**
 (0x70 ch2, 0x69).
 
+## OTA update tab
+
+Uploads a PICMG **HPM.1** image to the MMC and activates it (the MMC's HPM
+agent stages the image; `activate` writes the `fw_info` record and resets,
+then `newboot` copies staging to the application).
+
+- **HPM file** — the `.hpm` built by `bin2hpm` (Browse…)
+- **Component** — `1` MMC (default), `0` bootloader, `2` payload
+- **Check target** — `ipmitool hpm check`
+- **Upload** — `ipmitool hpm upgrade <file> -C <component>` (~1 min for 28 KB)
+- **Activate** — `ipmitool hpm activate`
+- **Upload + Activate** — chains both automatically
+- progress bar driven by the `NN%` output, full ipmitool output below
+
+Activation resets the MMC, so the reply usually never arrives: the tab stops
+waiting after 25 s and reports *“Activate sent — MMC resetting”*. Read the FRU
+again a few seconds later to confirm the module came back.
+
 ## Auxiliary information
 
 Below the connection strip the app shows, for every read:
