@@ -73,6 +73,8 @@ void gpio_init(void);
 
 /* PMBUS */
 #define GPIO_PMBUS_ALERT_B PIN_DEF(PORT1, 8, 0, GPIO_DIR_INPUT)
+/* UCD90320 CONTROL pin (sheet 4: U60 pin 46 = PB9 = PMBUS_CTRL) */
+#define GPIO_PMBUS_CTRL PIN_DEF(PORT1, 9, 1, GPIO_DIR_OUTPUT)
 
 /* FPGA control */
 #define GPIO_FPGA_DONE PIN_DEF(PORT2, 15, 0, GPIO_DIR_INPUT)
@@ -91,6 +93,7 @@ void gpio_init(void);
       GPIO_LEDRED,        \
       GPIO_AMC_MODULE_HANDLE, \
       GPIO_PMBUS_ALERT_B, \
+      GPIO_PMBUS_CTRL,    \
       GPIO_FPGA_DONE,     \
       GPIO_FPGA_PROG_B,   \
       GPIO_FPGA_RESET_B
