@@ -44,6 +44,19 @@ void i2c_init( void )
     }
 }
 
+bool i2c_take_by_interface( uint8_t i2c_interface, uint32_t timeout )
+{
+    for ( i2c_mux_state_t *mux = i2c_mux; mux != NULL; mux++ ) {
+        if ( mux->i2c_interface == i2c_interface ) {
+            if ( mux->semaphore == 0 ) {
+                return false;
+            }
+            return xSemaphoreTake( mux->semaphore, timeout ) == pdTRUE;
+        }
+    }
+    return false;
+}
+
 bool i2c_take_by_busid( uint8_t bus_id, uint8_t *i2c_interface, TickType_t timeout )
 {
     i2c_mux_state_t *p_i2c_mux = NULL;

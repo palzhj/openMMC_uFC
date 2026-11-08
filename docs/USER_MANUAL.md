@@ -277,6 +277,15 @@ All LEDs are **active low**; the LED task is enabled in this build.
 | EEPROM raw read (opt‑in) | `0x32` | `0x13` | `[addr_lo addr_hi len]` → `len` data bytes (1…32) (FRU EEPROM) |
 | EEPROM raw write at I²C addr | `0x32` | `0x14` | `[i2c_addr addr_lo addr_hi data…]` (0x08…0x77) |
 | EEPROM raw read at I²C addr | `0x32` | `0x15` | `[i2c_addr addr_lo addr_hi len]` → data |
+| Generic I²C transfer | `0x32` | `0x20` | `[bus n_mux (mux_addr mux_ch)… dev wlen wdata… rlen]` → `rlen` bytes |
+
+The generic transfer (build with `-DI2C_ACCESS=ON`) works for EEPROMs, PMBus
+devices and clock chips and selects up to three cascaded I²C multiplexers
+(`mux_ch` is the channel number 0…7). `bus` is the physical interface
+(0 = I2C1, 1 = I2C2 — on the uFC everything is on I2C2). `wdata` is written
+first (register/command byte), then `rlen` bytes are read with a repeated
+START; `rlen = 0` makes it a pure write. Failures trigger the same bus
+recovery as the EEPROM commands.
 
 `0x12`/`0x13` use the board FRU EEPROM (24AA025E48 at 0x50). `0x14`/`0x15`
 take an explicit 7-bit I²C address for other EEPROMs on the same bus; they
@@ -294,6 +303,8 @@ ipmitool ... raw 0x32 0x13 0x00 0x00 0x08     # read 8 bytes at offset 0
 ipmitool ... raw 0x32 0x12 0x70 0x00 0x5A 0xA5  # write 2 bytes at 0x70
 ipmitool ... raw 0x32 0x15 0x50 0x00 0x00 0x08  # same read, explicit I2C addr
 ipmitool ... raw 0x32 0x14 0x50 0x70 0x00 0x5A 0xA5
+# generic I2C: bus 1 (I2C2), mux 0x70 ch0, UCD PMBus 0x11, READ_VOUT
+ipmitool ... raw 0x32 0x20 0x01 0x01 0x70 0x00 0x11 0x01 0x8B 0x02
 ```
 
 ---
