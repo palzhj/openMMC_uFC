@@ -45,6 +45,34 @@ FIELD_LABELS = {
 }
 
 
+class Tooltip:
+    """Small hover hint in the app's ink-on-paper language."""
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        widget.bind("<Enter>", self._show, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+
+    def _show(self, _event=None):
+        if self.tip or not self.text:
+            return
+        x = self.widget.winfo_rootx() + 8
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry("+%d+%d" % (x, y))
+        tk.Label(self.tip, text=self.text, bg="#2B2823", fg="#FFFFFF",
+                 font=(UI_FONT, 8), padx=8, pady=4, justify="left",
+                 relief="flat").pack()
+
+    def _hide(self, _event=None):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
+
 class FruEditor(tk.Tk):
     def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128):
         super().__init__()
@@ -59,6 +87,10 @@ class FruEditor(tk.Tk):
         self._style()
 
         self._build_ui(mch, target, bus, transit, eeprom_size, fru_limit)
+        for var in (self.mch_var, self.transit_var, self.tch_var, self.target_var,
+                    self.bus_var):
+            var.trace_add("write", lambda *_: self._update_path())
+        self._update_path()
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
 
     # ---------------------------------------------------------------- style
@@ -132,12 +164,36 @@ class FruEditor(tk.Tk):
         # connection / size strip
         strip = ttk.Frame(self, padding=(16, 10, 16, 6))
         strip.pack(fill="x")
-        self.mch_var = self._labeled(strip, "MCH", mch, 14)
-        self.target_var = self._labeled(strip, "Target", target, 6)
-        self.bus_var = self._labeled(strip, "Bus", str(bus), 4)
-        self.transit_var = self._labeled(strip, "Transit", transit, 6)
-        self.size_var = self._labeled(strip, "EEPROM size (B)", str(eeprom_size), 7)
-        self.limit_var = self._labeled(strip, "FRU writable (B)", str(fru_limit), 7)
+        self.mch_var = self._labeled(
+            strip, "MCH", mch, 14,
+            tip="Address of the NAT-MCH crate manager\n(IPMI over LAN, this host's entry point).")
+        self.transit_var = self._labeled(
+            strip, "Transit", transit, 6,
+            tip="First bridge hop: the intermediate IPMI controller\n(NAT-MCH MCMC) that owns the AMC buses.")
+        self.tch_var = self._labeled(
+            strip, "Transit ch", "0", 4,
+            tip="Channel from the MCH to the transit bridge (usually 0).")
+        self.target_var = self._labeled(
+            strip, "Target", target, 6,
+            tip="Final device that answers: the AMC7 MMC's IPMB address (0x7E).")
+        self.bus_var = self._labeled(
+            strip, "Bus", str(bus), 4,
+            tip="IPMB channel on the transit that reaches the target\n(bus 7 = AMC7 slot).")
+        self.size_var = self._labeled(
+            strip, "EEPROM size (B)", str(eeprom_size), 7,
+            tip="Bytes read from the EEPROM. The raw command carries a\n16-bit address, so 65536 bytes is the maximum.")
+        self.limit_var = self._labeled(
+            strip, "FRU writable (B)", str(fru_limit), 7,
+            tip="Bytes of the FRU image that are written.\nThe 24AA025E48 only allows the lower 128 bytes.")
+
+        info = ttk.Frame(self, padding=(16, 2, 16, 4))
+        info.pack(fill="x")
+        self.path_var = tk.StringVar()
+        self.fruinfo_var = tk.StringVar(value="no FRU read yet")
+        tk.Label(info, textvariable=self.path_var, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(fill="x")
+        tk.Label(info, textvariable=self.fruinfo_var, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(fill="x")
 
         # notebook
         self.nb = ttk.Notebook(self)
@@ -206,12 +262,17 @@ class FruEditor(tk.Tk):
                    command=self.load_image).pack(side="left", padx=(8, 0))
         ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
 
-    def _labeled(self, parent, text, value, width):
+    def _labeled(self, parent, text, value, width, tip=None):
         box = ttk.Frame(parent)
         box.pack(side="left", padx=(0, 14))
-        ttk.Label(box, text=text, style="FieldLabel.TLabel").pack(anchor="w")
+        lab = ttk.Label(box, text=text, style="FieldLabel.TLabel")
+        lab.pack(anchor="w")
         var = tk.StringVar(value=value)
-        ttk.Entry(box, textvariable=var, width=width).pack(anchor="w")
+        ent = ttk.Entry(box, textvariable=var, width=width)
+        ent.pack(anchor="w")
+        if tip:
+            Tooltip(lab, tip)
+            Tooltip(ent, tip)
         return var
 
     def _build_area(self, parent, key, with_time, start_row=0):
@@ -250,6 +311,29 @@ class FruEditor(tk.Tk):
         update()
 
     # ------------------------------------------------------------- helpers
+    def _update_path(self):
+        try:
+            self.path_var.set(
+                "LAN → MCH %s → transit %s (ch %s) → target %s (bus %s)"
+                % (self.mch_var.get(), self.transit_var.get(), self.tch_var.get(),
+                   self.target_var.get(), self.bus_var.get()))
+        except Exception:
+            pass
+
+    def _fru_stats(self, parsed, limit):
+        raw = parsed["raw"]
+        used = parsed["image_len"]
+        multi = len(parsed["multi"])
+        ok = (sum(raw[:8]) & 0xFF) == 0
+        for key in ("board_area", "product_area"):
+            a = parsed[key]
+            if a:
+                ok = ok and (sum(raw[a["offset"]:a["offset"] + a["length"]]) & 0xFF) == 0
+        mfg = parsed["board"].get("mfg_time", 0)
+        return "%d B used · %d B free · multirecord %d B · checksums %s · mfg %s" % (
+            used, limit - used, multi, "OK" if ok else "BAD",
+            mfg_minutes_to_str(mfg))
+
     def _set_time_now(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         self.time_var.set(now.strftime("%Y-%m-%d %H:%M"))
@@ -280,7 +364,7 @@ class FruEditor(tk.Tk):
         size, _limit = self._sizes()
         return FruAccess(self.mch_var.get().strip(), self.target_var.get().strip(),
                          self.transit_var.get().strip(), self.bus_var.get().strip(),
-                         eeprom_size=size)
+                         eeprom_size=size, transit_ch=int(self.tch_var.get().strip() or 0))
 
     def _fill(self, raw, parsed):
         self.raw = raw
@@ -311,9 +395,20 @@ class FruEditor(tk.Tk):
     def read_fru(self):
         try:
             _size, limit = self._sizes()
-            raw = self._access().dump()
+            acc = self._access()
+            raw = acc.dump()
             parsed = parse_fru(raw, limit=limit)
             self._fill(raw, parsed)
+            self._update_path()
+            info = self._fru_stats(parsed, limit)
+            try:
+                d = acc.device_id()
+                if len(d) >= 5:
+                    info += "   ·   MMC 0x%02x  fw %d.%02d  IPMI %d.%d" % (
+                        d[0], d[2] & 0x7F, d[3], d[4] & 0x0F, (d[4] >> 4) & 0x0F)
+            except Exception:
+                pass
+            self.fruinfo_var.set(info)
             self._status("FRU read — %d bytes, board and product areas parsed" % len(raw), "ok")
             self.log("Read %d bytes from the FRU EEPROM." % len(raw))
         except Exception as e:
@@ -342,6 +437,7 @@ class FruEditor(tk.Tk):
             raw = acc.dump()
             parsed = parse_fru(raw, limit=limit)
             self._fill(raw, parsed)
+            self.fruinfo_var.set(self._fru_stats(parsed, limit))
             problems = []
             for key, area_key in (("board", "board_area"), ("product", "product_area")):
                 info = parsed[area_key]

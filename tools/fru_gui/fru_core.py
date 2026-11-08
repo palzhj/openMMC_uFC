@@ -76,11 +76,11 @@ def ipmitool_cmd():
 
 
 class FruAccess:
-    def __init__(self, mch, target, transit, bus, eeprom_size=EEPROM_SIZE):
+    def __init__(self, mch, target, transit, bus, eeprom_size=EEPROM_SIZE, transit_ch=0):
         self.mch = mch
         self.eeprom_size = eeprom_size
         self.bridge = ["-I", "lan", "-H", mch, "-A", "none",
-                       "-T", transit, "-B", "0", "-t", target, "-b", bus]
+                       "-T", transit, "-B", str(transit_ch), "-t", target, "-b", bus]
 
     def _ipmi(self, *args):
         out = subprocess.run([ipmitool_cmd()] + self.bridge + ["raw"] + list(args),
@@ -112,6 +112,10 @@ class FruAccess:
 
     def dump(self):
         return self.read(0, self.eeprom_size)
+
+    def device_id(self):
+        """IPMI Get Device ID (NetFn App 0x06, cmd 0x01) through the bridge."""
+        return self._ipmi("0x06", "0x01")
 
 
 # ---------------------------------------------------------------------------
