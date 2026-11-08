@@ -47,13 +47,15 @@ MEMORY
 
 /* OpenBLT is no longer used: newboot itself sits at the reset vector
  * (0x08000000) and is the first-stage bootloader. */
-__BootFlash_start     = 0x08000000;   /* Bootloader start address (vector table) */
-__BootFlash_end       = 0x08001FFF;   /* Bootloader end address (last byte) */
-__AppFlash_start      = 0x08004000;   /* Application start address (vector table) */
-__AppFlash_end        = 0x08011FFF;   /* 56K Application end address (last byte) */
-__FWUpdateFlash_start = 0x08012000;   /* Firmware update region start address */
-__FWUpdateFlash_end   = 0x0801FFFF;   /* Firmware update region end address (last byte) */
-__FWInfo_addr         = 0x08002000;   /* Dedicated fw_info page in the free 8 KB gap (256 B record) */
+/* Layout (128 KB): newboot 8 KB, application 59 KB, staging 59 KB,
+ * 1 KB free, 1 KB fw_info at the end. */
+__BootFlash_start     = 0x08000000;   /* newboot (first stage) */
+__BootFlash_end       = 0x08001FFF;
+__AppFlash_start      = 0x08002000;   /* Application start address (vector table) */
+__AppFlash_end        = 0x08010BFF;   /* 59K application end address (last byte) */
+__FWUpdateFlash_start = 0x08010C00;   /* Firmware update region start address */
+__FWUpdateFlash_end   = 0x0801F7FF;   /* 59K firmware update region end address (last byte) */
+__FWInfo_addr         = 0x0801FC00;   /* Last 1 KB page, 256 B fw_info record */
 
 /* Define output sections */
 SECTIONS
