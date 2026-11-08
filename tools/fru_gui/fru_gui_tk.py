@@ -498,8 +498,9 @@ class FruEditor(tk.Tk):
         lines.append("  }")
         lines.append('  SI [label="Si5345\n0x69\nPLL 4:10"];')
         lines.append('  FMC0 [label="FMC0\n(bidir)"]; FMC1 [label="FMC1\n(bidir)"];')
-        lines.append('  K7 [label="Kintex 7\nMGTCLK/Bank14"];')
-        lines.append('  OTH [label="other clocks\n8 MHz → MCU\n200 MHz → K7\nLEMO → K7\nWR 125 MHz → K7/S7\nVCXO → WR", shape=note];')
+        lines.append('  K7 [label="Kintex 7 (XC7K325T)\nREFCLK T26 (200M)\nSRCC R28 (156M)\nMRCC0 AD23 (100M)\nMRCC1 AB27 (125M WR)\nMRCC2 AG29 (20M VCXO)\nMRCC3 C25 (250M DDR)\nLEMO U27\nMGTCLK116 L8/N8\nMGTCLK117 G8/J8\nMGTCLK118 C8/E8"];')
+        lines.append('  S7 [label="Spartan 7 (XC7S25)\nCLK_INOUT F14 (156M)\nCLK_IN_P0 N15 (100M)\nCLK_IN_P1 D14 (125M WR)\nFMC0_GTX G16 · FMC0_CLK D18\nFMC1_GTX R14 · FMC1_CLK P14\nFPGA_GTX U17"];')
+        lines.append('  OTH [label="other clocks\n8 MHz → MCU\n200 MHz → K7 T26\nLEMO → K7 U27\nWR 125 MHz → K7 AB27 / S7 D14\nVCXO 20 MHz → K7 AG29", shape=note];')
         lines.append('  AMC -> {n0 n1 n2 n3 n4} [dir=both, color="#C9CFC9"];')
         lines.append('  OSC -> n7 [color="#C9CFC9"];')
         lines.append('  S7IN -> n5 [dir=both, color="#C9CFC9"];')
@@ -508,8 +509,11 @@ class FruEditor(tk.Tk):
         lines.append('  n11 -> SI [color="#C9CFC9"];')
         lines.append('  n12 -> FMC0 [dir=both, color="#C9CFC9"]; n13 -> FMC0 [dir=both, color="#C9CFC9"];')
         lines.append('  n14 -> FMC1 [dir=both, color="#C9CFC9"]; n15 -> FMC1 [dir=both, color="#C9CFC9"];')
-        lines.append('  SI -> K7 [label="GTX/FPGA_CLK"]; FMC0 -> K7; FMC1 -> K7;')
+        lines.append('  SI -> K7 [label="GTX_CLK0-3 → MGTCLK116/117/118"];')
+        lines.append('  FMC0 -> S7 [label="FMC0_GTX G16 / FMC0_CLK D18"];')
+        lines.append('  FMC1 -> S7 [label="FMC1_GTX R14 / FMC1_CLK P14"];')
         lines.append('  OTH -> K7 [style=dashed, color="#C9CFC9"];')
+        lines.append('  OTH -> S7 [style=dashed, color="#C9CFC9"];')
         for j, (port, name) in enumerate(self.CLOCK_OUTPUTS):
             cfg = self.clock_matrix[9 + j]
             if cfg & 0x80 and (cfg & 0x0F) < len(self.CLOCK_INPUTS):
