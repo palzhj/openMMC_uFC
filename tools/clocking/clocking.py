@@ -47,6 +47,20 @@ def validate(doc):
             errors.append("%s: unknown device %r" % (pid, p.get("device")))
         if p.get("parent") not in devices:
             errors.append("%s: unknown parent chip %r" % (pid, p.get("parent")))
+        cap = p.get("capability")
+        if cap is not None:
+            for key in ("in", "out", "tristate"):
+                if not isinstance(cap.get(key), bool):
+                    errors.append("%s: capability.%s must be bool" % (pid, key))
+            d = p.get("dir")
+            if d == "in" and not cap.get("in"):
+                errors.append("%s: dir in but capability.in is false" % pid)
+            if d == "out" and not cap.get("out"):
+                errors.append("%s: dir out but capability.out is false" % pid)
+            if d == "inout" and not (cap.get("in") and cap.get("out")):
+                errors.append("%s: dir inout needs capability.in and .out" % pid)
+            if cap.get("default") and cap["default"] not in ("in", "out", "tristate"):
+                errors.append("%s: bad capability.default %r" % (pid, cap["default"]))
 
     for link in doc.get("links", []):
         a, b = link.get("a"), link.get("b")
@@ -188,6 +202,10 @@ def main():
                 print("  %-8s %-22s %-10s %d ports"
                       % (chip["id"], chip["label"] or chip["part"] or "",
                          chip["class"] or "", len(chip["points"])))
+                for p in chip["points"]:
+                    cap = p.get("capability") or {}
+                    ways = "/".join(k for k in ("in", "out", "tristate") if cap.get(k))
+                    print("      %-22s %-5s %s" % (p["name"], p["dir"], ways))
         return 0
     print("unknown command", cmd)
     return 2
