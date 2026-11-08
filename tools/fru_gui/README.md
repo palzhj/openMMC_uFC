@@ -69,16 +69,27 @@ local copy when present.
 
 ## What the connection fields mean
 
-A request reaches the AMC's MMC through a **double bridge**, so the app carries
-all four IPMI routing parameters:
+The app is not tied to one board: it talks to any MMC/BMC that exposes the
+raw EEPROM commands over IPMI. Pick how many hops the request needs:
+
+| Bridge | Use |
+|---|---|
+| **Double** | MCH → transit → target (MicroTCA AMC behind a crate manager, e.g. AMC7: `-T 0x82 -B 0 -t 0x7E -b 7`) |
+| **Single** | MCH → target on one of its buses (`-t`/`-b` only) |
+| **Direct** | talk to the MCH/BMC itself, no bridging |
+
+Fields that the selected mode does not use are disabled automatically, and the
+path line under the strip shows the resulting route.
+
+With the double bridge the parameters are:
 
 | Field | Meaning |
 |---|---|
-| **MCH** | The NAT-MCH, the crate manager (IPMI over LAN). The host's entry point. |
-| **Transit** | First hop: the intermediate IPMI controller (NAT-MCH MCMC) that owns the AMC buses. |
+| **MCH / BMC** | First controller over IPMI-LAN: the crate manager or a BMC. |
+| **Transit** | First hop: the intermediate IPMI controller that owns the target's bus. |
 | **Transit ch** | Channel from the MCH to the transit controller (usually 0). |
-| **Target** | Final device that answers: the AMC7 MMC's IPMB address (`0x7E`). |
-| **Bus** | IPMB channel on the transit that reaches the target (`7` = AMC7 slot). |
+| **Target** | IPMB address of the device that answers (the module's MMC). |
+| **Bus** | IPMB channel that reaches the target (per slot on a MicroTCA crate). |
 | **EEPROM size** | Bytes read from the EEPROM (16-bit addressing, max 65536). |
 | **FRU writable** | Bytes of the FRU image written (the 24AA025E48 allows the lower 128). |
 

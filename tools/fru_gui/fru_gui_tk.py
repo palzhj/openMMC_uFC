@@ -18,7 +18,7 @@ from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # no
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
                       mfg_minutes_to_str, mfg_str_to_minutes)
 
-APP_TITLE = "uFC FRU editor"
+APP_TITLE = "FRU editor"
 
 # ---- house palette --------------------------------------------------------
 BG = "#FAF9F5"          # paper ground
@@ -92,6 +92,7 @@ class FruEditor(tk.Tk):
             var.trace_add("write", lambda *_: self._update_path())
         self._update_path()
         self._update_address()
+        self._on_bridge_change()
         self.size_var.trace_add("write", lambda *_: self._update_address())
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
 
@@ -151,7 +152,7 @@ class FruEditor(tk.Tk):
         title = ttk.Frame(header)
         title.pack(side="left", padx=(10, 0))
         ttk.Label(title, text=APP_TITLE, style="Title.TLabel").pack(anchor="w")
-        ttk.Label(title, text="24AA025E48  ·  AMC7  ·  IPMI raw access",
+        ttk.Label(title, text="IPMI  ·  FRU EEPROM image",
                   style="Sub.TLabel").pack(anchor="w")
 
         actions = ttk.Frame(header)
@@ -166,25 +167,42 @@ class FruEditor(tk.Tk):
         # connection / size strip
         strip = ttk.Frame(self, padding=(16, 10, 16, 6))
         strip.pack(fill="x")
-        self.mch_var = self._labeled(
-            strip, "MCH", mch, 14,
-            tip="Address of the NAT-MCH crate manager\n(IPMI over LAN, this host's entry point).")
-        self.transit_var = self._labeled(
+        self.mch_var, self.mch_w = self._labeled(
+            strip, "MCH / BMC", mch, 14,
+            tip="IPMI-over-LAN address of the first controller\n(the crate manager or a BMC).")
+
+        bbox = ttk.Frame(strip)
+        bbox.pack(side="left", padx=(0, 14))
+        blab = ttk.Label(bbox, text="Bridge", style="FieldLabel.TLabel")
+        blab.pack(anchor="w")
+        self.bridge_var = tk.StringVar(value="Double bridge")
+        self.bridge_box = ttk.Combobox(bbox, textvariable=self.bridge_var, width=13,
+                                       state="readonly",
+                                       values=("Double bridge", "Single bridge", "Direct"))
+        self.bridge_box.pack(anchor="w")
+        self.bridge_box.bind("<<ComboboxSelected>>", lambda _e: self._on_bridge_change())
+        Tooltip(blab, "How many IPMI hops the request needs:\n"
+                      "double = MCH -> transit -> target, single = MCH -> target,\n"
+                      "direct = talk to the MCH/BMC itself.")
+        Tooltip(self.bridge_box, "double: transit 0x82 -> target 0x7E\n"
+                                 "single: target on a bus of the MCH\n"
+                                 "direct: no bridging (the MCH answers)")
+        self.transit_var, self.transit_w = self._labeled(
             strip, "Transit", transit, 6,
-            tip="First bridge hop: the intermediate IPMI controller\n(NAT-MCH MCMC) that owns the AMC buses.")
-        self.tch_var = self._labeled(
+            tip="First bridge hop: the intermediate IPMI controller\nthat owns the target's bus.")
+        self.tch_var, self.tch_w = self._labeled(
             strip, "Transit ch", "0", 4,
-            tip="Channel from the MCH to the transit bridge (usually 0).")
-        self.target_var = self._labeled(
+            tip="Channel from the first controller to the transit (usually 0).")
+        self.target_var, self.target_w = self._labeled(
             strip, "Target", target, 6,
-            tip="Final device that answers: the AMC7 MMC's IPMB address (0x7E).")
-        self.bus_var = self._labeled(
+            tip="IPMB address of the device that answers (the module's MMC).")
+        self.bus_var, self.bus_w = self._labeled(
             strip, "Bus", str(bus), 4,
-            tip="IPMB channel on the transit that reaches the target\n(bus 7 = AMC7 slot).")
-        self.size_var = self._labeled(
+            tip="IPMB channel that reaches the target\n(per-slot on a MicroTCA crate).")
+        self.size_var, self.size_w = self._labeled(
             strip, "EEPROM size (B)", str(eeprom_size), 7,
             tip="Bytes read from the EEPROM. The device sits at I2C 0x50 on\nthe FRU bus (fixed in firmware); the tool addresses it by\nbyte offset (16-bit, so 65536 bytes is the maximum).")
-        self.limit_var = self._labeled(
+        self.limit_var, self.limit_w = self._labeled(
             strip, "FRU writable (B)", str(fru_limit), 7,
             tip="Bytes of the FRU image that are written.\nThe 24AA025E48 only allows the lower 128 bytes.")
 
@@ -278,7 +296,7 @@ class FruEditor(tk.Tk):
         if tip:
             Tooltip(lab, tip)
             Tooltip(ent, tip)
-        return var
+        return var, ent
 
     def _build_area(self, parent, key, with_time, start_row=0):
         row = start_row
@@ -322,15 +340,36 @@ class FruEditor(tk.Tk):
         except ValueError:
             size = 0
         self.addr_var.set(
-            "EEPROM at I2C 0x50 on the FRU bus (mux ch 0) — addressed by byte offset, "
-            "0x0000–0x%04X" % (max(0, size - 1)))
+            "EEPROM byte offsets 0x0000–0x%04X  ·  the device address is fixed in the target's firmware"
+            % (max(0, size - 1)))
+
+    def _bridge_mode(self):
+        return {"Double bridge": "double", "Single bridge": "single",
+                "Direct": "direct"}.get(self.bridge_var.get(), "double")
+
+    def _on_bridge_change(self):
+        mode = self._bridge_mode()
+        state = "disabled"
+        for w, needed in ((self.transit_w, mode == "double"),
+                          (self.tch_w, mode == "double"),
+                          (self.target_w, mode != "direct"),
+                          (self.bus_w, mode != "direct")):
+            w.configure(state="normal" if needed else state)
+        self._update_path()
 
     def _update_path(self):
         try:
-            self.path_var.set(
-                "LAN → MCH %s → transit %s (ch %s) → target %s (bus %s)"
-                % (self.mch_var.get(), self.transit_var.get(), self.tch_var.get(),
-                   self.target_var.get(), self.bus_var.get()))
+            mode = self._bridge_mode()
+            if mode == "direct":
+                text = "LAN → %s  (direct, no bridge)" % self.mch_var.get()
+            elif mode == "single":
+                text = "LAN → %s → target %s (bus %s)" % (
+                    self.mch_var.get(), self.target_var.get(), self.bus_var.get())
+            else:
+                text = "LAN → %s → transit %s (ch %s) → target %s (bus %s)" % (
+                    self.mch_var.get(), self.transit_var.get(), self.tch_var.get(),
+                    self.target_var.get(), self.bus_var.get())
+            self.path_var.set(text)
         except Exception:
             pass
 
@@ -378,7 +417,8 @@ class FruEditor(tk.Tk):
         size, _limit = self._sizes()
         return FruAccess(self.mch_var.get().strip(), self.target_var.get().strip(),
                          self.transit_var.get().strip(), self.bus_var.get().strip(),
-                         eeprom_size=size, transit_ch=int(self.tch_var.get().strip() or 0))
+                         eeprom_size=size, transit_ch=int(self.tch_var.get().strip() or 0),
+                         bridge=self._bridge_mode())
 
     def _fill(self, raw, parsed):
         self.raw = raw

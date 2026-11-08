@@ -76,11 +76,28 @@ def ipmitool_cmd():
 
 
 class FruAccess:
-    def __init__(self, mch, target, transit, bus, eeprom_size=EEPROM_SIZE, transit_ch=0):
+    """IPMI transport.
+
+    bridge='double': MCH -> transit (-T/-B) -> target (-t/-b)
+    bridge='single': MCH -> target (-t/-b)
+    bridge='direct': talk to the MCH/BMC itself (no bridging)
+    """
+
+    def __init__(self, mch, target=None, transit=None, bus=None, eeprom_size=EEPROM_SIZE,
+                 transit_ch=0, bridge="double"):
         self.mch = mch
         self.eeprom_size = eeprom_size
-        self.bridge = ["-I", "lan", "-H", mch, "-A", "none",
-                       "-T", transit, "-B", str(transit_ch), "-t", target, "-b", bus]
+        self.bridge = ["-I", "lan", "-H", mch, "-A", "none"]
+        if bridge == "double":
+            if not (transit and target and bus is not None):
+                raise ValueError("double bridge needs transit, target and bus")
+            self.bridge += ["-T", transit, "-B", str(transit_ch), "-t", target, "-b", str(bus)]
+        elif bridge == "single":
+            if not (target and bus is not None):
+                raise ValueError("single bridge needs target and bus")
+            self.bridge += ["-t", target, "-b", str(bus)]
+        elif bridge != "direct":
+            raise ValueError("unknown bridge mode %r" % bridge)
 
     def _ipmi(self, *args):
         out = subprocess.run([ipmitool_cmd()] + self.bridge + ["raw"] + list(args),
