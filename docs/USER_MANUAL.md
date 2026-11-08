@@ -178,6 +178,27 @@ cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
 `VTREF 3300` only takes effect after a J‑Link power cycle, or with the J‑Link
 VTref pin wired to the board’s 3.3 V.
 
+**OpenBLT checksum caveat.** A raw `loadbin` of `newboot.bin` writes the
+*seed* `0x55AA11EE` at `0x080021D0`, but OpenBLT requires the 32-bit sum of the
+words at `app+0x00..0x18` plus the word at `app+0x1D0` to be zero. Without the
+fix-up the bootloader stays in its loop and never starts newboot.
+
+`firmware/ufc-v2/flash.jlink` therefore ends with
+
+```
+w4 0x080021D0 0xAFFEF27A
+```
+
+which is the correct value for the shipped `newboot.bin`. Recompute it whenever
+newboot changes, or use the helper which computes and injects it:
+
+```sh
+cd firmware/ufc-v2
+./flash-jlink.sh uart-debug      # or: ./flash-jlink.sh normal
+```
+
+The helper never touches `0x08000000-0x08001FFF` (OpenBLT).
+
 ### 5.3 Bootloader (factory only)
 
 OpenBLT at `0x08000000` is programmed once with SWD. Do this **only** to restore
