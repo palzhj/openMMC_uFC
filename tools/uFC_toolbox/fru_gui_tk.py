@@ -397,8 +397,11 @@ class FruEditor(tk.Tk):
         res = {}
         if not doc:
             return res
+        devices = doc.get("devices", {})
         for pt in doc.get("points", []):
-            if pt.get("parent") != "mux":
+            parent = pt.get("parent", "")
+            dev = devices.get(parent, {})
+            if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith("8V54816A"):
                 continue
             cap = pt.get("capability") or {}
             ways = tuple(k for k in ("in", "out") if cap.get(k))
@@ -621,14 +624,24 @@ class FruEditor(tk.Tk):
                           dash=dash, arrow=tk.LAST if arrow else None,
                           arrowshape=(6, 8, 3))
 
+        pts_by_id = {p["id"]: p for p in doc.get("points", [])}
         for link in doc.get("links", []):
             a, b = link["a"], link["b"]
-            if link.get("kind") == "bidir":
-                line(a, b, "#0E6B5E", 1)
+            da = pts_by_id.get(a, {}).get("dir")
+            db = pts_by_id.get(b, {}).get("dir")
+            if da == "in" and db == "out":
+                a, b = b, a
+            color = "#9A968C"
+            if "inout" in (da, db):
+                c.create_line(*coords.get(a, (0, 0)), *coords.get(b, (0, 0)),
+                              fill="#0E6B5E", width=1)
+                continue
+            if da == db:
+                line(a, b, color, 1, dash=(3, 2), arrow=False)
             elif link.get("verified") is False:
-                line(a, b, "#9A968C", 1, dash=(3, 2), arrow=True)
+                line(a, b, color, 1, dash=(3, 2), arrow=True)
             else:
-                line(a, b, "#9A968C", 1, arrow=True)
+                line(a, b, color, 1, arrow=True)
         for pid, route in doc.get("routing", {}).items():
             if route.get("source"):
                 line(route["source"], pid, "#B07A3A", 2)

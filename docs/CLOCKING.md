@@ -95,12 +95,18 @@ the port table (CLK9‑11 output only, CLK7/8 input only, the rest in/out).
 | Field | Meaning |
 |---|---|
 | `a`, `b` | point ids |
-| `kind` | `forward` (a is the driver) or `bidir` |
 | `verified` | `false` marks a link that still needs a schematic check (the validator warns) |
 
-Rules checked by the validator: `forward` needs `a.dir ∈ {out,inout}` and
-`b.dir ∈ {in,inout}`; `bidir` needs at least one `inout` end; endpoints and
-devices must exist.
+There is **no `kind`**: the arrow direction is derived from the points'
+`dir`:
+
+| `a.dir` | `b.dir` | drawing |
+|---|---|---|
+| out | in | arrow a → b |
+| in | out | arrow b → a |
+| inout (either end) | | line without arrow (bidirectional) |
+| in/in | | dashed line, warning “no driver” |
+| out/out | | dashed line, warning “two drivers” |
 
 ### `routing`
 
@@ -126,7 +132,8 @@ python3 tools/clocking/clocking.py matrix tools/clocking/ufc-clocking.json
 python3 tools/clocking/clocking.py dot    tools/clocking/ufc-clocking.json > clocking.dot
 ```
 
-`check` prints errors (fatal) and warnings (unverified links), `tree` prints
+`check` prints errors (fatal) and warnings (unverified links, links without
+a driver or with two drivers), `tree` prints
 the board → chip → port hierarchy, `matrix` prints the 16 bytes that would be
 written to `0x58`, `dot` renders the file as nested Graphviz clusters (board →
 chip → ports; bidirectional links green, unverified dashed, routing orange).
