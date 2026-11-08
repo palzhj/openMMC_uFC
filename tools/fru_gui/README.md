@@ -10,6 +10,10 @@ using the firmware's raw EEPROM commands (custom NetFn `0x32`):
 
 The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
 
+## Look
+
+![uFC FRU editor](docs/ui.png)
+
 ## Features
 
 - Quiet desktop styling (warm paper ground, one teal accent, hairline borders,
