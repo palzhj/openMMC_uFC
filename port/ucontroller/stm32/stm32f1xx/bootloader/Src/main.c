@@ -295,6 +295,14 @@ void update(enum fw_update_type ftype)
         }
     }
 
+    // Erase the fw_info page (it now lives in the former 8 KB gap) so a
+    // completed update is not applied again on the next reset.
+    if (FLASH_ErasePage(((uint32_t)&__FWInfo_addr) & ~(FLASH_PAGE_SIZE - 1u)) != FLASH_COMPLETE)
+    {
+        uart1_write_str_blocking("[BOOTLOADER] Page erase ERROR for fw_info section");
+        return;
+    }
+
     // Lock the Flash to disable the flash control register access
     // Recommended to protect the FLASH MEMORY against possible unwanted operation
     FLASH_Lock();

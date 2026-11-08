@@ -34,10 +34,10 @@ under `port/board/ufc-v2/`.
 | Region | Address | Size | Notes |
 |---|---|---|---|
 | newboot (first stage) | `0x08000000` | 8 KB | boots straight from the reset vector, applies staged updates, jumps to the app |
-| *(unused)* | `0x08002000` | 8 KB | free (previously newboot while OpenBLT was used) |
+| `fw_info` | `0x08002000` | 256 B | pending‑update flag (`0xAA…`) used by newboot (first page of the former gap) |
+| *(free)* | `0x08002400` | ~7 KB | unused |
 | Application | `0x08004000` | 56 KB | openMMC |
-| Firmware staging | `0x08012000` | 56 KB | HPM.1 upload target |
-| `fw_info` | `0x0801FF00` | 256 B | pending‑update flag (`0xAA…`) used by newboot |
+| Firmware staging | `0x08012000` | 56 KB | full HPM.1 upload target |
 
 OpenBLT has been dropped: the CPU starts **newboot** directly from `0x08000000`
 and no vector‑table checksum is involved.

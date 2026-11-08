@@ -113,16 +113,14 @@ static uint8_t hpm_erase_staging(void)
     return ret;
 }
 
-/* Program `size` bytes at `staging + offset` */
-static uint8_t program_page(uint32_t offset, const uint32_t *data, uint32_t size)
+/* Program `size` bytes at an absolute flash address */
+static uint8_t program_page_abs(uint32_t addr, const uint32_t *data, uint32_t size)
 {
     uint8_t ret = IPMI_CC_OK;
 
-    if ((size % 4u) != 0u) {
+    if ((size % 4u) != 0u || (addr & 3u) != 0u) {
         return IPMI_CC_PARAM_OUT_OF_RANGE;
     }
-
-    const uint32_t addr = staging_start() + offset;
 
     FLASH_Unlock();
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
@@ -138,6 +136,12 @@ static uint8_t program_page(uint32_t offset, const uint32_t *data, uint32_t size
 
     FLASH_Lock();
     return ret;
+}
+
+/* Program `size` bytes at `staging + offset` */
+static uint8_t program_page(uint32_t offset, const uint32_t *data, uint32_t size)
+{
+    return program_page_abs(staging_start() + offset, data, size);
 }
 
 static void hpm_reset_task(void *arg)
@@ -206,8 +210,8 @@ static uint8_t hpm_upload_block(uint8_t *block, uint16_t size)
 
 static uint8_t hpm_finish_upload(uint32_t image_size)
 {
-    /* The image must not overlap the fw_info record */
-    if (image_size == 0u || image_size > (fw_info_addr() - staging_start())) {
+    /* The staged image must fit the firmware update region */
+    if (image_size == 0u || image_size > ((uint32_t)&__FWUpdateFlash_end - staging_start() + 1u)) {
         return 0x81;
     }
 
@@ -243,7 +247,22 @@ static uint8_t hpm_activate_firmware(enum fw_type type)
     header.version[1] = 4;
     header.version[2] = 1;
 
-    if (program_page(fw_info_addr() - staging_start(), (const uint32_t *)&header, sizeof(header)) != IPMI_CC_OK) {
+    /* The fw_info page may contain stale data (it now lives in the former
+     * 8 KB gap), so erase it before programming the record. */
+    {
+        uint32_t page = fw_info_addr() & ~(STM32_FLASH_PAGE_SIZE - 1u);
+        FLASH_Unlock();
+        FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+        portDISABLE_INTERRUPTS();
+        FLASH_Status status = FLASH_ErasePage(page);
+        portENABLE_INTERRUPTS();
+        FLASH_Lock();
+        if (status != FLASH_COMPLETE) {
+            return IPMI_CC_UNSPECIFIED_ERROR;
+        }
+    }
+
+    if (program_page_abs(fw_info_addr(), (const uint32_t *)&header, sizeof(header)) != IPMI_CC_OK) {
         return IPMI_CC_UNSPECIFIED_ERROR;
     }
 
