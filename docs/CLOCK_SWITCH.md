@@ -14,6 +14,12 @@ the title:
 
 ![uFC clocking system with port configuration](clocking.png)
 
+The picture is rendered by the toolbox from
+[tools/clocking/ufc-clocking.json](../tools/clocking/ufc-clocking.json):
+one box per device (board → chip/connector/oscillator → ports), arrow
+direction derived from each point's `dir` (`out`→`in`), and the active
+8V54816A routing shown in orange.
+
 ## The device
 
 Renesas **8V54816A** — a 16-port clock switch. It is **not** a register-indexed

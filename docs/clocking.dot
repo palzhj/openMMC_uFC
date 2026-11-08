@@ -1,95 +1,159 @@
 digraph clocking {
   rankdir=LR;
-  graph [fontname="Helvetica", nodesep=0.12, ranksep=0.55, compound=true,         label="uFC clocking — 8V54816A @0x70 ch2 · Si5345 @0x69 · 3 active route(s)",         labelloc="t", fontsize=9];
   node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",
         color="#E4DED2", fontname="Helvetica", fontsize=8];
   edge [fontname="Helvetica", fontsize=7];
-  AMC [label="AMC
-TCLK/FCLK
-(bidir)"]; OSC [label="156.25 MHz"];
-  S7IN [label="S7_INOUT
-(bidir)"]; FPGAIN [label="FPGA_INOUT
-(bidir)"];
-  subgraph cluster_mux { label="8V54816A"; fontsize=8; color="#FAF9F5";
-    {rank=same; n0; n1; n2; n3; n4; n5; n6; n7; n8;}
-    {rank=same; n9; n10; n11; n12; n13; n14; n15;}
-    n0 [label="CLK0 TCLKD
-0x00"];
-    n1 [label="CLK1 TCLKC
-0x00"];
-    n2 [label="CLK2 TCLKA
-0x00"];
-    n3 [label="CLK3 TCLKB
-0x00"];
-    n4 [label="CLK4 FCLKA
-0x00"];
-    n5 [label="CLK5 S7_INOUT
-0x00"];
-    n6 [label="CLK6 FPGA_IN
-0x00"];
-    n7 [label="CLK7 156M
-0x00"];
-    n8 [label="CLK8 PLL_OUT
-0x00"];
-    n9 [label="CLK9 PLL_IN_P2
-0x00"];
-    n10 [label="CLK10 PLL_IN_P1
-0x00"];
-    n11 [label="CLK11 PLL_IN_P0
-0xe7 ← CLK7 term"];
-    n12 [label="CLK12 FMC0_GBT
-0xa8 ← CLK8"];
-    n13 [label="CLK13 FMC0_CLK
-0x00"];
-    n14 [label="CLK14 FMC1_CLK
-0xa7 ← CLK7"];
-    n15 [label="CLK15 FMC1_GBT
-0x00"];
+  subgraph "cluster_board_ufc" { label="board uFC v2.0"; fontsize=10; color="#EDEAE2";
+    subgraph "cluster_MUX" { label="MUX 8V54816A"; fontsize=9; color="#FAF9F5";
+      "MUX.CLK0" [label="CLK0 in\npin 6/7", shape=note];
+      "MUX.CLK1" [label="CLK1 in\npin 10/11", shape=note];
+      "MUX.CLK2" [label="CLK2 in\npin 15/16", shape=note];
+      "MUX.CLK3" [label="CLK3 in\npin 19/20", shape=note];
+      "MUX.CLK4" [label="CLK4 in\npin 31/32", shape=note];
+      "MUX.CLK5" [label="CLK5 out\npin 35/36", shape=note];
+      "MUX.CLK6" [label="CLK6 out\npin 40/41", shape=note];
+      "MUX.CLK7" [label="CLK7 in\npin 44/45", shape=note];
+      "MUX.CLK8" [label="CLK8 in\npin 56/57", shape=note];
+      "MUX.CLK9" [label="CLK9 out\npin 60/61", shape=note];
+      "MUX.CLK10" [label="CLK10 out\npin 65/66", shape=note];
+      "MUX.CLK11" [label="CLK11 out\npin 69/70", shape=note];
+      "MUX.CLK12" [label="CLK12 in\npin 81/82", shape=note];
+      "MUX.CLK13" [label="CLK13 in\npin 85/86", shape=note];
+      "MUX.CLK14" [label="CLK14 in\npin 89/90", shape=note];
+      "MUX.CLK15" [label="CLK15 in\npin 94/95", shape=note];
+    }
+    subgraph "cluster_S7" { label="FPGA Spartan 7"; fontsize=9; color="#FAF9F5";
+      "S7.CLK_INOUT" [label="CLK_INOUT in\npin F14"];
+      "S7.CLK_IN0" [label="CLK_IN0 in\npin N15"];
+      "S7.CLK_IN1" [label="CLK_IN1 in\npin D14"];
+      "S7.CLK_OUT0" [label="CLK_OUT0 out\npin B16"];
+      "S7.CLK_OUT1" [label="CLK_OUT1 out\npin B17"];
+      "S7.CLK_OUT2" [label="CLK_OUT2 out\npin F18"];
+      "S7.CLK_OUT3" [label="CLK_OUT3 out\npin C17"];
+      "S7.FMC0_GTXCLK1_M2C" [label="FMC0_GTXCLK1_M2C in\npin G16"];
+      "S7.FMC0_CLK2_BIDIR" [label="FMC0_CLK_M2C in\npin D18"];
+      "S7.FMC0_CLK3_BIDIR" [label="FMC0_CLK_M2C in\npin D18"];
+      "S7.FMC1_GTXCLK1_M2C" [label="FMC1_GTXCLK1_M2C in\npin R14"];
+      "S7.FMC1_CLK2_BIDIR" [label="FMC1_CLK_M2C in\npin D18"];
+      "S7.FMC1_CLK3_BIDIR" [label="FMC1_CLK_M2C in\npin D18"];
+      "S7.MGTCLK115_1" [label="MGTCLK115_1 out\npin U17"];
+      "S7.MGTCLK116_1" [label="MGTCLK116_1 out\npin U17"];
+      "S7.MGTCLK118_1" [label="MGTCLK118_1 out\npin U17"];
+    }
+    subgraph "cluster_AMC" { label="AMC"; fontsize=9; color="#FAF9F5";
+      "AMC.TCLKA" [label="TCLKA out"];
+      "AMC.TCLKB" [label="TCLKB out"];
+      "AMC.TCLC" [label="TCLC out"];
+      "AMC.TCLKD" [label="TCLKD out"];
+      "AMC.FCLKA" [label="FCLKA out"];
+    }
+    subgraph "cluster_FMC0" { label="FMC0"; fontsize=9; color="#FAF9F5";
+      "FMC0.GBTCLK0_M2C" [label="GBTCLK0_M2C out"];
+      "FMC0.GBTCLK1_M2C" [label="GBTCLK1_M2C out"];
+      "FMC0.CLK0_M2C" [label="CLK0_M2C out"];
+      "FMC0.CLK1_M2C" [label="CLK1_M2C out"];
+      "FMC0.CLK2_BIDIR" [label="CLK2_BIDIR in"];
+      "FMC0.CLK3_BIDIR" [label="CLK3_BIDIR in"];
+    }
+    subgraph "cluster_mcu" { label="MCU"; fontsize=9; color="#FAF9F5";
+      "mcu.CLK" [label="CLK in"];
+    }
+    subgraph "cluster_FMC1" { label="FMC1"; fontsize=9; color="#FAF9F5";
+      "FMC1.GBTCLK0_M2C" [label="GBTCLK0_M2C out"];
+      "FMC1.GBTCLK1_M2C" [label="GBTCLK1_M2C out"];
+      "FMC1.CLK0_M2C" [label="CLK0_M2C out"];
+      "FMC1.CLK1_M2C" [label="CLK1_M2C out"];
+      "FMC1.CLK2_BIDIR" [label="CLK2_BIDIR in"];
+      "FMC1.CLK3_BIDIR" [label="CLK3_BIDIR in"];
+    }
+    subgraph "cluster_osc156" { label="156.25 MHz"; fontsize=9; color="#FAF9F5";
+      "osc156.OUT" [label="OUT out"];
+    }
+    subgraph "cluster_K7" { label="FPGA Kintex 7"; fontsize=9; color="#FAF9F5";
+      "K7.REFCLK" [label="REFCLK in\npin T26"];
+      "K7.SRCC" [label="SRCC in\npin R28"];
+      "K7.MRCC0" [label="MRCC0 in\npin AD23"];
+      "K7.MRCC1" [label="MRCC1 in\npin AB27"];
+      "K7.MRCC2" [label="MRCC2 in\npin AG29"];
+      "K7.MRCC3" [label="MRCC3 in\npin C25"];
+      "K7.MRCC4" [label="MRCC4 in\npin D27"];
+      "K7.MRCC5" [label="MRCC5 in\npin F20"];
+      "K7.MRCC6" [label="MRCC6 in\npin D17"];
+      "K7.LEMO_CLK" [label="LEMO_CLK in\npin U27"];
+      "K7.MGTCLK115_0" [label="MGTCLK115_0 in\npin R8"];
+      "K7.MGTCLK115_1" [label="MGTCLK115_1 in\npin R8"];
+      "K7.MGTCLK116_0" [label="MGTCLK116_0 in\npin L8"];
+      "K7.MGTCLK116_1" [label="MGTCLK116_1 in\npin N8"];
+      "K7.MGTCLK117_0" [label="MGTCLK117_0 in\npin G8"];
+      "K7.MGTCLK117_1" [label="MGTCLK117_1 in\npin J8"];
+      "K7.MGTCLK118_0" [label="MGTCLK118_0 in\npin C8"];
+      "K7.MGTCLK118_1" [label="MGTCLK118_1 in\npin E8"];
+      "K7.CLK_INOUT" [label="CLK_INOUT in"];
+    }
+    subgraph "cluster_PLL" { label="PLL Si5345A"; fontsize=9; color="#FAF9F5";
+      "PLL.IN2" [label="IN2 in"];
+      "PLL.IN1" [label="IN1 in"];
+      "PLL.IN0" [label="IN0 in"];
+      "PLL.OUT9" [label="OUT9 out"];
+      "PLL.OUT8" [label="OUT8 out"];
+      "PLL.OUT7" [label="OUT7 out"];
+      "PLL.OUT6" [label="OUT6 out"];
+      "PLL.OUT5" [label="OUT5 out"];
+      "PLL.OUT4" [label="OUT4 out"];
+      "PLL.OUT3" [label="OUT3 out"];
+      "PLL.OUT2" [label="OUT2 out"];
+      "PLL.OUT1" [label="OUT1 out"];
+      "PLL.OUT0" [label="OUT0 out"];
+    }
+    subgraph "cluster_wr" { label="White Rabbit"; fontsize=9; color="#FAF9F5";
+      "wr.OUT" [label="125MHz out"];
+    }
+    subgraph "cluster_osc200" { label="200 MHz"; fontsize=9; color="#FAF9F5";
+      "osc200.OUT" [label="OUT out"];
+    }
+    subgraph "cluster_osc8" { label="8 MHz"; fontsize=9; color="#FAF9F5";
+      "osc8.OUT" [label="OUT out"];
+    }
+    subgraph "cluster_vcxo" { label="VCXO 20 MHz"; fontsize=9; color="#FAF9F5";
+      "vcxo.OUT" [label="OUT out"];
+    }
+    subgraph "cluster_lemo" { label="LEMO_CLK_IN"; fontsize=9; color="#FAF9F5";
+      "lemo.OUT" [label="CLK out"];
+    }
   }
-  SI [label="Si5345
-0x69
-PLL 4:10"];
-  FMC0 [label="FMC0
-(bidir)"]; FMC1 [label="FMC1
-(bidir)"];
-  K7 [label="Kintex 7 (XC7K325T)
-REFCLK T26 (200M)
-SRCC R28 (156M)
-MRCC0 AD23 (100M)
-MRCC1 AB27 (125M WR)
-MRCC2 AG29 (20M VCXO)
-MRCC3 C25 (250M DDR)
-LEMO U27
-MGTCLK116 L8/N8
-MGTCLK117 G8/J8
-MGTCLK118 C8/E8"];
-  S7 [label="Spartan 7 (XC7S25)
-CLK_INOUT F14 (156M)
-CLK_IN_P0 N15 (100M)
-CLK_IN_P1 D14 (125M WR)
-FMC0_GTX G16 · FMC0_CLK D18
-FMC1_GTX R14 · FMC1_CLK P14
-FPGA_GTX U17"];
-  OTH [label="other clocks
-8 MHz → MCU
-200 MHz → K7 T26
-LEMO → K7 U27
-WR 125 MHz → K7 AB27 / S7 D14
-VCXO 20 MHz → K7 AG29", shape=note];
-  AMC -> {n0 n1 n2 n3 n4} [dir=both, color="#C9CFC9"];
-  OSC -> n7 [color="#C9CFC9"];
-  S7IN -> n5 [dir=both, color="#C9CFC9"];
-  FPGAIN -> n6 [dir=both, color="#C9CFC9"];
-  n9 -> SI [color="#C9CFC9"]; n10 -> SI [color="#C9CFC9"];
-  n11 -> SI [color="#C9CFC9"];
-  n12 -> FMC0 [dir=both, color="#C9CFC9"]; n13 -> FMC0 [dir=both, color="#C9CFC9"];
-  n14 -> FMC1 [dir=both, color="#C9CFC9"]; n15 -> FMC1 [dir=both, color="#C9CFC9"];
-  SI -> K7 [label="GTX_CLK0-3 → MGTCLK116/117/118"];
-  FMC0 -> S7 [label="FMC0_GTX G16 / FMC0_CLK D18"];
-  FMC1 -> S7 [label="FMC1_GTX R14 / FMC1_CLK P14"];
-  OTH -> K7 [style=dashed, color="#C9CFC9"];
-  OTH -> S7 [style=dashed, color="#C9CFC9"];
-  n7 -> n11 [label="0xe7", color="#0E6B5E", penwidth=2];
-  n8 -> n12 [label="0xa8", color="#0E6B5E", penwidth=2];
-  n7 -> n14 [label="0xa7", color="#0E6B5E", penwidth=2];
+  "AMC.TCLKD" -> "MUX.CLK0" [color="#8A8A80"];
+  "AMC.TCLC" -> "MUX.CLK1" [color="#8A8A80"];
+  "AMC.TCLKA" -> "MUX.CLK2" [color="#8A8A80"];
+  "AMC.TCLKB" -> "MUX.CLK3" [color="#8A8A80"];
+  "AMC.FCLKA" -> "MUX.CLK4" [color="#8A8A80"];
+  "MUX.CLK5" -> "S7.CLK_INOUT" [color="#8A8A80"];
+  "MUX.CLK6" -> "K7.CLK_INOUT" [color="#8A8A80", style=dashed];
+  "osc156.OUT" -> "MUX.CLK7" [color="#8A8A80"];
+  "PLL.OUT9" -> "MUX.CLK8" [color="#8A8A80"];
+  "MUX.CLK9" -> "PLL.IN2" [color="#8A8A80"];
+  "MUX.CLK10" -> "PLL.IN1" [color="#8A8A80"];
+  "MUX.CLK11" -> "PLL.IN0" [color="#8A8A80"];
+  "FMC0.GBTCLK0_M2C" -> "MUX.CLK12" [color="#8A8A80"];
+  "FMC0.CLK0_M2C" -> "MUX.CLK13" [color="#8A8A80"];
+  "FMC1.CLK0_M2C" -> "MUX.CLK14" [color="#8A8A80"];
+  "FMC1.GBTCLK0_M2C" -> "MUX.CLK15" [color="#8A8A80"];
+  "FMC0.GBTCLK0_M2C" -> "S7.FMC0_GTXCLK1_M2C" [color="#8A8A80"];
+  "FMC0.CLK0_M2C" -> "S7.FMC0_CLK2_BIDIR" [color="#8A8A80"];
+  "FMC1.GBTCLK0_M2C" -> "S7.FMC1_GTXCLK1_M2C" [color="#8A8A80"];
+  "FMC1.CLK0_M2C" -> "S7.FMC1_CLK2_BIDIR" [color="#8A8A80"];
+  "PLL.OUT0" -> "K7.MGTCLK116_0" [color="#8A8A80", style=dashed];
+  "PLL.OUT1" -> "K7.MGTCLK116_1" [color="#8A8A80", style=dashed];
+  "PLL.OUT2" -> "K7.MGTCLK117_0" [color="#8A8A80", style=dashed];
+  "PLL.OUT3" -> "K7.MGTCLK117_1" [color="#8A8A80", style=dashed];
+  "PLL.OUT4" -> "K7.MRCC3" [color="#8A8A80", style=dashed];
+  "osc200.OUT" -> "K7.REFCLK" [color="#8A8A80"];
+  "osc200.OUT" -> "K7.MRCC0" [color="#8A8A80", style=dashed];
+  "wr.OUT" -> "K7.MRCC1" [color="#8A8A80"];
+  "wr.OUT" -> "S7.CLK_IN1" [color="#8A8A80"];
+  "vcxo.OUT" -> "K7.MRCC2" [color="#8A8A80"];
+  "lemo.OUT" -> "K7.LEMO_CLK" [color="#8A8A80"];
+  "osc8.OUT" -> "mcu.CLK" [color="#8A8A80"];
+  "MUX.CLK7" -> "MUX.CLK11" [label="routing", color="#B07A3A", penwidth=2];
+  "MUX.CLK8" -> "MUX.CLK12" [label="routing", color="#B07A3A", penwidth=2];
+  "MUX.CLK7" -> "MUX.CLK14" [label="routing", color="#B07A3A", penwidth=2];
 }
