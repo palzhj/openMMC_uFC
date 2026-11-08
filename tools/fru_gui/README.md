@@ -12,6 +12,8 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`**.
 
 ## Features
 
+- Quiet desktop styling (warm paper ground, one teal accent, hairline borders,
+  Noto Sans / DejaVu Sans Mono), a chip mark in the header, status dot
 - Connection fields: MCH IP, target IPMB address, bus, transit address
 - One **FRU fields** tab with both the board and product areas, plus a **Raw EEPROM** tab
 - Buttons: **Read FRU**, **Write FRU**, **Save image…**, **Load image to EEPROM**
