@@ -24,7 +24,8 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
   Noto Sans / DejaVu Sans Mono), a chip mark in the header, status dot
 - Connection fields: MCH IP, target IPMB address, bus, transit address
 - One **FRU fields** tab with both the board and product areas, plus a **Raw EEPROM** tab
-- Buttons: **Read FRU**, **Write FRU**, **Save image…**, **Load image to EEPROM**
+- The FRU tab carries its own toolbar: **Read FRU**, **Write FRU**,
+  **Save image…**, **Load image to EEPROM** (the header stays a title bar)
 - **Manufacturing time is shown and edited as a UTC date** (`YYYY-MM-DD HH:MM`);
   the app converts it to/from the FRU 24-bit value (minutes since 1996-01-01).
   A **Now** button fills the current UTC time.
