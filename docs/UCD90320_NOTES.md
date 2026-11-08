@@ -45,6 +45,27 @@ off). So the sequencer is **inhibited**: 12 V and 3.3 V aux are present, all
 sequenced payload rails are off — that is why the FPGA and the FMC/DDR supplies
 are down.
 
+## The CONTROL pin is the missing enable (fixed)
+
+`UFCV2.pdf` sheet 4 shows **U60 (STM32F100CBT6) pin 46 = PB9 = PMBUS_CTRL**,
+wired to the UCD's CONTROL input (sheet 14, U12C pin E11). The uFC-v2 firmware
+did not define `GPIO_PMBUS_CTRL`, so `setDC_DC_ConvertersON()` only printed
+*"Main Power on (not software controlled)"* and the sequencer was never
+enabled. Adding
+
+```c
+#define GPIO_PMBUS_CTRL PIN_DEF(PORT1, 9, 1, GPIO_DIR_OUTPUT)
+```
+
+to `port/board/ufc-v2/pin_mapping.h` (and to `PIN_CFG_LIST`) makes the MMC
+drive the pin: the boot log now prints **"Enable Main Power"** and the UCD
+brings up the rails it is allowed to sequence.
+
+After the fix, pages 4 (`3.28 V`), 16 (`12V0`, 6.25 V through the 2:1
+divider) and 17 (`CLK_3V3`, 3.28 V) are live; the remaining rails are still
+0 V — their sequencing conditions (PG inputs from FMC/DDR, FPGA DONE, or the
+per-page `OPERATION` state) still need to be settled.
+
 ## Turning rails on safely
 
 1. Read `ON_OFF_CONFIG` for each page to confirm OPERATION is honoured.
