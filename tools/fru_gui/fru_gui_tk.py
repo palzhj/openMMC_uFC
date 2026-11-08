@@ -2,16 +2,8 @@
 """
 fru_gui_tk.py -- desktop FRU editor for the uFC MMC (Tkinter).
 
-MicroBoot-like desktop application: connect to the MMC through a NAT-MCH,
-read the FRU EEPROM, edit the board/product fields, write them back, or
-save/load the raw 256-byte image.
-
-Runs on Linux and Windows (Tkinter ships with CPython on Windows; on Linux
-install python3-tk).  Requires the firmware to be built with
--DEEPROM_ACCESS=ON.
-
-Usage:
-    python3 fru_gui_tk.py [--mch 192.168.1.41] [--target 0x7e] [--bus 7]
+Reads/writes the FRU EEPROM through a NAT-MCH (IPMI raw commands 0x32/0x12,
+0x13), edits the board/product fields, saves or loads the raw image.
 """
 
 import argparse
@@ -26,10 +18,25 @@ from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # no
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
                       mfg_minutes_to_str, mfg_str_to_minutes)
 
-APP_TITLE = "uFC FRU Editor"
+APP_TITLE = "uFC FRU editor"
+
+# ---- house palette --------------------------------------------------------
+BG = "#FAF9F5"          # paper ground
+PANEL = "#FFFFFF"       # panels and inputs
+INK = "#211E19"         # primary text
+MUTED = "#726B5F"       # secondary text
+LINE = "#E4DED2"        # hairlines
+ACCENT = "#0E6B5E"      # the one hue (FRU / board green-teal)
+ACCENT_HOVER = "#0A544A"
+DANGER = "#A6372B"
+OK = "#0E6B5E"
+
+UI_FONT = "Noto Sans"
+MONO_FONT = "DejaVu Sans Mono"
+
 FIELD_LABELS = {
     "manufacturer": "Manufacturer",
-    "product_name": "Product / board name",
+    "product_name": "Board / product name",
     "serial": "Serial number",
     "part_number": "Part number",
     "version": "Part version",
@@ -42,128 +49,214 @@ class FruEditor(tk.Tk):
     def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("980x680")
-        self.minsize(860, 560)
+        self.geometry("1020x930")
+        self.minsize(940, 700)
+        self.configure(bg=BG)
 
         self.raw = None
         self.parsed = None
         self.entries = {"board": {}, "product": {}}
+        self._style()
 
         self._build_ui(mch, target, bus, transit, eeprom_size, fru_limit)
-        self.log("Ready. Firmware must be built with -DEEPROM_ACCESS=ON.")
+        self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
 
-    # ------------------------------------------------------------------ UI
+    # ---------------------------------------------------------------- style
+    def _style(self):
+        st = ttk.Style(self)
+        st.theme_use("clam")
+        st.configure(".", background=BG, foreground=INK, font=(UI_FONT, 10))
+        st.configure("TFrame", background=BG)
+        st.configure("Panel.TFrame", background=PANEL)
+        st.configure("TLabel", background=BG, foreground=INK)
+        st.configure("Muted.TLabel", background=BG, foreground=MUTED, font=(UI_FONT, 9))
+        st.configure("FieldLabel.TLabel", background=BG, foreground=MUTED,
+                     font=(UI_FONT, 9), anchor="e")
+        st.configure("Hint.TLabel", background=BG, foreground=MUTED, font=(UI_FONT, 8))
+        st.configure("Title.TLabel", background=BG, foreground=INK, font=(UI_FONT, 15, "bold"))
+        st.configure("Sub.TLabel", background=BG, foreground=MUTED, font=(UI_FONT, 9))
+        st.configure("Section.TLabelframe", background=PANEL, bordercolor=LINE,
+                     relief="solid", borderwidth=1)
+        st.configure("Section.TLabelframe.Label", background=PANEL, foreground=MUTED,
+                     font=(UI_FONT, 9, "bold"))
+        st.configure("TEntry", fieldbackground=PANEL, foreground=INK, bordercolor=LINE,
+                     lightcolor=LINE, darkcolor=LINE, insertcolor=INK, padding=(6, 2))
+        st.configure("TButton", background=PANEL, foreground=INK, bordercolor=LINE,
+                     lightcolor=LINE, darkcolor=LINE, focuscolor=BG, padding=(12, 6),
+                     font=(UI_FONT, 9))
+        st.map("TButton", background=[("active", "#F3F0E9"), ("pressed", "#EDE9DF")])
+        st.configure("Primary.TButton", background=ACCENT, foreground="#FFFFFF",
+                     bordercolor=ACCENT, lightcolor=ACCENT, darkcolor=ACCENT,
+                     padding=(14, 6), font=(UI_FONT, 9, "bold"))
+        st.map("Primary.TButton",
+               background=[("active", ACCENT_HOVER), ("pressed", ACCENT_HOVER)],
+               foreground=[("disabled", "#D8E6E2")])
+        st.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(0, 4, 0, 0))
+        st.configure("TNotebook.Tab", background=BG, foreground=MUTED,
+                     padding=(14, 6), borderwidth=0)
+        st.map("TNotebook.Tab",
+               background=[("selected", PANEL)],
+               foreground=[("selected", INK)])
+        st.configure("TSeparator", background=LINE)
+
+    # ------------------------------------------------------------------- ui
     def _build_ui(self, mch, target, bus, transit, eeprom_size, fru_limit):
-        top = ttk.Frame(self, padding=(8, 6))
-        top.pack(fill="x")
+        header = ttk.Frame(self, padding=(16, 12, 16, 10))
+        header.pack(fill="x")
 
-        ttk.Label(top, text="MCH").grid(row=0, column=0, sticky="e")
-        self.mch_var = tk.StringVar(value=mch)
-        ttk.Entry(top, textvariable=self.mch_var, width=16).grid(row=0, column=1, padx=4)
+        mark = tk.Canvas(header, width=30, height=30, bg=BG, highlightthickness=0)
+        mark.pack(side="left")
+        mark.create_rectangle(6, 4, 24, 26, fill=ACCENT, outline="")
+        for y in (9, 15, 21):
+            mark.create_line(9, y, 21, y, fill=BG, width=1)
+        for x in (6, 24):
+            for y in (8, 12, 16, 20):
+                mark.create_line(x - (3 if x == 6 else -3), y,
+                                 x, y, fill=ACCENT, width=2)
 
-        ttk.Label(top, text="Target").grid(row=0, column=2, sticky="e")
-        self.target_var = tk.StringVar(value=target)
-        ttk.Entry(top, textvariable=self.target_var, width=7).grid(row=0, column=3, padx=4)
+        title = ttk.Frame(header)
+        title.pack(side="left", padx=(10, 0))
+        ttk.Label(title, text=APP_TITLE, style="Title.TLabel").pack(anchor="w")
+        ttk.Label(title, text="24AA025E48  ·  AMC7  ·  IPMI raw access",
+                  style="Sub.TLabel").pack(anchor="w")
 
-        ttk.Label(top, text="Bus").grid(row=0, column=4, sticky="e")
-        self.bus_var = tk.StringVar(value=str(bus))
-        ttk.Entry(top, textvariable=self.bus_var, width=4).grid(row=0, column=5, padx=4)
+        actions = ttk.Frame(header)
+        actions.pack(side="right")
+        ttk.Button(actions, text="Write FRU", style="TButton",
+                   command=self.write_fru).pack(side="right", padx=(8, 0))
+        ttk.Button(actions, text="Read FRU", style="Primary.TButton",
+                   command=self.read_fru).pack(side="right")
 
-        ttk.Label(top, text="Transit").grid(row=0, column=6, sticky="e")
-        self.transit_var = tk.StringVar(value=transit)
-        ttk.Entry(top, textvariable=self.transit_var, width=7).grid(row=0, column=7, padx=4)
+        ttk.Separator(self).pack(fill="x", padx=16)
 
-        ttk.Button(top, text="Read FRU", command=self.read_fru).grid(row=0, column=8, padx=(12, 0))
-        ttk.Button(top, text="Write FRU", command=self.write_fru).grid(row=0, column=9, padx=4)
+        # connection / size strip
+        strip = ttk.Frame(self, padding=(16, 10, 16, 6))
+        strip.pack(fill="x")
+        self.mch_var = self._labeled(strip, "MCH", mch, 14)
+        self.target_var = self._labeled(strip, "Target", target, 6)
+        self.bus_var = self._labeled(strip, "Bus", str(bus), 4)
+        self.transit_var = self._labeled(strip, "Transit", transit, 6)
+        self.size_var = self._labeled(strip, "EEPROM size (B)", str(eeprom_size), 7)
+        self.limit_var = self._labeled(strip, "FRU writable (B)", str(fru_limit), 7)
 
-        sizes = ttk.Frame(self, padding=(8, 0))
-        sizes.pack(fill="x")
-        ttk.Label(sizes, text="EEPROM size:").pack(side="left")
-        self.size_var = tk.StringVar(value=str(eeprom_size))
-        ttk.Entry(sizes, textvariable=self.size_var, width=8).pack(side="left", padx=4)
-        ttk.Label(sizes, text="bytes    FRU writable:").pack(side="left")
-        self.limit_var = tk.StringVar(value=str(fru_limit))
-        ttk.Entry(sizes, textvariable=self.limit_var, width=8).pack(side="left", padx=4)
-        ttk.Label(sizes, text="bytes (max 65536)").pack(side="left")
-
+        # notebook
         self.nb = ttk.Notebook(self)
-        self.nb.pack(fill="both", expand=True, padx=8, pady=4)
+        self.nb.pack(fill="both", expand=True, padx=16, pady=(8, 8))
 
-        self.fields_tab = ttk.Frame(self.nb, padding=8)
-        self.raw_tab = ttk.Frame(self.nb, padding=8)
+        self.fields_tab = ttk.Frame(self.nb)
+        self.raw_tab = ttk.Frame(self.nb, padding=12)
         self.nb.add(self.fields_tab, text="FRU fields")
         self.nb.add(self.raw_tab, text="Raw EEPROM")
 
-        board_frame = ttk.LabelFrame(self.fields_tab, text="Board info area", padding=6)
-        board_frame.pack(fill="x", pady=(0, 8))
-        self._build_area(board_frame, "board", with_time=True)
+        canvas = tk.Canvas(self.fields_tab, bg=BG, highlightthickness=0)
+        vsb = ttk.Scrollbar(self.fields_tab, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+        inner = ttk.Frame(canvas, padding=12)
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window, width=e.width))
 
-        product_frame = ttk.LabelFrame(self.fields_tab, text="Product info area", padding=6)
+        board_frame = ttk.LabelFrame(inner, text="BOARD INFO AREA",
+                                     style="Section.TLabelframe", padding=(12, 6))
+        board_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(board_frame, text="Strings up to 62 characters  ·  time in UTC",
+                  style="Hint.TLabel").grid(row=0, column=0, columnspan=3, sticky="w",
+                                            pady=(0, 4))
+        self._build_area(board_frame, "board", with_time=True, start_row=1)
+
+        product_frame = ttk.LabelFrame(inner, text="PRODUCT INFO AREA",
+                                       style="Section.TLabelframe", padding=(12, 6))
         product_frame.pack(fill="x")
-        self._build_area(product_frame, "product", with_time=False)
+        ttk.Label(product_frame, text="Strings up to 62 characters",
+                  style="Hint.TLabel").grid(row=0, column=0, columnspan=3, sticky="w",
+                                            pady=(0, 4))
+        self._build_area(product_frame, "product", with_time=False, start_row=1)
 
-        self.hex_text = tk.Text(self.raw_tab, font=("Courier", 10), state="disabled",
-                                height=18, width=64)
+        self.hex_text = tk.Text(self.raw_tab, font=(MONO_FONT, 10), state="disabled",
+                                height=18, width=64, bg=PANEL, fg=INK,
+                                relief="flat", highlightthickness=1,
+                                highlightbackground=LINE, insertbackground=INK,
+                                padx=10, pady=8)
         self.hex_text.pack(fill="both", expand=True)
 
-        bottom = ttk.Frame(self, padding=(8, 4))
-        bottom.pack(fill="x")
-        ttk.Button(bottom, text="Save image...", command=self.save_image).pack(side="left")
-        ttk.Button(bottom, text="Load image to EEPROM", command=self.load_image).pack(side="left", padx=6)
-        ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
-
-        self.status = tk.StringVar(value="")
-        ttk.Label(self, textvariable=self.status, relief="sunken", anchor="w",
-                  padding=(6, 2)).pack(fill="x", side="bottom")
-
-        logf = ttk.LabelFrame(self, text="Log", padding=4)
-        logf.pack(fill="x", padx=8, pady=(0, 4))
-        self.log_text = tk.Text(logf, height=4, font=("Courier", 9), state="disabled")
+        # log + status
+        logf = ttk.Frame(self, padding=(16, 2, 16, 4))
+        logf.pack(fill="x")
+        ttk.Label(logf, text="LOG", style="Hint.TLabel").pack(anchor="w")
+        self.log_text = tk.Text(logf, height=2, font=(MONO_FONT, 8), state="disabled",
+                                bg=PANEL, fg=MUTED, relief="flat",
+                                highlightthickness=1, highlightbackground=LINE,
+                                padx=8, pady=4)
         self.log_text.pack(fill="x")
 
-    def _build_area(self, parent, key, with_time):
-        row = 0
+        status = ttk.Frame(self, style="Panel.TFrame", padding=(16, 6))
+        status.pack(fill="x", side="bottom")
+        self.dot = tk.Label(status, text="●", fg=MUTED, bg=PANEL, font=(UI_FONT, 9))
+        self.dot.pack(side="left", padx=(0, 6))
+        self.status = tk.StringVar(value="")
+        tk.Label(status, textvariable=self.status, bg=PANEL, fg=INK, anchor="w",
+                 font=(UI_FONT, 9)).pack(side="left", fill="x", expand=True)
+
+        bottom = ttk.Frame(self, padding=(16, 6))
+        bottom.pack(fill="x")
+        ttk.Button(bottom, text="Save image…", command=self.save_image).pack(side="left")
+        ttk.Button(bottom, text="Load image to EEPROM",
+                   command=self.load_image).pack(side="left", padx=(8, 0))
+        ttk.Button(bottom, text="Exit", command=self.destroy).pack(side="right")
+
+    def _labeled(self, parent, text, value, width):
+        box = ttk.Frame(parent)
+        box.pack(side="left", padx=(0, 14))
+        ttk.Label(box, text=text, style="FieldLabel.TLabel").pack(anchor="w")
+        var = tk.StringVar(value=value)
+        ttk.Entry(box, textvariable=var, width=width).pack(anchor="w")
+        return var
+
+    def _build_area(self, parent, key, with_time, start_row=0):
+        row = start_row
         if with_time:
-            ttk.Label(parent, text="Manufacturing time (UTC)").grid(row=row, column=0, sticky="e", pady=2)
+            cell = ttk.Frame(parent)
+            cell.grid(row=row, column=1, sticky="w", pady=1)
             self.time_var = tk.StringVar()
-            ttk.Entry(parent, textvariable=self.time_var, width=24).grid(row=row, column=1, sticky="w", padx=4)
-            ttk.Button(parent, text="Now", width=5, command=self._set_time_now).grid(
-                row=row, column=2, sticky="w", padx=(0, 4))
-            self.time_hint = ttk.Label(parent, text="", foreground="#666")
-            self.time_hint.grid(row=row, column=3, sticky="w")
+            ttk.Entry(cell, textvariable=self.time_var, width=20).pack(side="left")
+            ttk.Button(cell, text="Now", width=4,
+                       command=self._set_time_now).pack(side="left", padx=(6, 0))
+            ttk.Label(cell, text="YYYY-MM-DD HH:MM", style="Hint.TLabel").pack(
+                side="left", padx=(8, 0))
             row += 1
         for name in ("manufacturer", "product_name", "serial", "part_number",
                      "version", "asset_tag", "fru_file_id"):
             if key == "board" and name in ("version", "asset_tag"):
                 continue
-            if key == "product" and name == "product_name":
-                pass
-            ttk.Label(parent, text=FIELD_LABELS[name]).grid(row=row, column=0, sticky="e", pady=2)
+            ttk.Label(parent, text=FIELD_LABELS[name], style="FieldLabel.TLabel").grid(
+                row=row, column=0, sticky="e", padx=(0, 10), pady=1)
             var = tk.StringVar()
-            ent = ttk.Entry(parent, textvariable=var, width=8)
-            ent.grid(row=row, column=1, sticky="w", padx=4)
-            hint = ttk.Label(parent, text="", foreground="#666")
-            hint.grid(row=row, column=2, sticky="w")
+            ent = ttk.Entry(parent, textvariable=var, width=63)
+            ent.grid(row=row, column=1, sticky="w", pady=1)
+            hint = ttk.Label(parent, text="", style="Hint.TLabel")
+            hint.grid(row=row, column=2, sticky="w", padx=(8, 0))
             self.entries[key][name] = (var, ent, hint)
             self._auto_width(ent, var)
             row += 1
+
+    @staticmethod
+    def _auto_width(ent, var):
+        def update(*_args):
+            n = len(var.get())
+            ent.configure(width=max(FRU_MAX_STRING + 1, n + 1))
+        var.trace_add("write", update)
+        update()
 
     # ------------------------------------------------------------- helpers
     def _set_time_now(self):
         now = datetime.datetime.now(datetime.timezone.utc)
         self.time_var.set(now.strftime("%Y-%m-%d %H:%M"))
-        self.time_hint.configure(text="(current UTC time)")
 
-    @staticmethod
-    def _auto_width(ent, var):
-        """Resize the entry to its text, capped at the field capacity."""
-        def update(*_args):
-            n = len(var.get())
-            # FRU spec limit: show the longest legal value for every field
-            width = max(FRU_MAX_STRING + 1, n + 1)
-            ent.configure(width=width)
-        var.trace_add("write", update)
-        update()
+    def _status(self, text, kind="idle"):
+        self.status.set(text)
+        self.dot.configure(fg={"ok": OK, "error": DANGER, "idle": MUTED}.get(kind, MUTED))
 
     def log(self, text):
         self.log_text.configure(state="normal")
@@ -194,7 +287,6 @@ class FruEditor(tk.Tk):
         self.parsed = parsed
         minutes = parsed["board"].get("mfg_time", 0)
         self.time_var.set(mfg_minutes_to_str(minutes))
-        self.time_hint.configure(text="(YYYY-MM-DD HH:MM, %d min since 1996)" % minutes)
         for key, area_key in (("board", "board_area"), ("product", "product_area")):
             info = parsed[area_key]
             present = {f["name"]: f for f in info["fields"]} if info else {}
@@ -207,7 +299,7 @@ class FruEditor(tk.Tk):
                 else:
                     var.set(f["value"])
                     ent.configure(state="normal")
-                    hint.configure(text="max %d" % FRU_MAX_STRING)
+                    hint.configure(text="")
         self.hex_text.configure(state="normal")
         self.hex_text.delete("1.0", "end")
         for i in range(0, len(raw), 16):
@@ -218,14 +310,14 @@ class FruEditor(tk.Tk):
     # -------------------------------------------------------------- actions
     def read_fru(self):
         try:
-            size, limit = self._sizes()
+            _size, limit = self._sizes()
             raw = self._access().dump()
             parsed = parse_fru(raw, limit=limit)
             self._fill(raw, parsed)
-            self.status.set("FRU read: %d bytes (board and product areas parsed)" % len(raw))
-            self.log("Read %d bytes from FRU EEPROM." % len(raw))
+            self._status("FRU read — %d bytes, board and product areas parsed" % len(raw), "ok")
+            self.log("Read %d bytes from the FRU EEPROM." % len(raw))
         except Exception as e:
-            self.status.set("Read failed")
+            self._status("Read failed", "error")
             self.log("ERROR: %s" % e)
             messagebox.showerror(APP_TITLE, "Read failed:\n%s" % e)
 
@@ -240,7 +332,7 @@ class FruEditor(tk.Tk):
             for name, (var, ent, _hint) in fields.items():
                 if str(ent.cget("state")) != "disabled":
                     values[key][name] = var.get()
-        values["board"]["mfg_time"] = self.time_var.get()  # parsed by build_areas
+        values["board"]["mfg_time"] = self.time_var.get()
         try:
             _size, limit = self._sizes()
             image = build_image(self.parsed, values, limit=limit)
@@ -260,10 +352,10 @@ class FruEditor(tk.Tk):
                         problems.append("%s.%s" % (key, f["name"]))
             if problems:
                 raise RuntimeError("verification failed: " + ", ".join(problems))
-            self.status.set("FRU written and verified (%d bytes)" % len(image))
+            self._status("FRU written and verified — %d bytes" % len(image), "ok")
             self.log("Rebuilt and wrote the FRU image (%d bytes), verification OK." % len(image))
         except Exception as e:
-            self.status.set("Write failed")
+            self._status("Write failed", "error")
             self.log("ERROR: %s" % e)
             messagebox.showerror(APP_TITLE, "Write failed:\n%s" % e)
 
@@ -290,16 +382,16 @@ class FruEditor(tk.Tk):
             if not data:
                 raise ValueError("empty image")
             parse_fru(data, limit=limit)  # validate before writing
-            if not messagebox.askyesno(APP_TITLE, "Write the whole 256-byte image to the FRU EEPROM?"):
+            if not messagebox.askyesno(APP_TITLE, "Write the whole image to the FRU EEPROM?"):
                 return
             acc = self._access()
             acc.write(0, image_for_eeprom(data[:limit], limit))
             raw = acc.dump()
             self._fill(raw, parse_fru(raw, limit=limit))
-            self.status.set("Image written")
+            self._status("Image written", "ok")
             self.log("Wrote %d-byte image from %s" % (len(data), path))
         except Exception as e:
-            self.status.set("Load failed")
+            self._status("Load failed", "error")
             self.log("ERROR: %s" % e)
             messagebox.showerror(APP_TITLE, "Load failed:\n%s" % e)
 
