@@ -126,11 +126,12 @@ class FruEditor(tk.Tk):
                 pass
             ttk.Label(parent, text=FIELD_LABELS[name]).grid(row=row, column=0, sticky="e", pady=2)
             var = tk.StringVar()
-            ent = ttk.Entry(parent, textvariable=var, width=24)
+            ent = ttk.Entry(parent, textvariable=var, width=8)
             ent.grid(row=row, column=1, sticky="w", padx=4)
             hint = ttk.Label(parent, text="", foreground="#666")
             hint.grid(row=row, column=2, sticky="w")
             self.entries[key][name] = (var, ent, hint)
+            self._auto_width(ent, var)
             row += 1
 
     # ------------------------------------------------------------- helpers
@@ -138,6 +139,19 @@ class FruEditor(tk.Tk):
         now = datetime.datetime.now(datetime.timezone.utc)
         self.time_var.set(now.strftime("%Y-%m-%d %H:%M"))
         self.time_hint.configure(text="(current UTC time)")
+
+    @staticmethod
+    def _auto_width(ent, var):
+        """Resize the entry to its text, capped at the field capacity."""
+        def update(*_args):
+            cap = getattr(ent, "_fru_cap", None)
+            n = len(var.get())
+            # Always wide enough to show the longest legal value (cap), and never
+            # narrower than the text currently in the field.
+            width = max(4, cap, n + 1) if cap is not None else max(6, n + 1)
+            ent.configure(width=width)
+        var.trace_add("write", update)
+        update()
 
     def log(self, text):
         self.log_text.configure(state="normal")
@@ -165,6 +179,7 @@ class FruEditor(tk.Tk):
                     ent.configure(state="disabled")
                     hint.configure(text="n/a")
                 else:
+                    ent._fru_cap = f["len"] - 1
                     var.set(f["value"])
                     ent.configure(state="normal")
                     hint.configure(text="max %d" % (f["len"] - 1))
