@@ -10,6 +10,7 @@ fresh checksums.  Used by the desktop editor (fru_gui_tk.py).
 Requires the firmware to be built with -DEEPROM_ACCESS=ON.
 """
 
+import datetime
 import os
 import subprocess
 import sys
@@ -19,6 +20,32 @@ import sys
 # ---------------------------------------------------------------------------
 
 EEPROM_SIZE = 256
+
+# IPMI FRU board-area manufacturing time: minutes since 1996-01-01 00:00 UTC.
+FRU_EPOCH = datetime.datetime(1996, 1, 1, tzinfo=datetime.timezone.utc)
+
+
+def mfg_minutes_to_str(minutes):
+    """Format the FRU manufacturing time (minutes since 1996) as a UTC date."""
+    try:
+        dt = FRU_EPOCH + datetime.timedelta(minutes=int(minutes))
+    except Exception:
+        return ""
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def mfg_str_to_minutes(text):
+    """Parse 'YYYY-MM-DD HH:MM' (UTC) into FRU minutes since 1996."""
+    text = (text or "").strip()
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            dt = datetime.datetime.strptime(text, fmt).replace(tzinfo=datetime.timezone.utc)
+            minutes = int((dt - FRU_EPOCH).total_seconds() // 60)
+            if 0 <= minutes <= 0xFFFFFF:
+                return minutes
+        except ValueError:
+            pass
+    raise ValueError("invalid manufacturing time %r (use YYYY-MM-DD HH:MM, UTC)" % text)
 FIELD_NAMES_BOARD = ["manufacturer", "product_name", "serial", "part_number", "fru_file_id"]
 FIELD_NAMES_PRODUCT = ["manufacturer", "product_name", "part_number", "version",
                        "serial", "asset_tag", "fru_file_id"]
@@ -147,7 +174,10 @@ def build_areas(raw, parsed, values):
             rel = field["offset"] - area_info["offset"]
             area[rel + 1: rel + 1 + cap] = data + b"\x00" * (cap - len(data))
         if key == "board" and "mfg_time" in vals:
-            t = int(vals["mfg_time"])
+            try:
+                t = int(vals["mfg_time"])
+            except ValueError:
+                t = mfg_str_to_minutes(vals["mfg_time"])
             if t < 0 or t > 0xFFFFFF:
                 raise ValueError("mfg_time out of range")
             area[3], area[4], area[5] = t & 0xFF, (t >> 8) & 0xFF, (t >> 16) & 0xFF

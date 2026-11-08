@@ -15,13 +15,15 @@ Usage:
 """
 
 import argparse
+import datetime
 import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fru_core import FruAccess, parse_fru, build_areas, EEPROM_SIZE  # noqa: E402
+from fru_core import (FruAccess, parse_fru, build_areas, EEPROM_SIZE,  # noqa: E402
+                      mfg_minutes_to_str, mfg_str_to_minutes)
 
 APP_TITLE = "uFC FRU Editor"
 FIELD_LABELS = {
@@ -108,11 +110,13 @@ class FruEditor(tk.Tk):
     def _build_area(self, parent, key, with_time):
         row = 0
         if with_time:
-            ttk.Label(parent, text="Manufacturing time").grid(row=row, column=0, sticky="e", pady=2)
+            ttk.Label(parent, text="Manufacturing time (UTC)").grid(row=row, column=0, sticky="e", pady=2)
             self.time_var = tk.StringVar()
             ttk.Entry(parent, textvariable=self.time_var, width=24).grid(row=row, column=1, sticky="w", padx=4)
-            ttk.Label(parent, text="(seconds since 1996, 24-bit)", foreground="#666").grid(
-                row=row, column=2, sticky="w")
+            ttk.Button(parent, text="Now", width=5, command=self._set_time_now).grid(
+                row=row, column=2, sticky="w", padx=(0, 4))
+            self.time_hint = ttk.Label(parent, text="", foreground="#666")
+            self.time_hint.grid(row=row, column=3, sticky="w")
             row += 1
         for name in ("manufacturer", "product_name", "serial", "part_number",
                      "version", "asset_tag", "fru_file_id"):
@@ -130,6 +134,11 @@ class FruEditor(tk.Tk):
             row += 1
 
     # ------------------------------------------------------------- helpers
+    def _set_time_now(self):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        self.time_var.set(now.strftime("%Y-%m-%d %H:%M"))
+        self.time_hint.configure(text="(current UTC time)")
+
     def log(self, text):
         self.log_text.configure(state="normal")
         self.log_text.insert("end", text + "\n")
@@ -143,7 +152,9 @@ class FruEditor(tk.Tk):
     def _fill(self, raw, parsed):
         self.raw = raw
         self.parsed = parsed
-        self.time_var.set(str(parsed["board"].get("mfg_time", 0)))
+        minutes = parsed["board"].get("mfg_time", 0)
+        self.time_var.set(mfg_minutes_to_str(minutes))
+        self.time_hint.configure(text="(YYYY-MM-DD HH:MM, %d min since 1996)" % minutes)
         for key, area_key in (("board", "board_area"), ("product", "product_area")):
             info = parsed[area_key]
             present = {f["name"]: f for f in info["fields"]} if info else {}
@@ -188,7 +199,7 @@ class FruEditor(tk.Tk):
             for name, (var, ent, _hint) in fields.items():
                 if str(ent.cget("state")) != "disabled":
                     values[key][name] = var.get()
-        values["board"]["mfg_time"] = self.time_var.get()
+        values["board"]["mfg_time"] = self.time_var.get()  # parsed by build_areas
         try:
             areas = build_areas(self.raw, self.parsed, values)
             acc = self._access()
