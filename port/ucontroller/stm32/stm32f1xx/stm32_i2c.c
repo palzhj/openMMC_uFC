@@ -96,26 +96,26 @@ void I2C1_EV_IRQHandler(void)
   static BaseType_t xHigherPriorityTaskWoken;
   uint32_t sr1 = I2C1->SR1;
 
-  /* Flag-based handling. The I2C_GetLastEvent() switch misses the combined
-   * RXNE+BTF state: the data register stays unread, BTF keeps SCL stretched
-   * and the whole IPMB bus ends up wedged (SR2 BUSY, SR1 RXNE|BTF). */
+  /* Flag-based handling: the event-value switch misses the combined
+   * RXNE+BTF state and leaves the data register unread. */
   if (sr1 & I2C_SR1_ADDR) {
     recv_bytes = 0;
     (void)I2C1->SR2;                     /* clear ADDR */
-    return;                              /* data bytes come next */
+    return;
   }
-
   if (sr1 & I2C_SR1_RXNE) {
     recv_msg[recv_bytes++] = I2C1->DR;   /* also clears BTF */
     if (recv_bytes >= i2cMAX_MSG_LENGTH) {
       recv_bytes = i2cMAX_MSG_LENGTH - 1;
     }
   }
-
   if (sr1 & I2C_SR1_STOPF) {
-    /* STOPF needs an SR1+SR2 read (I2C_ClearFlag writes SR1). */
-    (void)I2C1->SR2;
-    if (slave_task_id) {
+    /* Keep the historical clear (I2C_Cmd writes CR1) and notify only when
+     * bytes were actually received: STOPF also triggers for bus traffic not
+     * addressed to us, and a notification per phantom STOP floods the RX
+     * task. */
+    I2C_Cmd(I2C1, ENABLE);
+    if (recv_bytes > 0 && slave_task_id) {
       vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
       portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
