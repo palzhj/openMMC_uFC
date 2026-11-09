@@ -1648,7 +1648,7 @@ class FruEditor(tk.Tk):
         ttk.Entry(row, textvariable=self.i2c_dev, width=7).pack(side="left", padx=(6, 16))
 
         ttk.Label(row, text="Write len", style="FieldLabel.TLabel").pack(side="left")
-        self.i2c_wlen = tk.StringVar(value="1")
+        self.i2c_wlen = tk.StringVar(value="0")
         ttk.Entry(row, textvariable=self.i2c_wlen, width=4).pack(side="left", padx=(6, 16))
 
         ttk.Label(row, text="Read len", style="FieldLabel.TLabel").pack(side="left")
@@ -1661,7 +1661,7 @@ class FruEditor(tk.Tk):
         datarow = ttk.Frame(parent)
         datarow.pack(fill="x", pady=(0, 8))
         ttk.Label(datarow, text="Write data (hex)", style="FieldLabel.TLabel").pack(side="left")
-        self.i2c_wdata = tk.StringVar(value="00")
+        self.i2c_wdata = tk.StringVar(value="")
         ttk.Entry(datarow, textvariable=self.i2c_wdata, width=40).pack(side="left", padx=(6, 12))
         ttk.Label(datarow, text="(Write len must match the number of bytes)",
                   style="Hint.TLabel").pack(side="left")
