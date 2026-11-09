@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 option(DISABLE_WATCHDOG "Disable watchdog module to aid debugging" ON)
+option(RENODE_SIM "Skip hardware init that Renode cannot model (RCC, FRU EEPROM read)" OFF)
 
 #Include text color definitions
 include( ${CMAKE_SOURCE_DIR}/toolchain/colors.cmake )
@@ -13,6 +14,11 @@ include( ${CMAKE_SOURCE_DIR}/toolchain/cmake-modules/GetGitRevisionDescription.c
 
 # Project definition
 project(openMMC C CXX ASM)
+
+if (RENODE_SIM)
+  message(STATUS "RENODE_SIM: hardware init that Renode cannot model is skipped")
+  add_definitions(-DRENODE_SIM)
+endif()
 
 ##
 # CMake environment settings
