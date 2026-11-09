@@ -37,6 +37,16 @@ void fru_init( uint8_t id )
         return;
     }
 
+#if defined(FRU_USE_COMPILED) && !defined(FRU_READ_ONLY)
+    /* Board configured to serve the FRU compiled from user_amc_fru.h
+     * (the EEPROM is not consulted). */
+    printf("[FRU][%s] using the compiled FRU image (user_amc_fru.h)\n",
+           id == FRU_AMC ? "AMC" : "RTM");
+    fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
+    fru[id].runtime = true;
+    return;
+#endif
+
 #if defined(FRU_WRITE_EEPROM) && !defined(FRU_READ_ONLY)
     printf(">FRU_WRITE_EEPROM flag enabled! Building FRU info...\n");
     fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
