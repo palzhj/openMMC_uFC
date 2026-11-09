@@ -12,6 +12,7 @@
 
 /* Validate the active slot and apply it (called at boot). */
 int clock_store_init(void);
+int clock_store_apply_boot(void);
 
 /* Apply the active slot now. Returns 1 on success. */
 int clock_store_apply(void);

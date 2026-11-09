@@ -355,9 +355,27 @@ int clock_store_apply(void)
     return apply_slot(ptr.slot ? 0 : 1);
 }
 
+/* Apply the stored configuration once per boot. Both the IPMI task and the
+ * payload's clock step call this; the first caller that finds a valid store
+ * applies it, later callers see the flag (no second programming of the
+ * switch/PLLs). Returns 1 when a stored configuration is in effect. */
+int clock_store_apply_boot(void)
+{
+    static int applied = 0;
+
+    if (applied) {
+        return 1;
+    }
+    if (clock_store_apply()) {
+        applied = 1;
+        return 1;
+    }
+    return 0;
+}
+
 int clock_store_init(void)
 {
-    return clock_store_apply();
+    return clock_store_apply_boot();
 }
 
 int clock_store_status(uint8_t *valid, uint8_t *slot, uint16_t *len, uint32_t *crc)
