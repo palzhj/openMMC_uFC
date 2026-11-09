@@ -477,6 +477,34 @@ def parse_module_current(parsed):
     return None
 
 
+def fru_extent(raw):
+    """End of the FRU image, derived from the header/area/multirecord chain.
+
+    The writable limit is a storage property, not the image length: an image
+    can be longer than the limit the user configured (the multirecord area
+    lives past it), so parse the structure instead of stopping at the limit.
+    """
+    if len(raw) < 8:
+        return 0
+    multi_off = raw[5] * 8
+    if multi_off and multi_off + 5 <= len(raw):
+        off = multi_off
+        while off + 5 <= len(raw):
+            rlen = raw[off + 2]
+            eol = raw[off + 1] & 0x80
+            off += 5 + rlen
+            if eol or off > len(raw):
+                break
+        return min(off, len(raw))
+    end = 8
+    for area_off in (raw[3] * 8, raw[4] * 8):
+        if area_off and area_off + 2 <= len(raw):
+            alen = raw[area_off + 1] * 8
+            if alen:
+                end = max(end, area_off + alen)
+    return min(end, len(raw))
+
+
 def parse_fru(raw, limit=FRU_MAX_SIZE):
     """Return the FRU fields, the multirecord blob and the area layout."""
     if len(raw) < 8 or raw[0] != 0x01:
@@ -485,11 +513,7 @@ def parse_fru(raw, limit=FRU_MAX_SIZE):
     product_off = raw[4] * 8
     multi_off = raw[5] * 8
 
-    # FRU image extent: last non-0xFF byte inside the writable region.
-    end = 0
-    for i in range(min(limit, len(raw))):
-        if raw[i] != 0xFF:
-            end = i + 1
+    end = fru_extent(raw)
 
     parsed = {
         "raw": raw,

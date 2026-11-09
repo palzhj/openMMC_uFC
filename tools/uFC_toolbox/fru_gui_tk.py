@@ -1737,8 +1737,11 @@ class FruEditor(tk.Tk):
             if a:
                 ok = ok and (sum(raw[a["offset"]:a["offset"] + a["length"]]) & 0xFF) == 0
         mfg = parsed["board"].get("mfg_time", 0)
-        return "%d B used · %d B free · multirecord %d B · checksums %s · mfg %s" % (
-            used, limit - used, multi, "OK" if ok else "BAD",
+        free = limit - used
+        free_txt = ("%d B free" % free) if free >= 0 else (
+            "image %d B > writable %d B" % (used, limit))
+        return "%d B used · %s · multirecord %d B · checksums %s · mfg %s" % (
+            used, free_txt, multi, "OK" if ok else "BAD",
             mfg_minutes_to_str(mfg))
 
     def _set_time_now(self):
