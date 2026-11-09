@@ -33,6 +33,9 @@
 /* Project includes */
 #include "FreeRTOS.h"
 #include "ipmi.h"
+#ifdef MODULE_CLOCK_STORE
+#include "clock_store.h"
+#endif
 #include "port.h"
 #include "task_priorities.h"
 #include "led.h"
@@ -58,6 +61,13 @@ volatile const t_req_handler_record *ipmiEntries_end = (t_req_handler_record *) 
 void IPMITask( void * pvParameters )
 {
     ipmi_msg req_received;
+
+#ifdef MODULE_CLOCK_STORE
+    /* Apply the stored clock configuration once, after the scheduler starts
+     * (the I2C semaphores are not usable before vTaskStartScheduler). */
+    clock_store_init();
+#endif
+
     ipmi_msg response;
     ipmb_error error_code;
     t_req_handler req_handler = (t_req_handler) 0;

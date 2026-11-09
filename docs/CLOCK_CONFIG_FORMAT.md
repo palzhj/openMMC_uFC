@@ -115,7 +115,7 @@ A 9 KB slot leaves ~7 KB for additional devices: two Si5345 tables
 |---|---|
 | pointer record | 24 B at `0x0801B000` and `+512`: magic `UFCP`, seq, slot, flags (bit0 valid), len, CRC32 of the slot payload, header CRC over the first 16 B |
 | slot | `UFCC` wrapper (32 B) + FRU multirecord file; record `0x30+` = Si5345 table chunks (3-byte entries), `0x40` = 16-byte switch matrix |
-| boot | `clock_store_init()` after `i2c_init()` applies the valid slot (switch matrix with retries, Si5345 entries with the 300 ms calibration pause) |
+| boot | `clock_store_init()` runs at the start of the IPMI task (after the scheduler starts, so the I²C semaphores work) and applies the valid slot — switch matrix with retries, Si5345 entries with the 300 ms calibration pause |
 | 0x18 status | `[valid, slot, len_lo, len_hi, crc0..3]` |
 | 0x19 apply | re-apply the active slot |
 | 0x1A begin | `[slot, len_lo, len_hi, crc0..3]` — erases the target slot |
