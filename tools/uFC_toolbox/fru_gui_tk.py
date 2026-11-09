@@ -78,8 +78,10 @@ Buttons:
   Program (built-in)        program the Si5345 from the firmware table (0x16)
   Status                    Si5345 programming status (0x17)
   Load Si5345 file...       parse a ClockBuilder register script (pre/body/post)
-  Write Si5345  device      write the loaded table from the PC over I2C
-                flash       upload matrix + table to the MMC clock store
+  Write to device           write the loaded table to the Si5345 now (I2C);
+                            volatile, lost on power-cycle
+  Write to flash            store matrix + table in the MMC clock store;
+                            applied at the next power-on (slot auto/A/B)
   Apply store               re-apply the stored configuration (0x19)
   Store status              active slot / length / CRC (0x18)
 
@@ -396,16 +398,21 @@ class FruEditor(tk.Tk):
         row2 = ttk.Frame(parent)
         row2.pack(fill="x", pady=(0, 4))
         ttk.Button(row2, text="Load Si5345 file…", command=self.si_load).pack(side="left")
-        self.si_target = tk.StringVar(value="device")
-        ttk.Radiobutton(row2, text="device", variable=self.si_target,
-                        value="device").pack(side="left", padx=(10, 0))
-        ttk.Radiobutton(row2, text="flash", variable=self.si_target,
-                        value="flash").pack(side="left", padx=(4, 0))
+        dev = ttk.Button(row2, text="Write to device", style="Primary.TButton",
+                         command=self.si_write_device)
+        dev.pack(side="left", padx=(10, 0))
+        Tooltip(dev, "Write the loaded table to the Si5345 RAM over I2C.\n"
+                     "Effective immediately, lost on power-cycle.")
+        fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
+        fl.pack(side="left", padx=(6, 0))
+        Tooltip(fl, "Store matrix + Si5345 table in the MMC clock store.\n"
+                    "Applied automatically at the next power-on.")
         ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
         self.slot_sel = tk.StringVar(value="auto")
-        ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
-                     width=5, state="readonly").pack(side="left")
-        ttk.Button(row2, text="Write Si5345", command=self.si_write).pack(side="left", padx=(8, 0))
+        slotsel = ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
+                               width=5, state="readonly")
+        slotsel.pack(side="left")
+        Tooltip(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
         ttk.Button(row2, text="Apply store", command=self.store_apply).pack(side="left", padx=(8, 0))
         ttk.Button(row2, text="Store status", command=self.store_status).pack(side="left", padx=(4, 0))
         ttk.Button(row2, text="?", width=2, command=self.clock_help).pack(side="left", padx=(8, 0))
@@ -979,36 +986,37 @@ class FruEditor(tk.Tk):
         except Exception as e:
             self._clock_log("ERROR: %s" % e)
 
-    def si_write(self):
+    def si_write_device(self):
+        """Write the loaded Si5345 table to the device RAM (immediate, volatile)."""
         if not self.si_groups:
             self._clock_log("ERROR: load a Si5345 register file first")
             return
-        if self.si_target.get() == "flash":
-            try:
-                slot = build_clock_slot(self.clock_matrix, self.si_groups)
-                self._clock_log("clock slot: %d bytes, crc %08x" %
-                                (len(slot), zlib.crc32(slot) & 0xFFFFFFFF))
-                slot_index = {"auto": 0xFF, "A": 0, "B": 1}.get(self.slot_sel.get(), 0xFF)
-                r = upload_clock_slot(self._access(), slot, slot_index,
-                                      progress=lambda n: self._clock_log("flash: %d bytes" % n))
-                self._clock_log("slot uploaded, finish: %s" % r.hex())
-                self._status("Clock config written to flash", "ok")
-            except Exception as e:
-                self._status("Flash write failed", "error")
-                self._clock_log("ERROR: %s" % e)
-            return
         try:
-            total = 0
             def progress(n):
-                total = n
                 if n % 64 == 0:
                     self._clock_log("Si5345: %d registers written" % n)
                     self.update_idletasks()
             n = program_si5345(self._access(), self.si_groups, progress=progress)
-            self._clock_log("Si5345 programmed: %d registers (preamble 300 ms, body, postamble)" % n)
-            self._status("Si5345 programmed", "ok")
+            self._clock_log("Si5345 programmed to the device: %d registers "
+                            "(preamble, 300 ms, body, postamble) — lost on power-cycle" % n)
+            self._status("Si5345 programmed (device)", "ok")
         except Exception as e:
             self._status("Si5345 write failed", "error")
+            self._clock_log("ERROR: %s" % e)
+
+    def si_write_flash(self):
+        """Store the current matrix + loaded Si5345 table in the MMC clock store."""
+        try:
+            slot = build_clock_slot(self.clock_matrix, self.si_groups)
+            self._clock_log("clock slot: %d bytes, crc %08x" %
+                            (len(slot), zlib.crc32(slot) & 0xFFFFFFFF))
+            slot_index = {"auto": 0xFF, "A": 0, "B": 1}.get(self.slot_sel.get(), 0xFF)
+            r = upload_clock_slot(self._access(), slot, slot_index,
+                                  progress=lambda n: self._clock_log("flash: %d bytes" % n))
+            self._clock_log("slot uploaded, finish: %s — applied at the next power-on" % r.hex())
+            self._status("Clock config written to flash", "ok")
+        except Exception as e:
+            self._status("Flash write failed", "error")
             self._clock_log("ERROR: %s" % e)
 
     def clock_help(self):
