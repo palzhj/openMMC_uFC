@@ -66,6 +66,7 @@ uint8_t recv_msg[i2cMAX_MSG_LENGTH];
 uint8_t recv_bytes;
 static volatile uint8_t slave_msg_pending = 0;  /* a message arrived before the
                                                    RX task armed the reception */
+static uint8_t slave_addr_cfg = 0;              /* configured 7-bit slave address */
 
 uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32_t timeout)
 {
@@ -104,45 +105,31 @@ uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32
 
 void I2C1_EV_IRQHandler(void)
 {
-  static BaseType_t xHigherPriorityTaskWoken;
-  uint32_t event = I2C_GetLastEvent(I2C1); // Get the latest I2C event
+  static BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-  switch (event)
-  {
-  /* ---------- Slave Transmitter Mode (Sending Data to Master) ---------- */
-  case I2C_EVENT_SLAVE_BYTE_TRANSMITTED:
-  case I2C_EVENT_SLAVE_BYTE_TRANSMITTING:
-    // Send next byte from buffer
-    // I2C_SendData(I2C1, I2C1_Buffer_Tx[Tx_Idx++]);
-    break;
-
-  /* ---------- Slave Receiver Mode (Receiving Data from Master) ---------- */
-  case I2C_EVENT_SLAVE_RECEIVER_ADDRESS_MATCHED:
-    // Address match detected.
+  /* Flag-based handling: the event-register comparison misses the combined
+   * RXNE+BTF state, which then leaves the data register unread and SCL
+   * stretched (the MCH sees a stuck bus). */
+  if (I2C_GetFlagStatus(I2C1, I2C_FLAG_ADDR)) {
+    /* Address matched: start a new message. Reading SR1/SR2 clears ADDR. */
     recv_bytes = 0;
-    break;
+    (void)I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY);
+  }
 
-  case I2C_EVENT_SLAVE_BYTE_RECEIVED:
-    // Store received data into buffer
+  if (I2C_GetFlagStatus(I2C1, I2C_FLAG_RXNE)) {
     recv_msg[recv_bytes++] = I2C_ReceiveData(I2C1);
-    if (recv_bytes == i2cMAX_MSG_LENGTH) recv_bytes = i2cMAX_MSG_LENGTH-1;
-    break;
+    if (recv_bytes >= i2cMAX_MSG_LENGTH) {
+      recv_bytes = i2cMAX_MSG_LENGTH - 1;
+    }
+  }
 
-  /* ---------- STOP Condition Detected (End of Transmission) ---------- */
-  case I2C_EVENT_SLAVE_STOP_DETECTED:
-    // STOP condition detected, indicating the end of a transaction
-    I2C_Cmd(I2C1, ENABLE); // Ensure I2C remains enabled
-
+  if (I2C_GetFlagStatus(I2C1, I2C_FLAG_STOPF)) {
+    I2C_ClearFlag(I2C1, I2C_FLAG_STOPF);
     slave_msg_pending = 1;
     if (slave_task_id) {
       vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
       portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
-    break;
-
-  default:
-    // Unhandled event (could log this for debugging)
-    break;
   }
 }
 
@@ -240,6 +227,7 @@ void vI2CConfig(I2C_ID_T id, uint32_t speed)
  */
 void vI2CSlaveSetup(I2C_ID_T id, uint8_t slave_addr)
 {
+  slave_addr_cfg = slave_addr;   /* remembered across bus recoveries */
   slave_addr <<= 1;
 
   I2C_TypeDef *I2Cx;
@@ -709,4 +697,11 @@ void vI2CBusRecover(I2C_ID_T id)
   for (d = 0; d < 200; d++) { }
 
   vI2CConfig(id, 100000);
+
+  /* vI2CConfig() initialises the peripheral as a master (OwnAddress1 = 0):
+   * restore the own address, otherwise the MMC stops acknowledging the MCH
+   * after the first IPMB transmission error. */
+  if (slave_addr_cfg && id != I2C2_ID) {
+    vI2CSlaveSetup(id, slave_addr_cfg);
+  }
 }
