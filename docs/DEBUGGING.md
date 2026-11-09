@@ -248,3 +248,34 @@ record.
 * The Renode FRU test has not been re‑run against the final code.
 * CMSIS is the older ARM license (see `THIRD_PARTY_NOTICES.md`); revisit if the
   project ever becomes commercial.
+
+## u4FCP bring-up: FRU read before the scheduler (2026-11)
+
+The u4FCP FRU lives in a CAT24C512 read by `eeprom_24xx512_read()` inside
+`fru_init()`, i.e. **before** `vTaskStartScheduler()`. Three defects made that
+path crash with an INVSTATE HardFault right after `FRU info is healthy!`:
+
+- the driver called `vTaskDelay()` after every transfer (no current task yet →
+  scheduler list corruption);
+- a `uint8_t` chunk length truncated multiples of 256 to 0 (0-byte read,
+  endless loop);
+- `fru_check_integrity()` used a fixed 128-byte record buffer while an area
+  length byte × 8 can request up to 2040 bytes (heap overflow).
+
+Fixed by guarding `vTaskDelay` with `xTaskGetSchedulerState()`, chunking with
+`size_t` and advancing the EEPROM address, sizing the FRU record buffer per
+record and enabling `INCLUDE_xTaskGetSchedulerState`.
+
+The ADN4604 reset (write 0x00 = 0x01) is issued while the switch supply ramps
+and the first access NACKs; `adn4604_reset()` now retries 5×20 ms and waits
+10 ms after success.
+
+Boot output after the fixes:
+```
+FRU info is healthy!
+[RAM] ipmi heap_free=4248
+Enable Main Power / FMC0 / FMC1
+ADN4604 config OK
+PLL0 config OK
+PLL1 config OK
+```
