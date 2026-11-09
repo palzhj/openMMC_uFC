@@ -339,8 +339,15 @@ def program_si5345(access, groups, bus=1, muxes=((0x70, 2),), dev=0x69,
     return total
 
 
-def build_clock_slot(matrix, si_groups=None, seq=1):
-    """Build the 74..3000 byte FRU slot the MMC clock store expects."""
+def build_clock_slot(matrix, si_groups=None, seq=1, switch_addr=0x58, si_addr=0x69,
+                     si_tables=None):
+    """Build the FRU slot the MMC clock store expects.
+
+    switch_addr is the crosspoint I2C address stored in the switch record
+    (0x58 8V54816A on the uFC, 0x48 ADN4604 on the u4FCP). Si5345 tables are
+    given either as si_groups with si_addr, or as si_tables =
+    [(i2c_addr, groups), ...] for boards with several PLLs (the firmware
+    applies each record through the address in its device header)."""
     import struct
 
     def chk(data):
@@ -349,22 +356,26 @@ def build_clock_slot(matrix, si_groups=None, seq=1):
     mfr = bytes([0x5A, 0x31, 0x00])
     records = []
 
-    if si_groups:
+    tables = list(si_tables) if si_tables else ([(si_addr, si_groups)] if si_groups else [])
+    n_tables = len(tables)
+    for t_idx, (t_addr, t_groups) in enumerate(tables):
+        if not t_groups:
+            continue
         table = b"".join(bytes([a >> 8, a & 0xFF, d])
-                         for a, d in si_groups["pre"] + si_groups["body"] + si_groups["post"])
+                         for a, d in t_groups["pre"] + t_groups["body"] + t_groups["post"])
         chunk_max = 255 - 6 - 8             # record_len = 6 + payload, 8-byte dev header
         chunks = [table[i:i + chunk_max] for i in range(0, len(table), chunk_max)]
         for idx, part in enumerate(chunks):
-            devhdr = bytes([1, idx, len(chunks), 1, 0x69, 1, 0x70, 2])
+            devhdr = bytes([1, idx, len(chunks), 1, t_addr, 1, 0x70, 2])
             data = bytearray(mfr + bytes([0x30 + idx, 0x00]) + devhdr + part)
             data.append(0); data[-1] = chk(data)
             rec = bytearray([0xC0, 0x02, len(data)])
-            if idx == len(chunks) - 1 and not matrix:
+            if idx == len(chunks) - 1 and not matrix and t_idx == n_tables - 1:
                 rec[1] |= 0x80
             rec.append(0); rec[-1] = chk(rec)
             records.append(bytes(rec) + bytes(data))
 
-    devhdr = bytes([2, 0, 1, 1, 0x58, 1, 0x70, 2])
+    devhdr = bytes([2, 0, 1, 1, switch_addr, 1, 0x70, 2])
     data = bytearray(mfr + bytes([0x40, 0x00]) + devhdr + bytes(matrix))
     data.append(0); data[-1] = chk(data)
     rec = bytearray([0xC0, 0x02 | 0x80, len(data)])

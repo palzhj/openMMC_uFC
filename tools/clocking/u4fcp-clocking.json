@@ -1,36 +1,212 @@
 {
-  "format": "ufc-clocking",
-  "version": 1,
-  "meta": {
-    "board": "u4FCP v2",
-    "status": "skeleton",
-    "sources": [
-      "u4FCPv2/readme/clock.png (block diagram)",
-      "u4FCPv2/template/u4FCPv2 (CLK scripts, KUP XDC)"
-    ],
-    "notes": [
-      "Points/links/pins still have to be extracted from the u4FCPv2 schematic and the",
-      "u4FCPv2 KUP/K7 constraint files; until then this template only provides the",
-      "board name and the device boxes (the toolbox falls back to the built-in drawing)."
-    ]
+ "format": "ufc-clocking",
+ "version": 1,
+ "meta": {
+  "board": "u4FCP v2",
+  "status": "skeleton",
+  "sources": [
+   "u4FCPv2/readme/clock.png (block diagram)",
+   "u4FCPv2/template/u4FCPv2 (CLK scripts, KUP XDC)"
+  ],
+  "notes": [
+   "Points/links/pins still have to be extracted from the u4FCPv2 schematic and the",
+   "u4FCPv2 KUP/K7 constraint files; until then this template only provides the",
+   "board name and the device boxes (the toolbox falls back to the built-in drawing)."
+  ]
+ },
+ "boards": {
+  "u4fcp": {
+   "label": "u4FCP v2.0",
+   "class": "board"
+  }
+ },
+ "devices": {
+  "AMC": {
+   "part": "AMC backplane",
+   "parent": "u4fcp",
+   "class": "connector",
+   "label": "AMC",
+   "box": [
+    15,
+    40,
+    110,
+    220
+   ]
   },
-  "boards": {"u4fcp": {"label": "u4FCP v2.0", "class": "board"}},
-  "devices": {
-    "AMC":  {"part": "AMC backplane", "parent": "u4fcp", "class": "connector", "label": "AMC", "box": [15, 40, 110, 220]},
-    "MUX0": {"part": "8V54816A", "bus": 1, "addr": 88, "parent": "u4fcp", "class": "chip", "label": "MUX 0", "box": [160, 30, 240, 420]},
-    "MUX1": {"part": "8V54816A", "bus": 1, "addr": 88, "parent": "u4fcp", "class": "chip", "label": "MUX 1 (RTM)", "box": [160, 470, 240, 300]},
-    "FMC0": {"part": "FMC0", "parent": "u4fcp", "class": "connector", "label": "FMC0", "box": [440, 40, 120, 80]},
-    "FMC1": {"part": "FMC1", "parent": "u4fcp", "class": "connector", "label": "FMC1", "box": [440, 140, 120, 80]},
-    "FMC2": {"part": "FMC2", "parent": "u4fcp", "class": "connector", "label": "FMC2", "box": [440, 480, 120, 80]},
-    "FMC3": {"part": "FMC3", "parent": "u4fcp", "class": "connector", "label": "FMC3", "box": [440, 580, 120, 80]},
-    "PLL0": {"part": "Si5345 (2:10)", "bus": 1, "addr": 105, "parent": "u4fcp", "class": "chip", "label": "PLL 0", "box": [600, 260, 140, 200]},
-    "PLL1": {"part": "Si5345 (2:10)", "bus": 1, "addr": 106, "parent": "u4fcp", "class": "chip", "label": "PLL 1", "box": [600, 470, 140, 200]},
-    "PLL2": {"part": "Si5345 (2:10)", "bus": 1, "addr": 107, "parent": "u4fcp", "class": "chip", "label": "PLL 2", "box": [600, 680, 140, 120]},
-    "KUP":  {"part": "FPGA KUP", "parent": "u4fcp", "class": "chip", "label": "FPGA KUP", "box": [780, 60, 180, 380]},
-    "K7":   {"part": "FPGA K7", "parent": "u4fcp", "class": "chip", "label": "FPGA K7", "box": [780, 460, 180, 340]},
-    "OSC":  {"part": "oscillator", "parent": "u4fcp", "class": "oscillator", "label": "OSC", "box": [780, 810, 100, 40]}
+  "MUX0": {
+   "part": "ADN4604",
+   "bus": 1,
+   "addr": 72,
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "MUX 0",
+   "box": [
+    160,
+    30,
+    240,
+    420
+   ]
   },
-  "points": [],
-  "links": [],
-  "routing": {}
+  "MUX1": {
+   "part": "ADN4604",
+   "bus": 1,
+   "addr": 72,
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "MUX 1 (RTM)",
+   "box": [
+    160,
+    470,
+    240,
+    300
+   ]
+  },
+  "FMC0": {
+   "part": "FMC0",
+   "parent": "u4fcp",
+   "class": "connector",
+   "label": "FMC0",
+   "box": [
+    440,
+    40,
+    120,
+    80
+   ]
+  },
+  "FMC1": {
+   "part": "FMC1",
+   "parent": "u4fcp",
+   "class": "connector",
+   "label": "FMC1",
+   "box": [
+    440,
+    140,
+    120,
+    80
+   ]
+  },
+  "FMC2": {
+   "part": "FMC2",
+   "parent": "u4fcp",
+   "class": "connector",
+   "label": "FMC2",
+   "box": [
+    440,
+    480,
+    120,
+    80
+   ]
+  },
+  "FMC3": {
+   "part": "FMC3",
+   "parent": "u4fcp",
+   "class": "connector",
+   "label": "FMC3",
+   "box": [
+    440,
+    580,
+    120,
+    80
+   ]
+  },
+  "PLL0": {
+   "part": "Si5345 (2:10)",
+   "bus": 1,
+   "addr": 105,
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "PLL 0",
+   "box": [
+    600,
+    260,
+    140,
+    200
+   ]
+  },
+  "PLL1": {
+   "part": "Si5345 (2:10)",
+   "bus": 1,
+   "addr": 106,
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "PLL 1",
+   "box": [
+    600,
+    470,
+    140,
+    200
+   ]
+  },
+  "PLL2": {
+   "part": "Si5345 (2:10)",
+   "bus": 1,
+   "addr": 107,
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "PLL 2",
+   "box": [
+    600,
+    680,
+    140,
+    120
+   ]
+  },
+  "KUP": {
+   "part": "FPGA KUP",
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "FPGA KUP",
+   "box": [
+    780,
+    60,
+    180,
+    380
+   ]
+  },
+  "K7": {
+   "part": "FPGA K7",
+   "parent": "u4fcp",
+   "class": "chip",
+   "label": "FPGA K7",
+   "box": [
+    780,
+    460,
+    180,
+    340
+   ]
+  },
+  "OSC": {
+   "part": "oscillator",
+   "parent": "u4fcp",
+   "class": "oscillator",
+   "label": "OSC",
+   "box": [
+    780,
+    810,
+    100,
+    40
+   ]
+  }
+ },
+ "points": [],
+ "links": [],
+ "routing": {},
+ "clock": {
+  "switch": {
+   "part": "ADN4604",
+   "addr": 72,
+   "format": "adn4604"
+  },
+  "plls": [
+   {
+    "addr": 104,
+    "part": "Si5345"
+   },
+   {
+    "addr": 105,
+    "part": "Si5345"
+   }
+  ],
+  "store": "eeprom"
+ }
 }

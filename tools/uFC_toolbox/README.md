@@ -268,3 +268,22 @@ implements `0x32/0x12/0x13` with 16-bit addresses).
   The editor reads the EEPROM directly and always shows the current data.
 - Field lengths are fixed by the existing FRU layout; values that do not fit
   are rejected with the maximum length shown.
+
+
+## Board clock section
+
+Each `tools/clocking/<template>-clocking.json` may carry a `clock` block:
+
+```json
+"clock": {
+  "switch": {"part": "ADN4604", "addr": 72, "format": "adn4604"},
+  "plls": [{"addr": 104, "part": "Si5345"}, {"addr": 105, "part": "Si5345"}],
+  "store": "eeprom"
+}
+```
+
+It drives the Clock tab: the MUX block title, the PLL selector (`PLL0`,
+`PLL1`, ...) and the FRU device-header addresses written into the clock
+store slot (switch record: `addr`; Si5345 records: the selected PLL's
+`addr`). The uFC uses 0x58/0x69 (8V54816A + one Si5345, flash store), the
+u4FCP 0x48/0x68/0x69 (ADN4604 + two Si5345, EEPROM store).
