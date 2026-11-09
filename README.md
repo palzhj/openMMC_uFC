@@ -1,22 +1,27 @@
-# openMMC — uFC‑v2 (STM32F100CBT6)
+# openMMC — AMC MMC firmware (uFC‑v2 · u4FCP‑v1 · u4FCP‑v2)
 
-Open Source modular IPM Controller firmware, ported to the **uFC v2.0** AMC
-module.
+Open Source modular IPM Controller firmware, ported to the **uFC v2.0** and
+**u4FCP v1/v2** AMC modules.
 
 This tree is a fork of [lnls-dig/openMMC](https://github.com/lnls-dig/openMMC)
-targeting the STM32F100 value‑line MCU. All board support for the uFC‑v2 is
-under `port/board/ufc-v2/`.
+targeting the STM32F1 family. Each board has its own port under
+`port/board/`; the low-level drivers (`modules/`, `port/ucontroller/`) are
+shared and take the device addresses from the board's mapping.
 
-| Item | Value |
-|---|---|
-| MCU | **STM32F100CBT6** — Cortex‑M3 value line, 128 KB flash, 8 KB SRAM |
-| Board | uFC v2.0 AMC module |
-| Debug UART | USART1 (PA9/PA10), 115200 8N1 |
-| I2C | I2C2 (PB10/PB11), 100 kHz, through a TCA9548A mux |
-| SWD | PA13/PA14 (JTAG disabled, SWD kept) |
+| board | MCU | flash / SRAM | board EEPROM | clock store | flash map (KB) | build |
+|---|---|---|---|---|---|---|
+| **uFC‑v2** | STM32F100CBT6 | 128 KB / 8 KB | 24AA025E48, 2 KB @0x50 | flash 19 KB | 8 / 50 / 50 / 19 / 1 | `-DBOARD=ufc-v2` |
+| **u4FCP‑v1** | STM32F103C8T6 | 64 KB / 20 KB | AT24CM01, 128 KB @0x54 | EEPROM | 8 / 55 / — / 1 | `-DBOARD=u4fcp-v1` |
+| **u4FCP‑v2** | STM32F103CBT6 | 128 KB / 20 KB | CAT24C512, 64 KB @0x54 | EEPROM | 8 / 59.5 / 59.5 / 1 | `-DBOARD=u4fcp-v2` |
+
+Common to all boards: debug UART on USART1 (PA9/PA10, 115200 8N1), the
+clock/FRU I²C bus behind a TCA9548A mux, SWD on PA13/PA14. The u4FCP
+adds an ADN4604 crosspoint + up to two Si5345 PLLs and keeps both the FRU
+and the clock configuration in the EEPROM; the uFC uses an 8V54816A
+switch + one Si5345 and stores the clock configuration in flash.
 
 ## Table of Contents
-- [openMMC — uFC‑v2 (STM32F100CBT6)](#openmmc--ufcv2-stm32f100cbt6)
+- [openMMC — AMC MMC firmware](#openmmc--amc-mmc-firmware-ufcv2--u4fcpv1--u4fcpv2)
    * [Memory map](#memory-map)
    * [Installation](#installation)
    * [Compilation](#compilation)
@@ -49,8 +54,8 @@ frees the flash clock region:
 | u4FCP‑v1 (F103C8T6, 64 KB) | 8 / 55 / — / 1 KB | AT24CM01 EEPROM (same offsets); staging in the EEPROM upper 64 KB |
 | u4FCP‑v2 (F103CBT6) | 8 / **59.5** / **59.5** / 1 KB | CAT24C512 EEPROM (0x200 pointer, slots 0x300/0x1B00, 6 KB each) |
 
-Build the u4FCP boards with `-DBOARD=u4fcp-v2` / `-DBOARD=u4fcp-v1`
-(STM32F103CBT6 / STM32F103C8T6).
+Build any board with `-DBOARD=<ufc-v2|u4fcp-v1|u4fcp-v2>` and the matching
+`-DTARGET_CONTROLLER` (F100CBT6 / F103C8T6 / F103CBT6).
 
 The clock region is used by the **clock configuration store** (`-DCLOCK_STORE=ON`):
 a 1 KB pointer page plus 9 KB A/B FRU-format slots; the MMC applies the valid
@@ -76,6 +81,8 @@ sudo apt install gcc-arm-none-eabi cmake
 
 Configure out of the source tree (requires **CMake ≥ 3.10**; CMake 4.x works as-is):
 
+uFC‑v2:
+
 ```sh
 cmake -S . -B build-ufc \
       -DBOARD=ufc-v2 \
@@ -85,12 +92,27 @@ cmake -S . -B build-ufc \
 cmake --build build-ufc -j
 ```
 
+u4FCP‑v1 / u4FCP‑v2:
+
+```sh
+cmake -S . -B build-u4fcp-v1 \
+      -DBOARD=u4fcp-v1 -DTARGET_CONTROLLER=STM32F103C8T6 \
+      -DOPTIMIZE_SIZE=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-u4fcp-v1 -j
+
+cmake -S . -B build-u4fcp-v2 \
+      -DBOARD=u4fcp-v2 -DTARGET_CONTROLLER=STM32F103CBT6 \
+      -DCMAKE_BUILD_TYPE=Release
+cmake --build build-u4fcp-v2 -j
+```
+
 Options:
 
 | Option | Meaning |
 |---|---|
-| `-DBOARD=ufc-v2` | uFC v2.0 board port |
-| `-DTARGET_CONTROLLER=STM32F100CBT6` | MCU and linker scripts |
+| `-DBOARD=ufc-v2\|u4fcp-v1\|u4fcp-v2` | board port under `port/board/` |
+| `-DTARGET_CONTROLLER=STM32F100CBT6\|STM32F103C8T6\|STM32F103CBT6` | MCU and linker scripts |
+| `-DOPTIMIZE_SIZE=ON` | compile with `-Os` (needed for the 64 KB v1) |
 | `-DUART_DEBUG=ON` | printf console on USART1 |
 | `-DFRU_BUILD=ON` | one‑time FRU builder + EEPROM write (see [FRU](#fru-information)) |
 | `-DDISABLE_WATCHDOG=OFF` | enable the IWDG (default in CMake is *disabled*, to aid debugging) |
