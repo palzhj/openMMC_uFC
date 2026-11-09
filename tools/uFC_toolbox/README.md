@@ -138,10 +138,15 @@ Four blocks:
    `tools/clocking/<template>-clocking.json`; the template drives the block
    diagram, the source list and the port capabilities. (`u4fcp-clocking.json`
    is a skeleton until its points/pins are extracted from the u4FCP sources.)
-2. **8V54816A MUX** — Read clocks / Write now, the 16-port table (scrolled)
-   and the matrix line.
-3. **Si5345 PLL** — Program (built-in), Status, Load Si5345 file, Write to
-   device, slot, Write to flash, Activate stored config, Stored config info.
+2. **8V54816A MUX** — **Read clocks**, **Write to device**, the shared
+   **slot** selector, **Write to flash**, the 16-port table (scrolled) and the
+   matrix line.
+3. **Si5345 PLL** — **Read status**, Program (built-in), **Load Si5345
+   file**, **Write to device**, the same shared **slot** selector, **Write to
+   flash**, Activate stored config; the second line holds Stored config info
+   and the loaded-file name.
+   The slot selector is one variable shown in both blocks; Write to flash
+   always stores matrix + loaded table and activates it.
 4. **Block diagram** — Export diagram (DOT) and System diagram (canvas
    drawing: inputs left, outputs right, jumper marks).
 
