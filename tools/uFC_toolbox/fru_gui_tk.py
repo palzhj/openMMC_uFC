@@ -107,6 +107,7 @@ class FruEditor(tk.Tk):
         self.size_var.trace_add("write", lambda *_: self._update_address())
         self.i2c_var.trace_add("write", lambda *_: self._update_address())
         self._restore_settings()
+        self._on_amc_change()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
 
@@ -131,6 +132,7 @@ class FruEditor(tk.Tk):
                 "board": getattr(self, "template", "uFC"),
                 "mch": self.mch_var.get(),
                 "bridge": self.bridge_var.get(),
+                "amc": self.amc_var.get(),
                 "transit": self.transit_var.get(),
                 "transit_ch": self.tch_var.get(),
                 "target": self.target_var.get(),
@@ -156,11 +158,20 @@ class FruEditor(tk.Tk):
             self.template_var.set(board)
             self.template_load()
         for var, key in ((self.mch_var, "mch"), (self.bridge_var, "bridge"),
-                         (self.transit_var, "transit"), (self.tch_var, "transit_ch"),
-                         (self.target_var, "target"), (self.bus_var, "bus"),
                          (self.size_var, "eeprom_size"), (self.limit_var, "fru_limit")):
             if cfg.get(key) is not None:
                 var.set(str(cfg[key]))
+        amc = cfg.get("amc")
+        if not amc and cfg.get("target"):
+            try:
+                slot = (int(str(cfg["target"]), 0) - 0x70) // 2
+                if 1 <= slot <= 12:
+                    amc = "AMC%d" % slot
+            except (TypeError, ValueError):
+                amc = None
+        if amc:
+            self.amc_var.set(str(amc))
+            self._on_amc_change()
         if cfg.get("eeprom_i2c") is not None:
             self.i2c_var.set(str(cfg["eeprom_i2c"]))
 
@@ -242,6 +253,21 @@ class FruEditor(tk.Tk):
         Tooltip(self.bridge_box, "double: transit 0x82 -> target 0x7E\n"
                                  "single: target on a bus of the MCH\n"
                                  "direct: no bridging (the MCH answers)")
+
+        # AMC slot selector: derives the transit/target/bus automatically
+        abox = ttk.Frame(strip)
+        abox.pack(side="left", padx=(0, 14))
+        alab = ttk.Label(abox, text="AMC", style="FieldLabel.TLabel")
+        alab.pack(anchor="w")
+        self.amc_var = tk.StringVar(value="AMC12")
+        self.amc_box = ttk.Combobox(abox, textvariable=self.amc_var, width=7,
+                                    state="readonly",
+                                    values=["AMC%d" % i for i in range(1, 13)])
+        self.amc_box.pack(anchor="w")
+        self.amc_box.bind("<<ComboboxSelected>>", lambda _e: self._on_amc_change())
+        Tooltip(alab, "AMC slot of the target module.\n"
+                      "Derived: transit 0x82, target 0x70 + 2*slot, bus 0,\n"
+                      "FRU id = slot + 4.")
         self.transit_var, self.transit_w = self._labeled(
             strip, "Transit", transit, 6,
             tip="First bridge hop: the intermediate IPMI controller\nthat owns the target's bus.")
@@ -254,6 +280,11 @@ class FruEditor(tk.Tk):
         self.bus_var, self.bus_w = self._labeled(
             strip, "Bus", str(bus), 4,
             tip="IPMB channel that reaches the target\n(per-slot on a MicroTCA crate).")
+        for widget in (self.transit_w, self.tch_w, self.target_w, self.bus_w):
+            try:
+                widget.configure(state="readonly")
+            except Exception:
+                pass
 
         # board template (shared by every tab)
         tpl = ttk.Frame(self, padding=(16, 2, 16, 4))
@@ -1856,6 +1887,20 @@ class FruEditor(tk.Tk):
             w.configure(state="normal" if needed else state)
         self._update_path()
 
+    def _on_amc_change(self):
+        """Derive the bridge addressing from the AMC slot (crate convention)."""
+        try:
+            slot = int(str(self.amc_var.get()).upper().replace("AMC", "").strip())
+        except ValueError:
+            return
+        if not 1 <= slot <= 12:
+            return
+        self.transit_var.set("0x82")
+        self.tch_var.set("0")
+        self.target_var.set("0x%02x" % (0x70 + 2 * slot))
+        self.bus_var.set("0")
+        self._update_path()
+
     def _update_path(self):
         try:
             mode = self._bridge_mode()
@@ -1865,9 +1910,15 @@ class FruEditor(tk.Tk):
                 text = "LAN → %s → target %s (bus %s)" % (
                     self.mch_var.get(), self.target_var.get(), self.bus_var.get())
             else:
-                text = "LAN → %s → transit %s (ch %s) → target %s (bus %s)" % (
-                    self.mch_var.get(), self.transit_var.get(), self.tch_var.get(),
-                    self.target_var.get(), self.bus_var.get())
+                slot = str(self.amc_var.get()).upper().replace("AMC", "").strip()
+                fru = ""
+                try:
+                    fru = " · FRU %d" % (int(slot) + 4)
+                except ValueError:
+                    pass
+                text = "AMC%s%s · LAN → %s → transit %s (ch %s) → target %s (bus %s)" % (
+                    slot, fru, self.mch_var.get(), self.transit_var.get(),
+                    self.tch_var.get(), self.target_var.get(), self.bus_var.get())
             self.path_var.set(text)
         except Exception:
             pass
