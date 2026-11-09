@@ -175,6 +175,7 @@ SECTIONS
     . = . + _Min_Heap_Size;
     . = . + _Min_Stack_Size;
     . = ALIGN(4);
+    __StackLimit = .;   /* bottom of the main/exception stack */
   } >RAM
 
   /* Remove information from the standard libraries */
