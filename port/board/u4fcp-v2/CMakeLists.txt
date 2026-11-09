@@ -58,9 +58,15 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_BOARD_CONFIG")
 endif()
 
+option(RENODE_SIM "Skip the RCC clock setup (Renode has no RCC model)" OFF)
+set(U4FCP_SIM_FLAG "")
+if (RENODE_SIM)
+  set(U4FCP_SIM_FLAG " -DRENODE_SIM")
+endif()
+
 #Extra definitions
 # 20 KB SRAM: 12 KB FreeRTOS heap leaves a ~6 KB main/exception stack
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DconfigTOTAL_HEAP_SIZE=12288 -DUSE_RAM_DIAG" PARENT_SCOPE)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DconfigTOTAL_HEAP_SIZE=12288 -DUSE_RAM_DIAG${U4FCP_SIM_FLAG}" PARENT_SCOPE)
 if (FRU_WRITE_EEPROM)
   message(STATUS "FRU EEPROM will be written if no valid data is found!")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_WRITE_EEPROM")

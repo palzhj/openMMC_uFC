@@ -210,6 +210,12 @@ static void SetSysClock(void);
   */
 void SystemInit (void)
 {
+#ifdef RENODE_SIM
+  /* Renode has no RCC model: keep the reset clock and only relocate the
+   * vector table (the emulator starts the application directly). */
+  SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET;
+  return;
+#endif
   /* Reset the RCC clock configuration to the default reset state(for debug purpose) */
   /* Set HSION bit */
   RCC->CR |= (uint32_t)0x00000001;

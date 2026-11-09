@@ -1,0 +1,18 @@
+# Run the u4FCP-v2 application in Renode (STM32F103, 128 KB flash / 20 KB SRAM).
+#
+# Build first (the RENODE_SIM option skips the RCC clock setup - Renode has no
+# RCC model and the firmware would otherwise spin waiting for HSE/PLL):
+#   cmake -S . -B .hw2/u4fcp_sim -DBOARD=u4fcp-v2 \
+#         -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release -DRENODE_SIM=ON
+#   make -C .hw2/u4fcp_sim openMMC -j4
+#
+# Run:
+#   renode --disable-gui --hide-monitor --plain tools/renode/u4fcp.resc
+#   cat /tmp/renode_uart.txt
+mach create "u4fcp"
+machine LoadPlatformDescription @platforms/cpus/stm32f103.repl
+sysbus LoadELF @.hw2/u4fcp_sim/out/openMMC.elf
+sysbus.usart1 CreateFileBackend @/tmp/renode_uart.txt
+start
+sleep 6
+quit
