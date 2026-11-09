@@ -80,6 +80,7 @@ endif()
 option(CLOCK_STORE "Clock configuration store in flash (FRU slots) over IPMI" OFF)
 if (CLOCK_STORE)
   list(APPEND TARGET_MODULES "CLOCK_STORE")
+  set(PROJ_SRCS ${PROJ_SRCS} ${CMAKE_SOURCE_DIR}/modules/idt_8v54816.c)
 endif()
 
 option(I2C_ACCESS "Enable generic I2C transfers over IPMI" OFF)

@@ -40,7 +40,19 @@
  */
 
 #include "ipmi.h"
+#if defined(MODULE_EEPROM_24XX512)
+#include "eeprom_24xx512.h"
+#define ee_read(id, addr, buf, len, t)        eeprom_24xx512_read(id, addr, buf, len, t)
+#define ee_write(id, addr, buf, len, t)       eeprom_24xx512_write(id, addr, buf, len, t)
+#define ee_read_at(id, i2c, addr, buf, n, t)  eeprom_24xx512_read_at(id, i2c, addr, buf, n, t)
+#define ee_write_at(id, i2c, addr, buf, n, t) eeprom_24xx512_write_at(id, i2c, addr, buf, n, t)
+#else
 #include "eeprom_24xx02.h"
+#define ee_read(id, addr, buf, len, t)        eeprom_24xx02_read(id, addr, buf, len, t)
+#define ee_write(id, addr, buf, len, t)       eeprom_24xx02_write(id, addr, buf, len, t)
+#define ee_read_at(id, i2c, addr, buf, n, t)  eeprom_24xx02_read_at(id, i2c, addr, buf, n, t)
+#define ee_write_at(id, i2c, addr, buf, n, t) eeprom_24xx02_write_at(id, i2c, addr, buf, n, t)
+#endif
 #include "i2c_mapping.h"
 
 #define EEPROM_ACCESS_CHIP        CHIP_ID_EEPROM
@@ -77,7 +89,7 @@ IPMI_HANDLER(ipmi_eeprom_access_write, NETFN_CUSTOM, IPMI_CUSTOM_CMD_EEPROM_WRIT
         return;
     }
 
-    if ( eeprom_24xx02_write( EEPROM_ACCESS_CHIP, addr, &req->data[2], len,
+    if ( ee_write( EEPROM_ACCESS_CHIP, addr, &req->data[2], len,
                               (uint32_t)pdMS_TO_TICKS( 200 ) ) != len )
     {
         rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
@@ -115,7 +127,7 @@ IPMI_HANDLER(ipmi_eeprom_access_read, NETFN_CUSTOM, IPMI_CUSTOM_CMD_EEPROM_READ,
         return;
     }
 
-    if ( eeprom_24xx02_read( EEPROM_ACCESS_CHIP, addr, rsp->data, len,
+    if ( ee_read( EEPROM_ACCESS_CHIP, addr, rsp->data, len,
                              (uint32_t)pdMS_TO_TICKS( 200 ) ) != len )
     {
         rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
@@ -165,7 +177,7 @@ IPMI_HANDLER(ipmi_eeprom_access_write_at, NETFN_CUSTOM, IPMI_CUSTOM_CMD_EEPROM_W
      * (200 x write timeout) and block the IPMI task for seconds. */
     {
         uint8_t probe;
-        if ( eeprom_24xx02_read_at( EEPROM_ACCESS_CHIP, i2c_addr, addr, &probe, 1,
+        if ( ee_read_at( EEPROM_ACCESS_CHIP, i2c_addr, addr, &probe, 1,
                                     (uint32_t)pdMS_TO_TICKS( 200 ) ) != 1 )
         {
             rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
@@ -173,7 +185,7 @@ IPMI_HANDLER(ipmi_eeprom_access_write_at, NETFN_CUSTOM, IPMI_CUSTOM_CMD_EEPROM_W
         }
     }
 
-    if ( eeprom_24xx02_write_at( EEPROM_ACCESS_CHIP, i2c_addr, addr, &req->data[3], len,
+    if ( ee_write_at( EEPROM_ACCESS_CHIP, i2c_addr, addr, &req->data[3], len,
                                  (uint32_t)pdMS_TO_TICKS( 200 ) ) != len )
     {
         rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
@@ -218,7 +230,7 @@ IPMI_HANDLER(ipmi_eeprom_access_read_at, NETFN_CUSTOM, IPMI_CUSTOM_CMD_EEPROM_RE
         return;
     }
 
-    if ( eeprom_24xx02_read_at( EEPROM_ACCESS_CHIP, i2c_addr, addr, rsp->data, len,
+    if ( ee_read_at( EEPROM_ACCESS_CHIP, i2c_addr, addr, rsp->data, len,
                                 (uint32_t)pdMS_TO_TICKS( 200 ) ) != len )
     {
         rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;

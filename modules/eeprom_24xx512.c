@@ -145,3 +145,72 @@ size_t eeprom_24xx512_write(uint8_t id, uint16_t address, uint8_t *tx_data, size
 
   return tx_len;
 }
+
+size_t eeprom_24xx512_read_at(uint8_t id, uint8_t i2c_addr_override, uint16_t address,
+                              uint8_t *rx_data, size_t buf_len, TickType_t timeout)
+{
+    uint8_t i2c_addr, i2c_interface;
+    size_t rx_len = 0;
+    uint8_t addr8[2];
+
+    if (rx_data == NULL || buf_len == 0) {
+        return 0;
+    }
+    for (uint8_t attempt = 0; attempt < 10; attempt++) {
+        if (i2c_take_by_chipid(id, &i2c_addr, &i2c_interface, timeout)) {
+            size_t n = (buf_len > 255) ? 255 : buf_len;
+            addr8[0] = (address >> 8) & 0xFF;
+            addr8[1] = (address) & 0xFF;
+            rx_len = xI2CMasterWriteRead(i2c_interface, i2c_addr_override, addr8, 2, rx_data, n);
+            i2c_give(i2c_interface);
+            if (rx_len == n) {
+                break;
+            }
+            vI2CBusRecover(i2c_interface);
+        }
+        if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } else {
+            for (volatile uint32_t d = 0; d < 20000; d++) { }
+        }
+    }
+    return rx_len;
+}
+
+size_t eeprom_24xx512_write_at(uint8_t id, uint8_t i2c_addr_override, uint16_t address,
+                               uint8_t *tx_data, size_t buf_len, TickType_t timeout)
+{
+    uint8_t i2c_addr, i2c_interface;
+    uint8_t page_buf[EEPROM_PAGE_SIZE + 2];
+    uint8_t i2c_written = 0;
+    size_t tx_len = 0;
+    uint16_t curr_addr = address;
+
+    if (tx_data == NULL) {
+        return 0;
+    }
+    while (tx_len < buf_len) {
+        uint8_t bytes_to_write = EEPROM_PAGE_SIZE - (curr_addr % EEPROM_PAGE_SIZE);
+        if (bytes_to_write > (buf_len - tx_len)) {
+            bytes_to_write = (buf_len - tx_len);
+        }
+        page_buf[0] = (curr_addr >> 8) & 0xFF;
+        page_buf[1] = (curr_addr) & 0xFF;
+        memcpy(&page_buf[2], tx_data + tx_len, bytes_to_write);
+        if (i2c_take_by_chipid(id, &i2c_addr, &i2c_interface, timeout)) {
+            i2c_written = xI2CMasterWrite(i2c_interface, i2c_addr_override,
+                                          &page_buf[0], bytes_to_write + 2);
+            if (i2c_written >= 2) {
+                tx_len += i2c_written - 2;
+                curr_addr += i2c_written - 2;
+            }
+            i2c_give(i2c_interface);
+        }
+        if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } else {
+            for (volatile uint32_t d = 0; d < 20000; d++) { }
+        }
+    }
+    return tx_len;
+}
