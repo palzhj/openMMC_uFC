@@ -1,6 +1,6 @@
-import zlib
 #!/usr/bin/env python3
 """
+
 fru_core.py -- FRU EEPROM access backend (IPMI raw commands 0x32/0x12, 0x13).
 
 The MMC exposes raw FRU EEPROM access through the custom NetFn 0x32 commands
@@ -15,6 +15,9 @@ The area size must stay within the EEPROM's writable area.
 
 Requires the firmware to be built with -DEEPROM_ACCESS=ON.
 """
+
+import time
+import zlib
 
 import datetime
 import os
