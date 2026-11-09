@@ -156,6 +156,21 @@ int uart1_write_str_blocking(const char *buffer)
  * to the application's reset handler to begin execution. Interrupts are
  * disabled during this process to ensure a smooth transition.
  */
+/* Branch to the application without touching the stack afterwards: the
+ * compiler's normal epilogue would pop from the freshly loaded MSP. */
+__attribute__((naked, noreturn)) static void jump_to_app_sp(uint32_t sp, uint32_t pc)
+{
+  __asm volatile (
+    "mov r2, #0\n"
+    "msr control, r2\n"
+    "msr msp, r0\n"
+    "msr psp, r0\n"
+    "dsb\n"
+    "isb\n"
+    "bx  r1\n"
+  );
+}
+
 void bootloader_jump_to_app(void)
 {
   /* __AppFlash_start is a single linker symbol (uint32_t). Indexing it as
@@ -168,30 +183,10 @@ void bootloader_jump_to_app(void)
   uint32_t app_pc = vec[1];
   typedef void (*pfun)(void);
   static pfun jumpToApp;
-  char hexbuf[3];
-
-  /* Diagnostic: print the jump target repeatedly so a host capture can see it */
-  for (int rep = 0; rep < 5; rep++)
-  {
-    uart1_write_str_blocking("[BOOTLOADER] jump app=");
-    for (int i = 3; i >= 0; i--) uart1_write_str_blocking(u8_to_str((uint8_t)(app_addr >> (8*i)), hexbuf));
-    uart1_write_str_blocking(" SP=");
-    for (int i = 3; i >= 0; i--) uart1_write_str_blocking(u8_to_str((uint8_t)(app_sp >> (8*i)), hexbuf));
-    uart1_write_str_blocking(" PC=");
-    for (int i = 3; i >= 0; i--) uart1_write_str_blocking(u8_to_str((uint8_t)(app_pc >> (8*i)), hexbuf));
-    uart1_write_str_blocking("\r\n");
-    for (volatile uint32_t d = 0; d < 200000; d++);
-  }
-
-  // Disable interrupts to ensure a smooth transition
-  __set_PRIMASK(1);
 
   if ((app_sp & 0x2FFE0000) == 0x20000000)
   {
-    jumpToApp = (pfun)app_pc;
-    __set_PSP(app_sp);
-    __set_MSP(app_sp);
-    jumpToApp();
+    jump_to_app_sp(app_sp, app_pc);
   }
   else
   {

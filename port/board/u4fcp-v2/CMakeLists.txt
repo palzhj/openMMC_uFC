@@ -59,6 +59,8 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
 endif()
 
 #Extra definitions
+# 20 KB SRAM: 12 KB FreeRTOS heap leaves a ~6 KB main/exception stack
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DconfigTOTAL_HEAP_SIZE=12288" PARENT_SCOPE)
 if (FRU_WRITE_EEPROM)
   message(STATUS "FRU EEPROM will be written if no valid data is found!")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_WRITE_EEPROM")
