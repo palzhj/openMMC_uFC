@@ -93,7 +93,7 @@ endif()
 set(MODULES_FLAGS "${MODULES_FLAGS} -DEEPROM_24CM01")
 # 64 KB flash: the application region is 55 KB (no staging), so compile for
 # size and keep the FRU in the EEPROM (+ compiled FRU fallback).
-option(FRU_USE_COMPILED "Build the FRU from user_amc_fru.h instead of reading the EEPROM" ON)
+option(FRU_USE_COMPILED "Build the FRU from user_amc_fru.h instead of reading the EEPROM" OFF)
 if (FRU_USE_COMPILED)
   set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_USE_COMPILED")
 endif()

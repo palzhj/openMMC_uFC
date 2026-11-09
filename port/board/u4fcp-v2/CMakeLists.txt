@@ -81,8 +81,10 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
 endif()
 
 #Extra definitions
-# Serve the FRU built from user_amc_fru.h (the board's factory image).
-option(FRU_USE_COMPILED "Build the FRU from user_amc_fru.h instead of reading the EEPROM" ON)
+# The board stores its FRU (with the per-unit serial) in the CAT24C512;
+# user_amc_fru.h is only the factory fallback used when the EEPROM has no
+# valid FRU, so the EEPROM must be the primary source (OFF).
+option(FRU_USE_COMPILED "Build the FRU from user_amc_fru.h instead of reading the EEPROM" OFF)
 if (FRU_USE_COMPILED)
   set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_USE_COMPILED")
 endif()

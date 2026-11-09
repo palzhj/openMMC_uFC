@@ -44,7 +44,11 @@ What it does:
    and `fw_info` (`0x0801FC00`, 8 bytes) cleared to `0xFFFFFFFF` so the
    bootloader boots the application instead of a stale staging image.
 2. **Waits** for the MMC to answer at `0x70 + 2*slot` through the MCH bridge.
-3. **FRU** — `program_fru.py` builds the image from `fru_template.bin`
+3. **FRU** — the MMC serves its FRU from the CAT24C512 (`FRU_USE_COMPILED`
+   is OFF; `user_amc_fru.h` is only the factory fallback used when the EEPROM
+   holds no valid FRU, so the board still boots in the crate with a blank
+   EEPROM and reports the factory values). `program_fru.py` builds the image
+   from `fru_template.bin`
    (header + board/product areas + the 100‑byte multi‑record area with the
    point‑to‑point/clock/module‑current records), sets the board and product
    serials to the argument and the manufacturing time to now, writes the

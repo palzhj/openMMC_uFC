@@ -683,6 +683,24 @@ def build_image(parsed, values, limit=FRU_MAX_SIZE):
         multi[rel + 10] = mc_val
         multi[rel + 3] = (multi[rel + 3] - (mc_val - old)) & 0xFF
         multi = bytes(multi)
+    # Normalise the multi-record checksums: the HPM/IPMI spec requires each
+    # record header (type, format/end, length, record checksum, header
+    # checksum) to sum to zero, and the record body plus its checksum too.
+    if multi:
+        multi = bytearray(multi)
+        pos = 0
+        while pos + 5 <= len(multi):
+            typ, fmt, ln = multi[pos], multi[pos + 1], multi[pos + 2]
+            if ln > len(multi) - pos - 5:
+                break
+            body = multi[pos + 5:pos + 5 + ln]
+            multi[pos + 3] = (-sum(body)) & 0xFF
+            multi[pos + 4] = (-(typ + fmt + ln + multi[pos + 3])) & 0xFF
+            pos += 5 + ln
+            if fmt & 0x80:       # end-of-list bit
+                break
+        multi = bytes(multi)
+
     multi_off = product_off + len(product)
     header[5] = (multi_off // 8) if multi else 0
     header[6] = 0x00
