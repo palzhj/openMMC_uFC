@@ -349,16 +349,16 @@ class FruEditor(tk.Tk):
         dev.pack(side="left", padx=(10, 0))
         self._hint(dev, "Write the loaded table to the Si5345 RAM over I2C - "
                         "immediate, lost on power-cycle")
-        fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
-        fl.pack(side="left", padx=(6, 0))
-        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
-                       "applied automatically at the next power-on")
         ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
         self.slot_sel = tk.StringVar(value="auto")
         slotsel = ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
                                width=5, state="readonly")
         slotsel.pack(side="left")
         self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
+        fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
+        fl.pack(side="left", padx=(6, 0))
+        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
+                       "applied automatically at the next power-on")
         applyb = ttk.Button(row2, text="Activate stored config", command=self.store_apply)
         applyb.pack(side="left", padx=(8, 0))
         self._hint(applyb, "Read the stored slot from flash and activate it now "
