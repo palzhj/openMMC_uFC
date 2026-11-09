@@ -41,9 +41,28 @@
 #include "port.h"
 #include "i2c.h"
 
+/* AT24CM01 (1 Mbit, 128 KB): 256-byte pages and a 17th address bit that
+ * lives in the I2C device address (A16). The 24C512 is 64 KB, 128-byte
+ * pages with 16 address bits. */
+#if defined(EEPROM_24CM01)
+#define EEPROM_PAGE_SIZE 256
+#define EEPROM_ADDR_BITS 17
+#else
 #define EEPROM_PAGE_SIZE 128
+#define EEPROM_ADDR_BITS 16
+#endif
 
 size_t eeprom_24xx512_read(uint8_t id, uint16_t address, uint8_t *rx_data, size_t buf_len, TickType_t timeout)
+{
+  return eeprom_24xx512_read32(id, (uint32_t)address, rx_data, buf_len, timeout);
+}
+
+size_t eeprom_24xx512_write(uint8_t id, uint16_t address, uint8_t *tx_data, size_t buf_len, TickType_t timeout)
+{
+  return eeprom_24xx512_write32(id, (uint32_t)address, tx_data, buf_len, timeout);
+}
+
+size_t eeprom_24xx512_read32(uint8_t id, uint32_t address, uint8_t *rx_data, size_t buf_len, TickType_t timeout)
 {
   uint8_t i2c_addr;
   uint8_t i2c_interface;
@@ -63,10 +82,14 @@ size_t eeprom_24xx512_read(uint8_t id, uint16_t address, uint8_t *rx_data, size_
       if (bytes_to_read > 255) {
         bytes_to_read = 255;
       }
-      addr8[0] = ((address + rx_len) >> 8) & 0xFF;
-      addr8[1] = (address + rx_len) & 0xFF;
+      uint32_t a = address + rx_len;
+      addr8[0] = (a >> 8) & 0xFF;
+      addr8[1] = a & 0xFF;
       if (i2c_take_by_chipid(id, &i2c_addr, &i2c_interface, timeout))
       {
+#if (EEPROM_ADDR_BITS > 16)
+        i2c_addr |= (uint8_t)((a >> 16) & 1u);   /* A16 lives in the slave address */
+#endif
         i2c_read = xI2CMasterWriteRead(i2c_interface, i2c_addr, addr8, 2,
                                        rx_data + rx_len, bytes_to_read);
         /* When trying to read, the EEPROM will reply with NACKs if it's busy.
@@ -92,13 +115,13 @@ size_t eeprom_24xx512_read(uint8_t id, uint16_t address, uint8_t *rx_data, size_
   return rx_len;
 }
 
-size_t eeprom_24xx512_write(uint8_t id, uint16_t address, uint8_t *tx_data, size_t buf_len, TickType_t timeout)
+size_t eeprom_24xx512_write32(uint8_t id, uint32_t address, uint8_t *tx_data, size_t buf_len, TickType_t timeout)
 {
   uint8_t i2c_addr;
   uint8_t i2c_interface;
   uint8_t bytes_to_write;
   uint8_t page_buf[EEPROM_PAGE_SIZE+2];
-  uint16_t curr_addr;
+  uint32_t curr_addr;
   uint8_t i2c_written = 0;
   size_t tx_len = 0;
 
@@ -121,6 +144,9 @@ size_t eeprom_24xx512_write(uint8_t id, uint16_t address, uint8_t *tx_data, size
 
       if (i2c_take_by_chipid(id, &i2c_addr, &i2c_interface, timeout))
       {
+#if (EEPROM_ADDR_BITS > 16)
+        i2c_addr |= (uint8_t)((curr_addr >> 16) & 1u);
+#endif
         /* Write the data */
         i2c_written = xI2CMasterWrite(i2c_interface, i2c_addr, &page_buf[0], bytes_to_write + 2);
         /* When trying to write, the EEPROM will reply with NACKs if it's busy.

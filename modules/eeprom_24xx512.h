@@ -50,6 +50,9 @@
 size_t eeprom_24xx512_read_at( uint8_t id, uint8_t i2c_addr, uint16_t address, uint8_t *rx_data, size_t buf_len, TickType_t timeout );
 size_t eeprom_24xx512_write_at( uint8_t id, uint8_t i2c_addr, uint16_t address, uint8_t *tx_data, size_t buf_len, TickType_t timeout );
 
+size_t eeprom_24xx512_read32( uint8_t id, uint32_t address, uint8_t *rx_data, size_t buf_len, uint32_t timeout );
+size_t eeprom_24xx512_write32( uint8_t id, uint32_t address, uint8_t *tx_data, size_t buf_len, uint32_t timeout );
+
 size_t eeprom_24xx512_read( uint8_t id, uint16_t address, uint8_t *rx_data, size_t buf_len, uint32_t timeout );
 
 /**

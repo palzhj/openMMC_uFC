@@ -84,6 +84,9 @@ if (I2C_ACCESS)
 endif()
 
 #Extra definitions
+# v1 populates an AT24CM01 (1 Mbit = 128 KB, 256-byte pages, 17 address bits:
+# A16 is carried in the slave address, so the upper 64 KB uses 0x55).
+set(MODULES_FLAGS "${MODULES_FLAGS} -DEEPROM_24CM01")
 # 64 KB flash: the application region is 55 KB (no staging), so compile for
 # size and keep the FRU in the EEPROM (+ compiled FRU fallback).
 option(FRU_USE_COMPILED "Build the FRU from user_amc_fru.h instead of reading the EEPROM" ON)
