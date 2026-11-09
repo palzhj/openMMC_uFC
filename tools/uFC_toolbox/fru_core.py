@@ -346,6 +346,33 @@ def build_clock_slot(matrix, si_groups=None, seq=1):
     return bytes(hdr) + bytes(fru)
 
 
+def read_si5345(access, groups, progress=None):
+    """Read the registers listed in groups (pre/body/post) from the device.
+
+    Returns {section: [(addr, value)]} using page-aware 8-bit addressing.
+    """
+    out = {"pre": [], "body": [], "post": []}
+    page = None
+    n = 0
+    for section in ("pre", "body", "post"):
+        for addr, _old in groups.get(section, []):
+            reg = addr & 0xFF
+            if reg == 0x01:
+                val = access.xfer(1, [(0x70, 2)], 0x69, bytes([0x01]), 1)[0]
+                page = val
+            else:
+                p = addr >> 8
+                if page != p:
+                    access.xfer(1, [(0x70, 2)], 0x69, bytes([0x01, p]))
+                    page = p
+                val = access.xfer(1, [(0x70, 2)], 0x69, bytes([reg]), 1)[0]
+            out[section].append((addr, val))
+            n += 1
+            if progress and n % 64 == 0:
+                progress(n)
+    return out
+
+
 def upload_clock_slot(access, slot, slot_index=0xFF, progress=None):
     """Upload a slot with begin/block/finish; returns the finish response.
 
