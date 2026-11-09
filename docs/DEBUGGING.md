@@ -9,7 +9,7 @@ other boards.
 * **Boot chain (current):** newboot `0x08000000` → openMMC `0x08002000`
   (flash map: 8 KB newboot / 50 KB app / 50 KB staging / 19 KB clock config /
   1 KB fw_info — see USER_MANUAL §4; addresses quoted in older entries below
-  reflect the layout at the time of that entry) (OpenBLT was dropped after bring-up; the notes below are historical)
+  reflect the layout at the time of that entry) (the notes below are historical)
 * **Bench:** N6705C CH4 (12 V), USART1 115200, IPMI HPM OTA, Renode
 * **Toolchain:** arm‑none‑eabi‑gcc 14.2.1, CMake 4.2.3
 
@@ -21,7 +21,6 @@ other boards.
 |---|---|---|---|
 | C1 | Unsure which MCU was fitted | Part marking alone is unreliable | Read `DBGMCU_IDCODE` + flash‑size register in firmware |
 | C2 | Board completely silent on the console | App never executed (see C2a–C2d) | — |
-| C2a | Bootloader reported “jump” but nothing ran | Newboot startup lacked the OpenBLT vector‑table checksum word at `0x080021D0` | Added `0x55AA11EE` slot |
 | C2b | Jump to app landed on a bogus address | `bootloader_jump_to_app()` used `*(app_start_addr+1)` (undefined behaviour); at `-Os` GCC loaded the stack pointer as the entry point | Volatile vector loads |
 | C2c | App erased immediately after flashing | `fw_info` held the “pending update” magic `0xAAAAAAAA` with an empty staging area | Cleared `0x0801FF00–0x0801FFFF` to `0xFF` |
 | C2d | Still no output after the jump was fixed | Deviations from the known‑good u4FCP port: `SystemInit` early‑return, `uart_send` TXE instead of TC, pre‑`pin_init` printf, `-Os` | Restored u4FCP parity (`-Og`, standard `SystemInit`, TC flush) |
@@ -48,21 +47,6 @@ FLASH_KB=128 DEV_ID=10032 REV_ID=116
 * `FLASH_KB` — `*(uint16_t*)0x1FFFF7E0`
 * `DEV_ID` — `DBGMCU_IDCODE & 0xFFF` at `0xE0042000` (0x420 = STM32F10x value line)
 * 128 KB flash + value line ⇒ **STM32F100CBT6**
-
-### C2a — The OpenBLT vector‑table checksum
-
-OpenBLT verifies the application's vector table using a checksum stored at
-`BOOT_FLASH_VECTOR_TABLE_CS_OFFSET (0x1D0)` inside the vector table
-(absolute `0x080021D0` for an app/newboot at `0x08002000`). The bootloader
-overwrites that word after every update. A newboot built from a plain startup
-file has no such slot, so OpenBLT refuses to start it.
-
-The startup file gets 44 zero words + `0x55AA11EE` appended, which places
-`0x55AA11EE` exactly at `0x080021D0`. Verified with `objdump`:
-
-```
-080021d0:  ee11aa55
-```
 
 ### C2b — Undefined behaviour in the jump
 
