@@ -342,6 +342,28 @@ uint8_t ucd_write_word(ucd_data_t *data, uint8_t reg_addr, uint16_t *written)
  *
  * @return The converted SDR value as a 16-bit unsigned integer.
  */
+
+/* Integer-friendly replacements for pow(): the PMBus exponents are small
+ * integers, so 10^e and 2^e don't need the double-precision libm. */
+static float ucd_pow10(int8_t e)
+{
+  float r = 1.0f;
+  if (e >= 0) {
+    while (e--) r *= 10.0f;
+  } else {
+    while (e++) r /= 10.0f;
+  }
+  return r;
+}
+
+static float ucd_scale_pow2(int16_t value, int8_t e)
+{
+  if (e >= 0) {
+    return (float)((int32_t)value << e);
+  }
+  return (float)value / (float)(1u << (-e));
+}
+
 uint16_t pmbus2sdr_convert(ucd_data_t *data, float value)
 {
   if(value < 0) value = 0;
@@ -359,7 +381,7 @@ uint16_t pmbus2sdr_convert(ucd_data_t *data, float value)
   int8_t Bexp = (uBexp > 0x7) ? uBexp - 0x10 : uBexp;
 
   /* Calculate the converted value using the linearization formula */
-  float converted_value = (value / pow(10, Rexp) - B * pow(10, Bexp)) / M;
+  float converted_value = (value / ucd_pow10(Rexp) - (float)B * ucd_pow10(Bexp)) / (float)M;
   /* Return the result as a 16-bit unsigned integer */
   return (uint16_t)converted_value;
 }
@@ -397,7 +419,7 @@ void ucd_read_voltages(ucd_data_t *data)
 
   /* Calculate the actual voltage value based on the mode */
   /* Nominal reading Voltage = adc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
-  data->sensor->readout_value = pmbus2sdr_convert(data, adc * pow(2, M_exp));
+  data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(adc, M_exp));
 
   /* Optionally, print debug information */
   // #ifdef DEBUG
@@ -436,7 +458,7 @@ void ucd_read_current(ucd_data_t *data)
 
     /* Calculate the actual current value based on the mode */
     /* Nominal reading current = iadc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
-    data->sensor->readout_value = pmbus2sdr_convert(data, iadc * pow(2, M_exp));
+    data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(iadc, M_exp));
 
     /* Optionally, print debug information */
     // #ifdef DEBUG
@@ -481,7 +503,7 @@ void ucd_read_temperature(ucd_data_t *data)
 
   /* Calculate the actual temperature value based on the mode */
   /* Nominal reading temperature = iadc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
-  data->sensor->readout_value = pmbus2sdr_convert(data, iadc * pow(2, M_exp));
+  data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(iadc, M_exp));
 
   /* Optionally, print debug information */
   // #ifdef DEBUG
