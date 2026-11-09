@@ -1,7 +1,8 @@
-# openMMC — uFC‑v2 build guide
+# openMMC — build guide (uFC‑v2 · u4FCP‑v1 · u4FCP‑v2)
 
-Firmware build and flashing notes for the **uFC‑v2** MMC
-(STM32F100CBT6, Cortex‑M3 value line, 8 KB SRAM).
+Firmware build and flashing notes for the three AMC MMC ports in this tree. The
+drivers (`modules/`, `port/ucontroller/`) are shared; each board only supplies
+its `port/board/<board>/` mapping, its linker script and its build options.
 
 ---
 
@@ -25,18 +26,32 @@ so CMake 4.x configures without any extra flags (the old
 Out‑of‑source build, one directory per board:
 
 ```bash
-cd openMMC_uFC
-mkdir -p build && cd build
+# uFC-v2      STM32F100CBT6  128 KB flash / 8 KB SRAM
+cmake -S . -B build-ufc -DBOARD=ufc-v2 \
+      -DTARGET_CONTROLLER=STM32F100CBT6 \
+      -DUART_DEBUG=ON -DCMAKE_BUILD_TYPE=Debug
 
-cmake .. \
-  -DBOARD=ufc-v2
+# u4FCP-v1    STM32F103C8T6   64 KB flash / 20 KB SRAM
+cmake -S . -B build-u4fcp-v1 -DBOARD=u4fcp-v1 \
+      -DTARGET_CONTROLLER=STM32F103C8T6 \
+      -DOPTIMIZE_SIZE=ON -DCMAKE_BUILD_TYPE=Release
+
+# u4FCP-v2    STM32F103CBT6  128 KB flash / 20 KB SRAM
+cmake -S . -B build-u4fcp-v2 -DBOARD=u4fcp-v2 \
+      -DTARGET_CONTROLLER=STM32F103CBT6 \
+      -DCMAKE_BUILD_TYPE=Release
 ```
 
 Notes:
 
-- `-DBOARD=ufc-v2` selects `port/board/ufc-v2/`.
-- The board revision is part of the board directory; no `-DVERSION` flag is used
-  for the uFC family.
+- `-DBOARD=` selects `port/board/<board>/`; `-DTARGET_CONTROLLER=` picks the
+  MCU and the linker script (`port/ucontroller/stm32/stm32f1xx/linker/`).
+- `-DOPTIMIZE_SIZE=ON` compiles with `-Os`; needed for the 64 KB v1 (the
+  application is 41 KB at `-Os`).
+- The u4FCP boards enable the vendor extensions by default (`EEPROM_ACCESS`,
+  `I2C_ACCESS`, `CLOCK_PROGRAM`, `CLOCK_STORE`) and serve the FRU from
+  `user_amc_fru.h` (`FRU_USE_COMPILED=ON`, switch off for the EEPROM image).
+- The board revision is part of the board directory; no `-DVERSION` flag is used.
 - Debug build: add `-DCMAKE_BUILD_TYPE=Debug`.
 - Debug console: add `-DUART_DEBUG=ON` to route `printf` to USART1
   (PA9/PA10, 115200).
@@ -63,29 +78,35 @@ Use `make clean`, or delete the build directory, if anything looks stale.
 | File | Description | Flash address |
 |---|---|---|
 | `openMMC.elf` / `.bin` / `.srec` | application firmware | `0x08002000` |
-| `newboot.elf` / `.bin` / `.srec` | bootloader (`newboot`) | `0x08002000` |
-| `STM32F100CBT6_app.map` | application linker map | — |
+| `newboot.elf` / `.bin` / `.srec` | first stage (newboot) | `0x08000000` |
+| `STM32F100CBT6_app.map` / `STM32F103C8T6_app.map` / `STM32F103CBT6_app.map` | application linker map (per controller) | — |
 
 ---
 
-## 5. Memory budget (uFC‑v2, release, `-Os`)
+## 5. Memory budget (release builds)
 
-| Region | Used | Limit |
-|---|---|---|
-| Flash (`text + data`) | 21,664 B | 51,200 B (50 KB app region) |
-| RAM (`.data` 200 + heap 5,632 + `.bss` 808 + stack reserve 512) | 7,152 B | 8,192 B |
-| RAM free | 1,040 B | — |
+| board | `text + data` | application region | build |
+|---|---|---|---|
+| uFC‑v2 | 30,856 B | 50 KB (`0x08002000–0x0800E7FF`) | `-O3` |
+| u4FCP‑v1 | 41,196 B | 55 KB (`0x08002000–0x0800FBFF`) | `-Os` |
+| u4FCP‑v2 | 48,948 B | 59.5 KB (`0x08002000–0x08010DFF`) | `-O3` |
 
-The uFC‑v2 release build is forced to `-Os -ffunction-sections -fdata-sections`
-(`port/board/CMakeLists.txt`). `ucHeap` is in `.noinit_RAM2`, a `NOLOAD` section,
-so it costs no flash. `_Min_Heap_Size` is 0 (the C-library heap is unused; all
-allocation goes through `pvPortMalloc`).
+RAM:
 
-**Renode verification (1.17, STM32F103 platform + GDB):** boot reaches
-`vTaskStartScheduler` with **1,224 B** heap free, creates all **5 tasks + the
-idle task**, and `vTaskPayload` runs with **736 B** heap free. The platform has
-no RCC model, so `SystemInit()` was skipped under GDB (emulator limitation, not
-a firmware issue).
+| board | SRAM | FreeRTOS heap (`.noinit_RAM2`) | main stack (approx.) |
+|---|---|---|---|
+| uFC‑v2 | 8 KB | 5,632 B | ~1.5 KB |
+| u4FCP‑v1/v2 | 20 KB | 12,288 B | ~6.4 KB |
+
+`ucHeap` lives in `.noinit_RAM2`, a `NOLOAD` section, so it costs no flash.
+`_Min_Heap_Size` is 0 (the C-library heap is unused; all allocation goes
+through `pvPortMalloc`). Boot‑time `[RAM]` diagnostics (`-DUSE_RAM_DIAG`,
+enabled on the u4FCP boards) print the free heap after each init step; the
+u4FCP‑v2 starts at 11,376 B free and has ~4,000 B left after `ipmi_init`.
+
+**Renode:** a board can be built for the emulator with `-DRENODE_SIM=ON`
+(skips the RCC init and the FRU EEPROM read, which Renode cannot model); see
+`tools/renode/`.
 
 ### Feature pruning (uFC‑v2)
 
@@ -204,75 +225,60 @@ hardware.
 
 ---
 
-## 6. Flash layout (STM32F100CBT6)
+## 6. Flash layouts
 
-From `port/ucontroller/stm32/stm32f1xx/linker/STM32F100CBT6_*.ld`:
+| board | newboot | application | staging | clock store | `fw_info` |
+|---|---|---|---|---|---|
+| **uFC‑v2** (128 KB) | 8 KB `0x08000000` | 50 KB `0x08002000` | 50 KB `0x0800E800` | flash 19 KB `0x0801B000` | `0x0801FC00` 1 KB |
+| **u4FCP‑v2** (128 KB) | 8 KB `0x08000000` | **59.5 KB** `0x08002000` | **59.5 KB** `0x08010E00` | EEPROM | `0x0801FC00` 1 KB |
+| **u4FCP‑v1** (64 KB) | 8 KB `0x08000000` | **55 KB** `0x08002000` | — (EEPROM staging) | EEPROM | `0x0800FC00` 1 KB |
 
-| Region | Start | End | Size | Contents |
-|---|---|---|---|---|
-| **newboot** (first stage) | `0x08000000` | `0x08001FFF` | 8 KB | do not erase/program |
-| Bootloader (`newboot`) | `0x08002000` | `0x08003FFF` | 8 KB | VTOR `0x08002000` |
-| Application (`openMMC`) | `0x08002000` | `0x0800E7FF` | 50 KB | VTOR `0x08002000` |
-| FW update staging | `0x0800E800` | `0x0801AFFF` | 50 KB | new image |
-| `fw_info` record | `0x0801FC00` | `0x0801FFFF` | 1 KB page (256 B record) | `version[3]`, `fw_type`, magic `0xAAAAAAAA` |
+The uFC keeps the clock configuration in flash (`STM32F100CBT6_app.ld`,
+`__ClockConfig_*` at `0x0801B000–0x0801FBFF`: 1 KB pointer + 9 KB A/B slots).
+The u4FCP boards store it in their board EEPROM instead (pointer `0x200`,
+slots A/B at `0x300`/`0x1B00`, 6 KB each, slave 0x54), which is why their flash
+app/staging regions are larger. The v1 has no flash staging at all: a 64 KB
+part cannot hold two 41 KB images, so its update staging lives in the
+AT24CM01's upper 64 KB (see `port/board/u4fcp-v1/README.md`).
 
-> **Flash size:** the layout reserves 128 KB, matching the STM32F100CBT6.
-> The application (ends `0x080094A0`) and the update staging region
-> (`0x0800E800–0x0801AFFF`), the clock region (`0x0801B000–0x0801FBFF`) and
-> `fw_info` at `0x0801FC00` all fit.
+Vector table (word 0 = initial SP, word 1 = reset handler, Thumb bit cleared):
 
-Vector table word 0/1 (verified from the build; the low bit is the Thumb bit, symbols are `0x080026FC` / `0x080043DC`):
-
-| Image | Initial SP | Reset_Handler |
+| image | SP | reset |
 |---|---|---|
-| `newboot.bin` | `0x20002000` | `0x080026FD` |
-| `openMMC.bin` | `0x20002000` | `0x080043DD` |
+| uFC newboot | `0x20002000` | `0x080007E4` |
+| uFC app | `0x20002000` | `0x08002380` |
+| u4FCP newboot | `0x20005000` | `0x080007C0` |
+| u4FCP app | `0x20005000` | `0x080032F8` |
 
-RAM (8 KB at `0x20000000`):
-
-```
-openMMC : .data 0x20000000-0x200000BF  ucHeap 0x200000C0-0x200016BF
-          .bss  0x200016C0-0x200019E7  reserve 0x200019E8-0x20001BE7
-          free  to 0x20002000 (1,040 B)
-newboot : .data 0x20000000-0x20000003  .bss 0x20000004-0x20000023
-          reserve 0x20000024-0x20000423
-          free  to 0x20002000 (7,132 B)
-```
-
-Flash pages are 1 KB (`FLASH_PAGE_SIZE 0x400` on MD_VL).
-
-⚠️ **The first 8 KB is newboot** (built from this tree). Never erase or
-program `0x08000000–0x08001FFF` unless you are updating newboot: the STM32F1
-resets through newboot there, which then starts the application at
-`0x08002000`.
-
----
+Flash pages are 1 KB on both MCU families. ⚠️ **The first 8 KB is newboot**
+(built from this tree): never erase or program `0x08000000–0x08001FFF` unless
+you are updating newboot — the STM32F1 resets through it and it then starts the
+application at `0x08002000`.
 
 ## 7. Flashing
 
 ### J-Link (bench)
 
-```bash
-JLinkExe -device STM32F100CB -if SWD -speed 1000 -CommanderScript flash.jlink
-```
-
-`flash.jlink`:
+The board-specific helper lives in `tools/firmware/<board>/` (`flash.jlink` +
+`flash-jlink.sh`). The `loadfile` addresses are the same for all boards; only
+the `device` line differs:
 
 ```
-device STM32F100CB
+device STM32F100CB     # uFC-v2  (STM32F103CB for u4FCP-v2, STM32F103C8 for u4FCP-v1)
 si SWD
 speed 1000
 VTREF 3300
 connect
-loadfile newboot.bin 0x08002000
+loadfile newboot.bin 0x08000000
 loadfile openMMC.bin 0x08002000
 r
 g
 q
 ```
 
-- `loadfile` erases only the sectors it writes; `0x08000000–0x08001FFF`
-  (newboot) is untouched.
+- `loadfile` writes only the bytes it carries: newboot at `0x08000000`, the
+  application at `0x08002000`; the staging, clock‑store and `fw_info` regions
+  are untouched.
 - If the probe reports `Target voltage too low`, set `VTREF 3300` (or wire the
   J-Link VTref pin to the board's 3.3 V + GND) and **power-cycle the J-Link** —
   the fixed VTref applies only after a probe power cycle.
@@ -281,18 +287,18 @@ q
 
 ```bash
 # ST-Link
-st-flash --reset write build/out/newboot.bin 0x08002000
+st-flash --reset write build/out/newboot.bin 0x08000000
 st-flash --reset write build/out/openMMC.bin 0x08002000
 
 # OpenOCD
 openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
   -c "init" -c "reset halt" \
-  -c "program build/out/newboot.bin 0x08002000 verify" \
+  -c "program build/out/newboot.bin 0x08000000 verify" \
   -c "program build/out/openMMC.bin 0x08002000 verify" \
   -c "reset run" -c "shutdown"
 ```
 
-**Do not pass `-DDEBUG_PROBE=...`** for uFC‑v2: `probe/openocd.cmake` only
+**Do not pass `-DDEBUG_PROBE=...`** for the STM32 boards: `probe/openocd.cmake` only
 knows `lpc17xx` and aborts configuration for STM32, so the
 `program_boot` / `program_app` / `program_all` targets are unavailable.
 
@@ -303,14 +309,14 @@ knows `lpc17xx` and aborts configuration for STM32, so the
 
 ## 8. Board selection
 
-| Command | Board | MCU |
-|---|---|---|
-| `-DBOARD=ufc-v2` | **ufc-v2** | STM32F100CBT6 |
-| `-DBOARD=u4fcp-v2` | u4fcp-v2 (legacy) | STM32F103CBT6 |
+| `-DBOARD=` | port | `-DTARGET_CONTROLLER=` | notes |
+|---|---|---|---|
+| `ufc-v2` | `port/board/ufc-v2` | `STM32F100CBT6` | 8V54816A + 1× Si5345, 2 KB EEPROM, clock store in flash |
+| `u4fcp-v1` | `port/board/u4fcp-v1` | `STM32F103C8T6` | ADN4604 + 2× Si5345, 128 KB EEPROM, needs `-DOPTIMIZE_SIZE=ON` |
+| `u4fcp-v2` | `port/board/u4fcp-v2` | `STM32F103CBT6` | ADN4604 + 2× Si5345, 64 KB EEPROM, 59.5 KB app/staging |
 
-Select the uFC board by its name; there is no `-DVERSION` flag for it.
-
-Use a **separate build directory per board**: `BOARD` is cached.
+Select boards by name; there is no `-DVERSION` flag. Use a **separate build
+directory per board**: `BOARD` and the options are cached.
 
 ---
 
@@ -340,7 +346,9 @@ options, re-run `cmake ..` with the same arguments (or let `make` do it).
 
 ---
 
-## 11. uFC‑v2 hardware summary
+## 11. Hardware summaries
+
+### uFC‑v2
 
 **I²C (I2C2, PB10/PB11):**
 
@@ -350,6 +358,22 @@ TCA9548 @0x70 (A2=A1=A0=0)
  └─ ch2 : 8V54816    @0x58   clock switch
           SI5345A    @0x69   clock generator
 ```
+
+### u4FCP‑v1 / u4FCP‑v2
+
+```
+TCA9548 @0x70
+ ├─ power bus : CAT24C512 @0x54 (v2) / AT24CM01 @0x54 (v1)   FRU + clock store
+ │              UCD90xxx  @0x11                               PMBus sensors
+ │              TPL0102   @0x56                               Vadj
+ └─ clock bus : ADN4604   @0x48   crosspoint
+                Si5345    @0x68   PLL0
+                Si5345    @0x69   PLL1
+```
+
+**Modules compiled:** `SDR`, `PAYLOAD`, `HOTSWAP_SENSOR`, `VCO/TPL0102`,
+`ADN4604`, `UCD90XXX`, `EEPROM_24XX512`, `FRU`, `BOARD_CONFIG`, plus the vendor
+extensions `EEPROM_ACCESS`, `I2C_ACCESS`, `CLOCK_PROGRAM`, `CLOCK_STORE`.
 
 **Pins:**
 
@@ -373,10 +397,10 @@ TCA9548 @0x70 (A2=A1=A0=0)
 
 ## 12. Gotchas
 
-- **`modules/GitSHA1.c` is regenerated on every configure.** This tree has no
-  `.git`, so the embedded commit hash becomes `GIT-NOTFOUND` (and the IPMI
-  commit‑hash readout returns that). Back the file up or `git init` the tree
-  if the hash matters.
+- **`modules/GitSHA1.c` is regenerated at configure time** from the git
+  history (`git describe` / HEAD). Building from a source tarball or a shallow
+  copy yields `GIT-NOTFOUND` — use a full clone if the IPMI commit‑hash readout
+  matters.
 - **FRU:** the clock configuration record is intentionally omitted on uFC‑v2 to
   fit the 128‑byte EEPROM half. Set `AMC_FRU_INCLUDE_CLOCK_RECORD 1` only with a
   larger (≥256 B writable) FRU EEPROM.
@@ -391,9 +415,14 @@ TCA9548 @0x70 (A2=A1=A0=0)
 ## 13. Known limitations
 
 - STM32 flashing is not integrated into `probe/openocd.cmake` (LPC17xx only).
-- The old `BOARD=u -DVERSION=...` alias was removed; uFC boards are selected by
-  name (`-DBOARD=ufc-v2`).
-- The new `uRTM‑v2` board directory is not wired into `BOARD_RTM` selection and
+- The old `BOARD=u -DVERSION=...` alias was removed; boards are selected by
+  name (`-DBOARD=ufc-v2|u4fcp-v1|u4fcp-v2`).
+- The `uRTM‑v2` board directory is not wired into the `BOARD_RTM` selection and
   its `CMakeLists.txt` appends the wrong module variable
   (`RTM_8SFP_MODULES`).
-- The `newboot` application is built here and occupies the first 8 KB (see §6).
+- **Firmware update over IPMI (HPM.1) is not implemented yet** — the `HPM`
+  module is a stub (no flash/EEPROM writing); on the uFC and u4FCP‑v2 the
+  update images are currently loaded with the debugger, and the reserved
+  staging areas are unused. On the u4FCP‑v1 the update staging is designed to
+  live in the AT24CM01's upper 64 KB (also not implemented).
+- The `newboot` first stage is built here and occupies the first 8 KB (see §6).
