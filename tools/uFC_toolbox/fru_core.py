@@ -180,6 +180,60 @@ class FruAccess:
     def dump(self):
         return self.read(0, self.eeprom_size)
 
+    def hpm_send(self, *args):
+        """Send a PICMG group-extension (netfn 0x2C) command.
+
+        The openMMC HPM handlers put IPMI_PICMG_GRP_EXT (0x00) first and read
+        the command arguments from data[1] onwards; 0xC0 (in progress) is a
+        normal answer for the long-duration commands."""
+        for attempt in range(5):
+            try:
+                return self._ipmi("0x2c", *args)
+            except RuntimeError as e:
+                text = str(e)
+                if "rsp=0xc0" in text:      # long duration command, accepted
+                    return b""
+                if "rsp=0x80" in text and attempt < 4:
+                    time.sleep(0.5)         # transient bridge/routing error
+                    continue
+                raise
+        raise RuntimeError("HPM command failed")
+
+    def hpm_upload(self, image, component=1, progress=None):
+        """Upload a raw firmware image with the HPM.1 sequence (20-byte blocks).
+
+        ipmitool's own hpm upgrade cannot be used through the MCH bridge: it
+        sizes the blocks from the LAN interface (256 B) while the IPMB frame
+        is 32 bytes. Returns (uploaded_bytes, finish_response)."""
+        data = bytes(image)
+        mask = 1 << component
+        self.hpm_send("0x2e", "0x5a")                       # capabilities
+        self.hpm_send("0x2f", "0x5a", "0x%02x" % component, "0x00")
+        self.hpm_send("0x31", "0x5a", "0x%02x" % mask, "0x01")   # initiate/prepare
+        block = 20
+        pos = 0
+        num = 0
+        while pos < len(data):
+            chunk = data[pos:pos + block]
+            args = ["0x32", "0x5a", "0x%02x" % (num & 0xFF)]
+            args += ["0x%02x" % b for b in chunk]
+            self.hpm_send(*args)
+            pos += len(chunk)
+            num += 1
+            if progress:
+                progress(pos, len(data))
+        lo = len(data) & 0xFF
+        l1 = (len(data) >> 8) & 0xFF
+        l2 = (len(data) >> 16) & 0xFF
+        l3 = (len(data) >> 24) & 0xFF
+        fin = self.hpm_send("0x33", "0x5a", "0x00",
+                            "0x%02x" % lo, "0x%02x" % l1,
+                            "0x%02x" % l2, "0x%02x" % l3)
+        return pos, fin
+
+    def hpm_activate(self, component=1):
+        return self.hpm_send("0x35", "0x5a", "0x%02x" % (1 << component))
+
     def hpm_command(self, args):
         """ipmitool 'hpm ...' command line using the configured bridge."""
         return [ipmitool_cmd()] + self.bridge + ["hpm"] + list(args)

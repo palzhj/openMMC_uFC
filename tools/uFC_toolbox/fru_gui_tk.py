@@ -1300,6 +1300,7 @@ class FruEditor(tk.Tk):
         row3.pack(fill="x", pady=(0, 8))
         self.ota_buttons = []
         for text, cmd in (("Upload", self._ota_upload),
+                          ("Upload (IPMB, .bin)", self._ota_upload_raw),
                           ("Activate", self._ota_activate),
                           ("Upload + Activate", self._ota_upload_activate)):
             b = ttk.Button(row3, text=text, command=cmd)
@@ -1434,6 +1435,69 @@ class FruEditor(tk.Tk):
             return
         threading.Thread(target=self._ota_reader, daemon=True).start()
         self.after(150, self._ota_poll)
+
+    def _ota_upload_raw(self):
+        """Upload a raw .bin/.hex image with the in-tool HPM sequence.
+
+        ipmitool's hpm upgrade cannot be used through the MCH bridge (it sizes
+        the blocks from the LAN interface); this path sends 20-byte blocks."""
+        path = self.ota_file.get().strip()
+        if not path or not os.path.isfile(path):
+            messagebox.showerror(APP_TITLE, "choose a .bin or .hex file first")
+            return
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            if ext == ".hex":
+                with open(path, "r", errors="replace") as f:
+                    data = self._parse_intel_hex(f.read())
+            elif ext == ".bin":
+                with open(path, "rb") as f:
+                    data = f.read()
+            else:
+                messagebox.showerror(APP_TITLE, "use a .bin/.hex file (or the ipmitool 'Upload' for .hpm)")
+                return
+            acc = self._access()
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, str(e))
+            return
+        comp = int(self.ota_comp.get().strip() or "1")
+        self._ota_log("raw HPM upload: %s (%d bytes), component %d\n" % (path, len(data), comp))
+        self.ota_pbar.configure(value=0)
+        self._ota_busy(True)
+
+        def worker():
+            try:
+                def progress(done, total):
+                    self.ota_queue.put(("progress", int(done * 100 / total)))
+                done, fin = acc.hpm_upload(data, comp, progress)
+                self.ota_queue.put(("log", "uploaded %d bytes, finish response %s\n"
+                                    % (done, fin.hex())))
+                self.ota_queue.put(("done_raw", 0))
+            except Exception as e:
+                self.ota_queue.put(("log", "ERROR: %s\n" % e))
+                self.ota_queue.put(("done_raw", 1))
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(150, self._ota_poll_raw)
+
+    def _ota_poll_raw(self):
+        busy = True
+        while True:
+            try:
+                kind, value = self.ota_queue.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "progress":
+                self.ota_pbar.configure(value=value)
+            elif kind == "log":
+                self._ota_log(value)
+            elif kind == "done_raw":
+                busy = False
+                self._ota_busy(False)
+                self.ota_pbar.configure(value=100 if value == 0 else 0)
+                self._status("Firmware uploaded" if value == 0 else "Firmware upload failed",
+                             "ok" if value == 0 else "error")
+        if busy:
+            self.after(150, self._ota_poll_raw)
 
     def _ota_reader(self):
         proc = self.ota_proc
