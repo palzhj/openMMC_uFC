@@ -34,6 +34,10 @@
 #include "payload.h"
 #endif
 #include "i2c.h"
+#if defined(USE_RAM_DIAG)
+extern uint32_t __StackLimit;
+extern uint32_t _estack;
+#endif
 #ifdef MODULE_CLOCK_STORE
 #include "clock_store.h"
 #endif
@@ -104,9 +108,36 @@ void ucd_probe( void )
 }
 #endif /* UCD_PROBE */
 
+#if defined(USE_RAM_DIAG)
+static void ram_paint_stack(void)
+{
+    uint32_t sp;
+    __asm volatile ("mov %0, sp" : "=r" (sp));
+    uint32_t *top = (uint32_t *)((sp - 512u) & ~3u);   /* keep the live frames */
+    for (uint32_t *p = &__StackLimit; p < top; p++) {
+        *p = 0xA5A5A5A5u;
+    }
+}
+
+static void ram_report(const char *where)
+{
+    uint32_t *p = &__StackLimit;
+    while (p < &_estack && *p == 0xA5A5A5A5u) {
+        p++;
+    }
+    uint32_t unused = (uint32_t)(&_estack - p) * 4;
+    printf("[RAM] %-12s heap_free=%u stack_unused=%u\n",
+           where, (unsigned)xPortGetFreeHeapSize(), (unsigned)unused);
+}
+#else
+static void ram_paint_stack(void) {}
+static void ram_report(const char *where) { (void)where; }
+#endif
+
 int main( void )
 {
     pin_init();
+    ram_paint_stack();
 
 #ifdef MODULE_BOARD_CONFIG
     board_init();
@@ -132,19 +163,24 @@ int main( void )
 
     ipmb_addr = get_ipmb_addr( );
 
+    ram_report("start");
 #ifdef MODULE_FRU
     fru_init(FRU_AMC);
 #endif
+    ram_report("fru");
 
 #ifdef MODULE_SDR
     sdr_init();
 #endif
+    ram_report("sdr");
 #ifdef MODULE_SENSORS
     sensor_init();
 #endif
+    ram_report("sensors");
 #ifdef MODULE_PAYLOAD
     payload_init();
 #endif
+    ram_report("payload");
 #ifdef MODULE_SCANSTA1101
     scansta1101_init();
 #endif
@@ -157,10 +193,12 @@ int main( void )
     /*  Init IPMI interface */
     /* NOTE: ipmb_init() is called inside this function */
     ipmi_init();
+    ram_report("ipmi");
 
 #ifdef MODULE_BOARD_CONFIG
     board_config();
 #endif
+    ram_report("board");
 
     /* Start the tasks running. */
     vTaskStartScheduler();
