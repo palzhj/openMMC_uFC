@@ -346,6 +346,7 @@ class FruEditor(tk.Tk):
     def _build_clock_tab(self, parent):
         # ---- block 2: MUX ----------------------------------------------
         mux = ttk.LabelFrame(parent, text="1  8V54816A MUX", padding=(8, 4))
+        self.mux_frame = mux
         mux.pack(fill="both", expand=True, pady=(0, 4))
         mrow = ttk.Frame(mux)
         mrow.pack(fill="x", pady=(0, 4))
@@ -357,6 +358,9 @@ class FruEditor(tk.Tk):
         writeb.pack(side="left", padx=(8, 0))
         self._hint(writeb, "Write the 16 port bytes to the switch (volatile)")
         ttk.Label(mrow, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
+        self.clock_cfg = {}
+        self.si_tables = {}
+        self.si_pll = tk.StringVar(value="PLL0")
         self.slot_sel = tk.StringVar(value="auto")
         mslot = ttk.Combobox(mrow, textvariable=self.slot_sel, values=("auto", "A", "B"),
                              width=5, state="readonly")
@@ -441,6 +445,10 @@ class FruEditor(tk.Tk):
         rd = ttk.Button(prow, text="Read from device", command=self.si_read_device)
         rd.pack(side="left")
         self._hint(rd, "Read the loaded register list from the Si5345 and save it to a file")
+        self.pll_box = ttk.Combobox(prow, textvariable=self.si_pll, width=10, state="readonly",
+                                    values=("PLL0",))
+        self.pll_box.pack(side="left", padx=(8, 0))
+        self._hint(self.pll_box, "PLL whose table is loaded/written (board template)")
         lf = ttk.Button(prow, text="Load Si5345 file…", command=self.si_load)
         lf.pack(side="left", padx=(6, 0))
         self._hint(lf, "Load a ClockBuilder register script (pre/body/post)")
@@ -499,6 +507,16 @@ class FruEditor(tk.Tk):
             self._clock_log("template %s: clocking file not found" % self.template)
             return
         self.template_label.set("%s — %s" % (self.template, os.path.basename(path)))
+        self.clock_cfg = doc.get("clock", {}) or {}
+        if hasattr(self, "pll_box"):
+            plls = self.clock_cfg.get("plls") or [{"addr": 0x69}]
+            self.pll_box["values"] = tuple("PLL%d" % i for i in range(len(plls)))
+            self.si_pll.set("PLL0")
+            self.si_tables = {}
+            self._mux_format = str((self.clock_cfg.get("switch") or {}).get("format", ""))
+        if hasattr(self, "mux_frame"):
+            sw = (self.clock_cfg.get("switch") or {})
+            self.mux_frame.configure(text="1  %s MUX" % sw.get("part", "8V54816A"))
         if hasattr(self, "port_vars"):
             self._port_load_all()
         if hasattr(self, "clock_out"):
@@ -518,7 +536,7 @@ class FruEditor(tk.Tk):
             for p in doc.get("points", []):
                 parent = p.get("parent", "")
                 dev = devices.get(parent, {})
-                if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith("8V54816A"):
+                if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith(("8V54816A", "ADN4604")):
                     continue
                 cap = p.get("capability") or {}
                 if not cap.get("in", p.get("dir") in ("in", "inout")):
@@ -998,6 +1016,20 @@ class FruEditor(tk.Tk):
         self.clock_out.see("end")
         self.clock_out.configure(state="disabled")
 
+    def clock_pll_addr(self):
+        plls = (self.clock_cfg or {}).get("plls") or [{"addr": 0x69}]
+        idx = 0
+        try:
+            idx = int(self.si_pll.get().replace("PLL", ""))
+        except Exception:
+            idx = 0
+        if idx >= len(plls):
+            idx = 0
+        return int(plls[idx].get("addr", 0x69))
+
+    def clock_switch_addr(self):
+        return int(((self.clock_cfg or {}).get("switch") or {}).get("addr", 0x58))
+
     def si_load(self):
         path = filedialog.askopenfilename(
             title="ClockBuilder register script",
@@ -1006,6 +1038,7 @@ class FruEditor(tk.Tk):
             return
         try:
             self.si_groups = parse_si5345_txt(path)
+            self.si_tables[self.clock_pll_addr()] = self.si_groups
             n = sum(len(v) for v in self.si_groups.values())
             self.si_label.set("%s  (%d pre, %d body, %d post)" % (
                 os.path.basename(path), len(self.si_groups["pre"]),
@@ -1024,7 +1057,8 @@ class FruEditor(tk.Tk):
                 if n % 64 == 0:
                     self._clock_log("Si5345: %d registers written" % n)
                     self.update_idletasks()
-            n = program_si5345(self._access(), self.si_groups, progress=progress)
+            n = program_si5345(self._access(), self.si_groups,
+                               dev=self.clock_pll_addr(), progress=progress)
             self._clock_log("Si5345 programmed to the device: %d registers "
                             "(preamble, 300 ms, body, postamble) — lost on power-cycle" % n)
             self._status("Si5345 programmed (device)", "ok")
@@ -1072,7 +1106,10 @@ class FruEditor(tk.Tk):
     def si_write_flash(self):
         """Store the current matrix + loaded Si5345 table in the MMC clock store."""
         try:
-            slot = build_clock_slot(self.clock_matrix, self.si_groups)
+            tables = list(self.si_tables.items()) or []
+            slot = build_clock_slot(self.clock_matrix, self.si_groups,
+                                    switch_addr=self.clock_switch_addr(),
+                                    si_tables=tables or None)
             self._clock_log("clock slot: %d bytes, crc %08x" %
                             (len(slot), zlib.crc32(slot) & 0xFFFFFFFF))
             slot_index = {"auto": 0xFF, "A": 0, "B": 1}.get(self.slot_sel.get(), 0xFF)
