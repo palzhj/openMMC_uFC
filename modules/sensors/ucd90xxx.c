@@ -469,6 +469,22 @@ void ucd_read_current(ucd_data_t *data)
 }
 
 /**
+ * Calibration of the UCD90320's *internal* temperature sensor.
+ *
+ * The embedded sensor reads about 9 C below the board temperature (measured
+ * against the crate's LM75 sensors: UCD 15.4 C while the shelf sits at
+ * 24-26 C; TI has no PMBus calibration for the internal sensor, E5h/E6h only
+ * affect the external READ_TEMPERATURE_2). The offset is added to the raw
+ * SDR reading, so the SDR linearization (M=5, R=-1 -> 0.5 C/LSB) reports the
+ * calibrated value and the thresholds keep their physical meaning.
+ *
+ * Override per board with -DUCD_TEMP_OFFSET_C=<n> if a unit differs.
+ */
+#ifndef UCD_TEMP_OFFSET_C
+#define UCD_TEMP_OFFSET_C 9
+#endif
+
+/**
  * @brief Reads temperature data from a UCD90xxx device.
  *
  * This function reads the temperature data from the specified UCD90xxx device. It reads the temperature
@@ -504,6 +520,14 @@ void ucd_read_temperature(ucd_data_t *data)
   /* Calculate the actual temperature value based on the mode */
   /* Nominal reading temperature = iadc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
   data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(iadc, M_exp));
+
+  /* Apply the internal-sensor calibration (raw units per degree C = 10^-R/M) */
+  {
+    int8_t uR = (int8_t)(sdr->Rexp_Bexp >> 4);
+    int8_t Rexp = (uR > 0x7) ? (int8_t)(uR - 0x10) : uR;
+    float raw_per_c = ucd_pow10(-Rexp) / (float)sdr->M;
+    data->sensor->readout_value += (uint16_t)(raw_per_c * UCD_TEMP_OFFSET_C + 0.5f);
+  }
 
   /* Optionally, print debug information */
   // #ifdef DEBUG
