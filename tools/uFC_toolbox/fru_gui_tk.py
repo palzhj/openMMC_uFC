@@ -252,17 +252,6 @@ class FruEditor(tk.Tk):
         self.bus_var, self.bus_w = self._labeled(
             strip, "Bus", str(bus), 4,
             tip="IPMB channel that reaches the target\n(per-slot on a MicroTCA crate).")
-        self.i2c_var, self.i2c_w = self._labeled(
-            strip, "EEPROM I\u00b2C", "0x50", 6,
-            tip="7-bit I2C address of the EEPROM on the FRU bus.\n"
-                "0x50 is the board FRU part; other addresses use the\n"
-                "address-parameterised firmware commands (0x14/0x15).")
-        self.size_var, self.size_w = self._labeled(
-            strip, "EEPROM size (B)", str(eeprom_size), 7,
-            tip="Bytes read from the EEPROM. The device sits at I2C 0x50 on\nthe FRU bus (fixed in firmware); the tool addresses it by\nbyte offset (16-bit, so 65536 bytes is the maximum).")
-        self.limit_var, self.limit_w = self._labeled(
-            strip, "FRU writable (B)", str(fru_limit), 7,
-            tip="Bytes of the FRU image that are written.\nThe 24AA025E48 only allows the lower 128 bytes.")
 
         # board template (shared by every tab)
         tpl = ttk.Frame(self, padding=(16, 2, 16, 4))
@@ -282,6 +271,24 @@ class FruEditor(tk.Tk):
         self.template_label = tk.StringVar(value="uFC — ufc-clocking.json")
         tk.Label(tpl, textvariable=self.template_label, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(side="left", padx=(12, 0))
+
+        # FRU storage (per board: filled by the board template)
+        fstrip = ttk.Frame(self, padding=(16, 2, 16, 4))
+        fstrip.pack(fill="x")
+        self.i2c_var, self.i2c_w = self._labeled(
+            fstrip, "EEPROM I\u00b2C", "0x50", 6,
+            tip="7-bit I2C address of the FRU EEPROM.\n"
+                "uFC: 0x50 (24AA025E48); u4FCP: 0x54 (CAT24C512/AT24CM01).\n"
+                "Set automatically by the board template.")
+        self.size_var, self.size_w = self._labeled(
+            fstrip, "EEPROM size (B)", str(eeprom_size), 7,
+            tip="Bytes read from the EEPROM for the FRU image.\n"
+                "Set automatically by the board template.")
+        self.limit_var, self.limit_w = self._labeled(
+            fstrip, "FRU writable (B)", str(fru_limit), 7,
+            tip="Bytes of the FRU image that are written.\n"
+                "uFC: 128 (24AA025E48 half page); u4FCP: 512 (FRU_MAX_SIZE).\n"
+                "Set automatically by the board template.")
 
         info = ttk.Frame(self, padding=(16, 2, 16, 4))
         info.pack(fill="x")

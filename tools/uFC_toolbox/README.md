@@ -309,3 +309,15 @@ The board template and the connection fields (MCH, bridge, transit/target/bus,
 EEPROM address/size/limit) are remembered in `~/.config/ufc-toolbox.json` and
 restored on start, so the toolbox reopens with the last used board (and its
 FRU storage parameters).
+
+
+## Header layout
+
+```
+MCH / BMC   Bridge   Transit   Transit ch   Target   Bus
+Board template [uFC|u4FCP] [Load]   <clocking file>
+EEPROM I2C   EEPROM size (B)   FRU writable (B)      <- set by the board template
+```
+
+The FRU storage row sits right below the board selector and is filled
+automatically when a board is chosen (uFC 0x50/256/128, u4FCP 0x54/512/512).
