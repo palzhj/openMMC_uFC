@@ -78,6 +78,12 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
 endif()
 
 #Extra definitions
+# Serve the FRU built from user_amc_fru.h (the board's factory image).
+option(FRU_USE_COMPILED "Build the FRU from user_amc_fru.h instead of reading the EEPROM" ON)
+if (FRU_USE_COMPILED)
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_USE_COMPILED")
+endif()
+
 # The application is close to the 50 KB region: optimise for size.
 set(CMAKE_C_FLAGS_RELEASE "-Os" PARENT_SCOPE)
 # 20 KB SRAM: 12 KB FreeRTOS heap leaves a ~6 KB main/exception stack
