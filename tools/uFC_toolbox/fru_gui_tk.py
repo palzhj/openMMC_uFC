@@ -1639,6 +1639,17 @@ class FruEditor(tk.Tk):
             ttk.Label(cell, text="YYYY-MM-DD HH:MM", style="Hint.TLabel").pack(
                 side="left", padx=(8, 0))
             row += 1
+            ttk.Label(parent, text="Module current (A)",
+                      style="FieldLabel.TLabel").grid(
+                row=row, column=0, sticky="e", padx=(0, 10), pady=1)
+            cell = ttk.Frame(parent)
+            cell.grid(row=row, column=1, sticky="w", pady=1)
+            self.current_var = tk.StringVar()
+            self.current_ent = ttk.Entry(cell, textvariable=self.current_var, width=8)
+            self.current_ent.pack(side="left")
+            self.current_hint = ttk.Label(cell, text="", style="Hint.TLabel")
+            self.current_hint.pack(side="left", padx=(8, 0))
+            row += 1
         for name in ("manufacturer", "product_name", "serial", "part_number",
                      "version", "asset_tag", "fru_file_id"):
             if key == "board" and name in ("version", "asset_tag"):
@@ -1768,6 +1779,16 @@ class FruEditor(tk.Tk):
         self.parsed = parsed
         minutes = parsed["board"].get("mfg_time", 0)
         self.time_var.set(mfg_minutes_to_str(minutes))
+        mc = parsed.get("module_current")
+        if getattr(self, "current_var", None) is not None:
+            if mc:
+                self.current_var.set("%.1f" % (mc["current"] / 10.0))
+                self.current_ent.configure(state="normal")
+                self.current_hint.configure(text="PICMG record 0x16 (0.1 A units)")
+            else:
+                self.current_var.set("")
+                self.current_ent.configure(state="disabled")
+                self.current_hint.configure(text="no module-current record")
         for key, area_key in (("board", "board_area"), ("product", "product_area")):
             info = parsed[area_key]
             present = {f["name"]: f for f in info["fields"]} if info else {}
@@ -1825,6 +1846,14 @@ class FruEditor(tk.Tk):
                 if str(ent.cget("state")) != "disabled":
                     values[key][name] = var.get()
         values["board"]["mfg_time"] = self.time_var.get()
+        mc = (self.parsed or {}).get("module_current")
+        if mc and str(self.current_ent.cget("state")) != "disabled":
+            try:
+                amps = float(self.current_var.get())
+            except ValueError:
+                messagebox.showerror(APP_TITLE, "Module current must be a number in A (e.g. 8.0).")
+                return
+            values["module_current"] = max(0, min(255, int(round(amps * 10))))
         try:
             _size, limit = self._sizes()
             image = build_image(self.parsed, values, limit=limit)

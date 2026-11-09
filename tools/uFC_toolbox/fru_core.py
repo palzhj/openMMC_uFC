@@ -452,6 +452,31 @@ def upload_clock_slot(access, slot, slot_index=0xFF, progress=None):
                       str((crc >> 16) & 0xFF), str((crc >> 24) & 0xFF))
 
 
+def parse_module_current(parsed):
+    """Find the PICMG AMC module-current record (record id 0x16).
+
+    Returns {"offset": record start in the image, "current": raw byte
+    (0.1 A units)} or None. Multirecord header: type, eol/version,
+    length, record checksum, header checksum; data: manufacturer 5A 31 00,
+    record id, format version, current.
+    """
+    multi = parsed.get("multi") or b""
+    base = parsed.get("multi_off") or 0
+    off = 0
+    while off + 5 <= len(multi):
+        rtype = multi[off]
+        rlen = multi[off + 2]
+        if rtype != 0xC0 or off + 5 + rlen > len(multi):
+            break
+        data = multi[off + 5:off + 5 + rlen]
+        if len(data) >= 6 and data[0:3] == b"\x5a\x31\x00" and data[3] == 0x16:
+            return {"offset": base + off, "current": data[5]}
+        if multi[off + 1] & 0x80:
+            break
+        off += 5 + rlen
+    return None
+
+
 def parse_fru(raw, limit=FRU_MAX_SIZE):
     """Return the FRU fields, the multirecord blob and the area layout."""
     if len(raw) < 8 or raw[0] != 0x01:
@@ -477,6 +502,7 @@ def parse_fru(raw, limit=FRU_MAX_SIZE):
     }
     if parsed["board_area"]:
         parsed["board"]["mfg_time"] = parsed["board_area"]["mfg_time"]
+    parsed["module_current"] = parse_module_current(parsed)
     return parsed
 
 
@@ -536,6 +562,20 @@ def build_image(parsed, values, limit=FRU_MAX_SIZE):
     product_off = 8 + len(board)
     header[4] = product_off // 8
     multi = parsed["multi"]
+    module = parsed.get("module_current")
+    mc_val = values.get("module_current")
+    if module is not None and mc_val is not None:
+        try:
+            mc_val = int(mc_val)
+        except (TypeError, ValueError):
+            raise ValueError("module current is not a number")
+        mc_val = max(0, min(255, mc_val))
+        multi = bytearray(multi)
+        rel = module["offset"] - (parsed.get("multi_off") or 0)
+        old = multi[rel + 10]
+        multi[rel + 10] = mc_val
+        multi[rel + 3] = (multi[rel + 3] - (mc_val - old)) & 0xFF
+        multi = bytes(multi)
     multi_off = product_off + len(product)
     header[5] = (multi_off // 8) if multi else 0
     header[6] = 0x00
