@@ -258,21 +258,23 @@ class FruEditor(tk.Tk):
         # board template (shared by every tab)
         tpl = ttk.Frame(self, padding=(16, 2, 16, 4))
         tpl.pack(fill="x")
-        tlab = ttk.Label(tpl, text="Board template", style="FieldLabel.TLabel")
-        tlab.pack(side="left")
+        bcell = ttk.Frame(tpl)
+        bcell.pack(side="left", padx=(0, 18))
+        ttk.Label(bcell, text="Board template",
+                  style="FieldLabel.TLabel").pack(anchor="w")
+        brow = ttk.Frame(bcell)
+        brow.pack(anchor="w")
         self.template = "uFC"
         self.template_var = tk.StringVar(value=self.template)
-        tbox = ttk.Combobox(tpl, textvariable=self.template_var,
+        tbox = ttk.Combobox(brow, textvariable=self.template_var,
                             values=("uFC", "u4FCP v1", "u4FCP v2"), width=10, state="readonly")
-        tbox.pack(side="left", padx=(6, 6))
+        tbox.pack(side="left")
         Tooltip(tbox, "Clock/board description used by the tabs\n"
                       "(tools/clocking/<template>-clocking.json)")
-        tload = ttk.Button(tpl, text="Load", command=self.template_load)
-        tload.pack(side="left")
+        tload = ttk.Button(brow, text="Load", command=self.template_load)
+        tload.pack(side="left", padx=(4, 0))
         Tooltip(tload, "Load the selected board template")
-        self.template_label = tk.StringVar(value="uFC — ufc-clocking.json")
-        tk.Label(tpl, textvariable=self.template_label, bg=BG, fg=MUTED,
-                 font=(UI_FONT, 8), anchor="w").pack(side="left", padx=(12, 0))
+        self.template_label = tk.StringVar(value="uFC")
 
         # FRU storage, same row as the board selector (filled by the template)
         self.i2c_var, self.i2c_w = self._labeled(

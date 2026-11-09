@@ -317,8 +317,9 @@ FRU storage parameters).
 ## Header layout
 
 ```
-MCH / BMC   Bridge   Transit   Transit ch   Target   Bus
-Board template [uFC|u4FCP v1|u4FCP v2] [Load]  <board>  EEPROM I2C  EEPROM size (B)  FRU writable (B)
+MCH / BMC     Bridge   Transit   Transit ch   Target   Bus
+              EEPROM I2C        EEPROM size (B)   FRU writable (B)
+Board template [uFC|u4FCP v1|u4FCP v2] [Load]   [0x54]   [512]   [512]
 ```
 
 The FRU storage fields share the board selector row and are filled
