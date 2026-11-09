@@ -1859,7 +1859,16 @@ class FruEditor(tk.Tk):
             values["module_current"] = max(0, min(255, int(round(amps * 10))))
         try:
             _size, limit = self._sizes()
-            image = build_image(self.parsed, values, limit=limit)
+            image = build_image(self.parsed, values, limit=_size)
+            if len(image) > limit:
+                needed = len(image)
+                if not messagebox.askyesno(
+                        APP_TITLE,
+                        "The FRU image is %d B but the writable limit is %d B.\n"
+                        "Raise the limit to %d B and write?" % (needed, limit, needed)):
+                    return
+                limit = needed
+                self.limit_var.set(str(limit))
             payload = image_for_eeprom(image, limit)
             acc = self._access()
             acc.write(0, payload)
