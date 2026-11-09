@@ -1,16 +1,21 @@
 # u4FCP-v2 prebuilt images (STM32F103CBT6, 128 KB flash, 20 KB SRAM)
 
-- `normal/` — production image (no UART output).
-- `uart-debug/` — built with `-DUART_DEBUG=ON`; `printf` on USART1
-  (PA9/PA10, 115200).
-
-Build:
+The images are **build outputs**, not committed files (`.gitignore` excludes
+`*.bin`). Build them with:
 
 ```bash
-cmake -S . -B build-u4fcp-v2 -DBOARD=u4fcp-v2 \
+cmake -S . -B .hw2/u4fcp -DBOARD=u4fcp-v2 \
       -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release
-cmake --build build-u4fcp-v2 -j
+make -C .hw2/u4fcp openMMC -j
+# -> .hw2/u4fcp/out/newboot.bin  (~4.5 KB)
+# -> .hw2/u4fcp/out/openMMC.bin  (~54 KB)
 ```
+
+`uart-debug/` (if present) is the same image with `-DUART_DEBUG=ON`
+(`printf` on USART1 PA9/PA10, 115200); `normal/` is the production build.
+`jlink_program.sh` looks for these images in `uart-debug/`, `normal/` next to
+the script and otherwise falls back to the local build tree
+(`.hw2/u4fcp/out`); `--bin-dir DIR` overrides it.
 
 Flash with J-Link from this directory:
 

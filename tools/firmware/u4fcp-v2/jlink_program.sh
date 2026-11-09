@@ -13,7 +13,8 @@
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-BIN_DIR=uart-debug
+REPO=$(cd "$HERE/../../.." && pwd)
+BIN_DIR=""
 DO_RUN=1
 
 while [ $# -gt 0 ]; do
@@ -26,6 +27,26 @@ while [ $# -gt 0 ]; do
 done
 
 command -v JLinkExe >/dev/null || { echo "JLinkExe not found" >&2; exit 1; }
+
+# Default: the packaged images next to this script, else the local build tree
+if [ -z "$BIN_DIR" ]; then
+    for cand in "$HERE/uart-debug" "$HERE/normal" "$REPO/.hw2/u4fcp/out"; do
+        if [ -f "$cand/newboot.bin" ] && [ -f "$cand/openMMC.bin" ]; then
+            BIN_DIR=$cand
+            break
+        fi
+    done
+fi
+[ -n "$BIN_DIR" ] || {
+    echo "newboot.bin/openMMC.bin not found." >&2
+    echo "Build them first:" >&2
+    echo "  cmake -S '$REPO' -B '$REPO/.hw2/u4fcp' -DBOARD=u4fcp-v2 \\" >&2
+    echo "        -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release" >&2
+    echo "  make -C '$REPO/.hw2/u4fcp' openMMC -j" >&2
+    echo "or pass --bin-dir DIR" >&2
+    exit 1
+}
+
 case "$BIN_DIR" in
     /*) ROOT=$BIN_DIR ;;
     *)  ROOT="$HERE/$BIN_DIR" ;;
@@ -51,7 +72,8 @@ g" )
 q
 SCRIPT
 
-echo "=== u4FCP-v2 J-Link programming ($BIN_DIR)"
+echo "=== u4FCP-v2 J-Link programming"
+echo "    images: $ROOT"
 echo "    newboot.bin -> 0x08000000, openMMC.bin -> 0x08002000, fw_info cleared"
 JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript "$JLINK" | tail -4
 rm -f "$JLINK"
