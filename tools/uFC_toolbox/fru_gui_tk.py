@@ -87,7 +87,7 @@ class FruEditor(tk.Tk):
     def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128):
         super().__init__()
         self.title(APP_TITLE)
-        self.geometry("1040x980")
+        self.geometry("1120x1040")
         self.minsize(940, 740)
         self.configure(bg=BG)
 
@@ -331,21 +331,47 @@ class FruEditor(tk.Tk):
         widget.bind("<Leave>", lambda _e: self.clock_hint.set(""), add="+")
 
     def _build_clock_tab(self, parent):
-        row = ttk.Frame(parent)
-        row.pack(fill="x", pady=(0, 6))
-        ttk.Button(row, text="Read clocks", style="Primary.TButton",
-                   command=self.clock_switch_read).pack(side="left")
-        ttk.Button(row, text="Write now", command=self.clock_switch_write).pack(side="left", padx=(8, 0))
-        ttk.Button(row, text="Program (built-in)", command=self.clock_program).pack(side="left", padx=(16, 0))
-        ttk.Button(row, text="Status", command=self.clock_status).pack(side="left", padx=(8, 0))
-        ttk.Button(row, text="Export diagram", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
-        ttk.Button(row, text="System diagram", command=self.clock_show_system).pack(side="left", padx=(8, 0))
+        # ---- block 1: board template -----------------------------------
+        tpl = ttk.LabelFrame(parent, text="1  Board template", padding=(8, 4))
+        tpl.pack(fill="x", pady=(0, 4))
+        ttk.Label(tpl, text="Template", style="FieldLabel.TLabel").pack(side="left")
+        self.template = getattr(self, "template", "uFC")
+        self.template_var = tk.StringVar(value=self.template)
+        tplbox = ttk.Combobox(tpl, textvariable=self.template_var,
+                              values=("uFC", "u4FCP"), width=10, state="readonly")
+        tplbox.pack(side="left", padx=(6, 6))
+        self._hint(tplbox, "Clocking description to load for this board")
+        loadb = ttk.Button(tpl, text="Load", command=self.template_load)
+        loadb.pack(side="left")
+        self._hint(loadb, "Load <template>-clocking.json (tools/clocking/)")
+        self.template_label = tk.StringVar(value="uFC — ufc-clocking.json")
+        ttk.Label(tpl, textvariable=self.template_label,
+                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
 
-        tbl = ttk.Frame(parent)
-        tbl.pack(fill="both", expand=True, pady=(0, 6))
-        ttk.Label(tbl, text="8V54816A ports — direction, source, 100 Ω termination, polarity",
-                  style="Hint.TLabel").grid(row=0, column=0, columnspan=6, sticky="w", pady=(0, 2))
+        # ---- block 2: MUX ----------------------------------------------
+        mux = ttk.LabelFrame(parent, text="2  8V54816A MUX", padding=(8, 4))
+        mux.pack(fill="both", expand=True, pady=(0, 4))
+        mrow = ttk.Frame(mux)
+        mrow.pack(fill="x", pady=(0, 4))
+        readb = ttk.Button(mrow, text="Read clocks", style="Primary.TButton",
+                           command=self.clock_switch_read)
+        readb.pack(side="left")
+        self._hint(readb, "Read the 16 port bytes from the switch (mux 0x70 ch2, 0x58)")
+        writeb = ttk.Button(mrow, text="Write now", command=self.clock_switch_write)
+        writeb.pack(side="left", padx=(8, 0))
+        self._hint(writeb, "Write the 16 port bytes to the switch now")
 
+        tblwrap = ttk.Frame(mux)
+        tblwrap.pack(fill="both", expand=True, pady=(0, 4))
+        tcv = tk.Canvas(tblwrap, height=330, bg=BG, highlightthickness=0)
+        vsb = ttk.Scrollbar(tblwrap, orient="vertical", command=tcv.yview)
+        tcv.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        tcv.pack(side="left", fill="both", expand=True)
+        tbl = ttk.Frame(tcv)
+        tcv.create_window((0, 0), window=tbl, anchor="nw")
+        tbl.bind("<Configure>", lambda e: tcv.configure(scrollregion=tcv.bbox("all")))
+        tcv.bind("<Configure>", lambda e: tcv.itemconfigure(tcv.find_all()[0], width=e.width))
         headers = (("port / signal", 0, "8V54816A port and its signal name"),
                    ("dir", 1, "in: input (bit7=0) / out: output (bit7=1)"),
                    ("source", 2, "input port routed to this output (bits3:0)"),
@@ -354,20 +380,17 @@ class FruEditor(tk.Tk):
                    ("byte", 5, "matrix byte written to the switch (0x58)"))
         for text, col, tip in headers:
             lbl = ttk.Label(tbl, text=text, style="Hint.TLabel")
-            lbl.grid(row=1, column=col, sticky="w", padx=(4, 8))
+            lbl.grid(row=0, column=col, sticky="w", padx=(4, 8))
             self._hint(lbl, tip)
-        for col, weight in ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)):
-            tbl.columnconfigure(col, weight=weight)
 
         self.clock_matrix = bytearray(16)
         self.clock_loading = False
         self.port_vars = []
         for i in range(16):
             port, name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
-            # capabilities come from ufc-clocking.json (fallback: built-in rules)
             allowed = self._mux_allowed().get(
                 i, ("out",) if i in (9, 10, 11) else ("in",) if i in (7, 8) else ("in", "out"))
-            row = i + 2
+            row = i + 1
             ttk.Label(tbl, text="%s %s" % (port, name), width=22, anchor="w",
                       font=(UI_FONT, 9)).grid(row=row, column=0, sticky="w", padx=(4, 8))
             d = tk.StringVar(value="in")
@@ -398,43 +421,68 @@ class FruEditor(tk.Tk):
             term.trace_add("write", lambda *_a, idx=i: self._port_apply(idx))
             pol.trace_add("write", lambda *_a, idx=i: self._port_apply(idx))
 
-        srow = ttk.Frame(parent)
-        srow.pack(fill="x", pady=(0, 6))
-        ttk.Label(srow, text="matrix", style="FieldLabel.TLabel").pack(side="left")
+        ttk.Label(mrow, text="matrix", style="FieldLabel.TLabel").pack(side="left", padx=(16, 4))
         self.switch_var = tk.StringVar(value="")
-        ttk.Entry(srow, textvariable=self.switch_var, width=60, state="readonly").pack(side="left", padx=(6, 10))
+        ttk.Entry(mrow, textvariable=self.switch_var, width=52,
+                  state="readonly").pack(side="left")
         self._port_load_all()
 
-        row2 = ttk.Frame(parent)
-        row2.pack(fill="x", pady=(0, 4))
-        ttk.Button(row2, text="Load Si5345 file…", command=self.si_load).pack(side="left")
-        dev = ttk.Button(row2, text="Write to device", style="Primary.TButton",
+        # ---- block 3: PLL ----------------------------------------------
+        pll = ttk.LabelFrame(parent, text="3  Si5345 PLL", padding=(8, 4))
+        pll.pack(fill="x", pady=(0, 4))
+        prow = ttk.Frame(pll)
+        prow.pack(fill="x")
+        prog = ttk.Button(prow, text="Program (built-in)", command=self.clock_program)
+        prog.pack(side="left")
+        self._hint(prog, "Program the Si5345 from the firmware's compiled table (0x16)")
+        st = ttk.Button(prow, text="Status", command=self.clock_status)
+        st.pack(side="left", padx=(6, 0))
+        self._hint(st, "Si5345 programming status (0x17)")
+        lf = ttk.Button(prow, text="Load Si5345 file…", command=self.si_load)
+        lf.pack(side="left", padx=(14, 0))
+        self._hint(lf, "Load a ClockBuilder register script (pre/body/post)")
+        dev = ttk.Button(prow, text="Write to device", style="Primary.TButton",
                          command=self.si_write_device)
-        dev.pack(side="left", padx=(10, 0))
+        dev.pack(side="left", padx=(8, 0))
         self._hint(dev, "Write the loaded table to the Si5345 RAM over I2C - "
                         "immediate, lost on power-cycle")
-        ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
+        ttk.Label(prow, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
         self.slot_sel = tk.StringVar(value="auto")
-        slotsel = ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
+        slotsel = ttk.Combobox(prow, textvariable=self.slot_sel, values=("auto", "A", "B"),
                                width=5, state="readonly")
         slotsel.pack(side="left")
         self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
-        fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
+        fl = ttk.Button(prow, text="Write to flash", command=self.si_write_flash)
         fl.pack(side="left", padx=(6, 0))
         self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
                        "applied automatically at the next power-on")
-        applyb = ttk.Button(row2, text="Activate stored config", command=self.store_apply)
+        applyb = ttk.Button(prow, text="Activate stored config", command=self.store_apply)
         applyb.pack(side="left", padx=(8, 0))
         self._hint(applyb, "Read the stored slot from flash and activate it now "
                            "(switch matrix + Si5345) without power-cycling")
-        infob = ttk.Button(row2, text="Stored config info", command=self.store_status)
-        infob.pack(side="left", padx=(4, 0))
+        srow2 = ttk.Frame(pll)
+        srow2.pack(fill="x", pady=(2, 0))
+        infob = ttk.Button(srow2, text="Stored config info", command=self.store_status)
+        infob.pack(side="left")
         self._hint(infob, "Show the active slot, length and CRC of the stored configuration")
         self.si_label = tk.StringVar(value="no Si5345 file loaded")
-        ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
+        ttk.Label(srow2, textvariable=self.si_label,
+                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
         self.si_groups = None
 
-        self.clock_out = tk.Text(parent, height=6, font=(MONO_FONT, 9), state="disabled",
+        # ---- block 4: block diagram ------------------------------------
+        dia = ttk.LabelFrame(parent, text="4  Block diagram", padding=(8, 4))
+        dia.pack(fill="x", pady=(0, 4))
+        drow = ttk.Frame(dia)
+        drow.pack(fill="x")
+        exp = ttk.Button(drow, text="Export diagram", command=self.clock_export_dot)
+        exp.pack(side="left")
+        self._hint(exp, "Save the clocking description as a Graphviz DOT file")
+        sysd = ttk.Button(drow, text="System diagram", command=self.clock_show_system)
+        sysd.pack(side="left", padx=(8, 0))
+        self._hint(sysd, "Draw the board clocking (inputs left, outputs right, jumpers)")
+
+        self.clock_out = tk.Text(parent, height=3, font=(MONO_FONT, 9), state="disabled",
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
@@ -442,6 +490,22 @@ class FruEditor(tk.Tk):
         self.clock_hint = tk.StringVar(value="")
         ttk.Label(parent, textvariable=self.clock_hint, style="Hint.TLabel").pack(
             fill="x", pady=(4, 0))
+
+    def template_load(self):
+        self.template = self.template_var.get()
+        doc = self._load_clocking()
+        path = self._clocking_path()
+        if not doc:
+            self.template_label.set("%s — no %s-clocking.json found" % (
+                self.template, self.CLOCKING_TEMPLATES.get(self.template, "ufc")))
+            self._clock_log("template %s: clocking file not found" % self.template)
+            return
+        self.template_label.set("%s — %s" % (self.template, os.path.basename(path)))
+        self._port_load_all()
+        self._clock_log("template %s loaded from %s" % (self.template, path))
+        if doc.get("meta", {}).get("status") == "skeleton":
+            self._clock_log("note: this template is a skeleton — fill tools/clocking/%s-clocking.json"
+                            % self.CLOCKING_TEMPLATES.get(self.template, "u4fcp"))
 
     def _mux_sources(self):
         """All input-capable mux ports from the clocking file: {port: name}."""
@@ -626,26 +690,34 @@ class FruEditor(tk.Tk):
     CLK_GREY = "#8A8A80"
     CLK_EDGE = "#5B6152"
 
-    CLOCKING_CANDIDATES = (
-        "clocking/ufc-clocking.json",
-        "../clocking/ufc-clocking.json",
-        "../../clocking/ufc-clocking.json",
-        "tools/clocking/ufc-clocking.json",
-    )
+    CLOCKING_TEMPLATES = {"uFC": "ufc", "u4FCP": "u4fcp"}
 
-    def _load_clocking(self):
-        import os, json
+    def _clocking_path(self):
+        import os
+        name = self.CLOCKING_TEMPLATES.get(getattr(self, "template", "uFC"), "ufc")
+        cands = ("%s-clocking.json" % name,
+                 "clocking/%s-clocking.json" % name,
+                 "../clocking/%s-clocking.json" % name,
+                 "../../clocking/%s-clocking.json" % name,
+                 "tools/clocking/%s-clocking.json" % name)
         bases = [os.path.dirname(os.path.abspath(__file__)), os.getcwd()]
-        for cand in self.CLOCKING_CANDIDATES:
+        for cand in cands:
             for base in bases:
                 path = os.path.abspath(os.path.join(base, cand))
                 if os.path.exists(path):
-                    try:
-                        with open(path) as f:
-                            return json.load(f)
-                    except Exception:
-                        pass
+                    return path
         return None
+
+    def _load_clocking(self):
+        import json
+        path = self._clocking_path()
+        if not path:
+            return None
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception:
+            return None
 
     def _clocking_draw(self, c, w, h):
         """Schematic-style drawing: inputs left, outputs right, jumped lines."""
