@@ -354,13 +354,15 @@ class FruEditor(tk.Tk):
         tbl = ttk.Frame(parent)
         tbl.pack(fill="both", expand=True, pady=(0, 6))
         ttk.Label(tbl, text="8V54816A ports — direction, source, 100 Ω termination, polarity",
-                  style="Hint.TLabel").pack(anchor="w")
+                  style="Hint.TLabel").grid(row=0, column=0, columnspan=6, sticky="w", pady=(0, 2))
 
-        hdr = ttk.Frame(tbl)
-        hdr.pack(fill="x", pady=(2, 2))
-        for text, w in (("port / signal", 22), ("dir", 4), ("source", 8), ("term", 4),
-                        ("pol", 5), ("byte", 5)):
-            ttk.Label(hdr, text=text, style="Hint.TLabel", width=w, anchor="w").pack(side="left")
+        headers = (("port / signal", 0), ("dir", 1), ("source", 2),
+                   ("term", 3), ("pol", 4), ("byte", 5))
+        for text, col in headers:
+            ttk.Label(tbl, text=text, style="Hint.TLabel").grid(row=1, column=col,
+                                                                sticky="w", padx=(4, 8))
+        for col, weight in ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)):
+            tbl.columnconfigure(col, weight=weight)
 
         self.clock_matrix = bytearray(16)
         self.clock_loading = False
@@ -370,26 +372,24 @@ class FruEditor(tk.Tk):
             # capabilities come from ufc-clocking.json (fallback: built-in rules)
             allowed = self._mux_allowed().get(
                 i, ("out",) if i in (9, 10, 11) else ("in",) if i in (7, 8) else ("in", "out"))
-            rowf = ttk.Frame(tbl)
-            rowf.pack(fill="x", pady=0)
-            ttk.Label(rowf, text="%s %s" % (port, name), width=22, anchor="w",
-                      font=(UI_FONT, 9)).pack(side="left")
+            row = i + 2
+            ttk.Label(tbl, text="%s %s" % (port, name), width=22, anchor="w",
+                      font=(UI_FONT, 9)).grid(row=row, column=0, sticky="w", padx=(4, 8))
             d = tk.StringVar(value="in")
-            # show the actual register value, but only the hardware-legal
-            # directions can be selected (allowed)
-            ttk.Combobox(rowf, textvariable=d, values=("in", "out"), width=4,
-                         state="readonly").pack(side="left", padx=(0, 6))
+            ttk.Combobox(tbl, textvariable=d, values=("in", "out"), width=4,
+                         state="readonly").grid(row=row, column=1, sticky="w", padx=(4, 8))
             src = tk.StringVar(value="-")
-            srcbox = ttk.Combobox(rowf, textvariable=src, width=12, state="disabled")
-            srcbox.pack(side="left", padx=(0, 6))
+            srcbox = ttk.Combobox(tbl, textvariable=src, width=24, state="disabled")
+            srcbox.grid(row=row, column=2, sticky="w", padx=(4, 8))
             term = tk.BooleanVar(value=False)
-            ttk.Checkbutton(rowf, variable=term).pack(side="left", padx=(0, 26))
+            ttk.Checkbutton(tbl, variable=term).grid(row=row, column=3, sticky="w", padx=(4, 8))
             pol = tk.BooleanVar(value=True)
-            ttk.Checkbutton(rowf, variable=pol).pack(side="left", padx=(0, 22))
+            ttk.Checkbutton(tbl, variable=pol).grid(row=row, column=4, sticky="w", padx=(4, 8))
             byte = tk.StringVar(value="0x00")
-            ttk.Label(rowf, textvariable=byte, width=5, font=(MONO_FONT, 9)).pack(side="left")
+            ttk.Label(tbl, textvariable=byte, width=6, font=(MONO_FONT, 9)).grid(
+                row=row, column=5, sticky="w", padx=(4, 8))
             entry = {"dir": d, "src": src, "srcbox": srcbox, "term": term, "pol": pol,
-                     "byte": byte, "frame": rowf, "allowed": allowed}
+                     "byte": byte, "allowed": allowed}
             self.port_vars.append(entry)
             d.trace_add("write", lambda *_a, idx=i: self._port_dir_changed(idx))
             src.trace_add("write", lambda *_a, idx=i: self._port_apply(idx))
