@@ -154,6 +154,9 @@ always shows the 16 bytes that are written to the device.
   - **flash**: builds the FRU slot (matrix + Si5345 table) and uploads it to
     the MMC clock store (`0x1A/0x1B/0x1C`), which the MMC applies at power‑on
 - **Apply store** / **Store status** — `0x19` / `0x18`
+- **?** — opens the clock-tab help (byte layout, every column and button);
+  hovering the column headers and the controls shows the same explanations
+  as tooltips
 - **Status** — command `0x17`
 - **Export diagram** — save the merged Graphviz `.dot` (includes the FPGA
   port/pin tables)
