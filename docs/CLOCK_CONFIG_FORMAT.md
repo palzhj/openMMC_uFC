@@ -107,6 +107,24 @@ Unknown types are skipped using `len` (forward compatibility).
 A 9 KB slot leaves ~7 KB for additional devices: two Si5345 tables
 (2 × 1.6 KB) plus an ADN4604 map (~550 B) fit with room to spare.
 
+## Implemented firmware
+
+`modules/clock_store.c` (build with `-DCLOCK_STORE=ON`) implements this store:
+
+| Item | Value |
+|---|---|
+| pointer record | 24 B at `0x0801B000` and `+512`: magic `UFCP`, seq, slot, flags (bit0 valid), len, CRC32 of the slot payload, header CRC over the first 16 B |
+| slot | `UFCC` wrapper (32 B) + FRU multirecord file; record `0x30+` = Si5345 table chunks (3-byte entries), `0x40` = 16-byte switch matrix |
+| boot | `clock_store_init()` after `i2c_init()` applies the valid slot (switch matrix with retries, Si5345 entries with the 300 ms calibration pause) |
+| 0x18 status | `[valid, slot, len_lo, len_hi, crc0..3]` |
+| 0x19 apply | re-apply the active slot |
+| 0x1A begin | `[slot, len_lo, len_hi, crc0..3]` — erases the target slot |
+| 0x1B block | `[off_lo, off_hi, data…]` — half-word programming, sequential |
+| 0x1C finish | `[crc0..3]` — verifies the slot CRC and writes the pointer (sequence + 1) |
+
+The toolbox uses this with **Write Si5345 → flash**, plus **Apply store** and
+**Store status**.
+
 ## Update flow (atomic)
 
 1. write the inactive slot (header + blocks), CRC over the payload;

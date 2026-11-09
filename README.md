@@ -39,6 +39,12 @@ under `port/board/ufc-v2/`.
 | Clock configuration | `0x0801B000` | 19 KB | 1 KB pointer + 9 KB slot A + 9 KB slot B (FRU records) |
 | `fw_info` | `0x0801FC00` | 1 KB | pending‑update flag (`0xAA…`) used by newboot |
 
+The clock region is used by the **clock configuration store** (`-DCLOCK_STORE=ON`):
+a 1 KB pointer page plus 9 KB A/B FRU-format slots; the MMC applies the valid
+slot at power‑on (switch matrix + Si5345 table) and the toolbox can upload a
+new slot over IPMI (`0x1A/0x1B/0x1C`, status `0x18`, apply `0x19`). See
+[docs/CLOCK_CONFIG_FORMAT.md](docs/CLOCK_CONFIG_FORMAT.md).
+
 OpenBLT has been dropped: the CPU starts **newboot** directly from `0x08000000`
 and no vector‑table checksum is involved.
 
