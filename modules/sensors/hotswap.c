@@ -51,7 +51,7 @@ TaskHandle_t vTaskHotSwap_Handle;
 
 static bool hotswap_get_handle_status( uint8_t *state )
 {
-    static uint8_t falling, rising;
+    static uint8_t falling = 0, rising = 0;
 
     bool pin_read = gpio_read_pin(PIN_PORT(GPIO_HOT_SWAP_HANDLE), PIN_NUMBER(GPIO_HOT_SWAP_HANDLE));
 

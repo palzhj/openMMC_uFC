@@ -31,28 +31,41 @@
 #include "string.h"
 #include "task_priorities.h"
 #include "fru.h"
-#include "led.h"
 #include "board_led.h"
 
 
 LEDConfig_t led_config[FRU_COUNT][LED_CNT];
+#ifndef LED_NO_TASK
 QueueHandle_t led_update_queue;
+#endif
 
 void LED_init( void )
 {
     /* LED Pins initialization */
     gpio_init();
 
-    led_update_queue = xQueueCreate( 3, sizeof(LEDUpdate_t) );
-
     memcpy( &led_config[0], &leds_config, sizeof(leds_config) );
 #ifdef MODULE_RTM
     memcpy( &led_config[1], &rtm_leds_config, sizeof(rtm_leds_config) );
 #endif
 
-    xTaskCreate( LED_Task, (const char *) "LED Task", 150, (void * ) NULL, tskLED_PRIORITY, ( TaskHandle_t * ) NULL);
+#ifndef LED_NO_TASK
+    led_update_queue = xQueueCreate( 3, sizeof(LEDUpdate_t) );
+    xTaskCreate( LED_Task, (const char *) "LED Task", LED_TASK_STACK, (void * ) NULL, tskLED_PRIORITY, ( TaskHandle_t * ) NULL);
+#else
+    /* No LED task: apply the local-control default state directly. */
+    for ( uint8_t i = 0; i < FRU_COUNT; i++ ) {
+        for ( uint8_t j = 0; j < LED_CNT; j++ ) {
+            LEDConfig_t *cfg = &led_config[i][j];
+            cfg->mode = LEDMODE_LOCAL;
+            cfg->mode_cfg[LEDMODE_LOCAL].active = true;
+            cfg->act_func( cfg->id, cfg->mode_cfg[LEDMODE_LOCAL].init_status );
+        }
+    }
+#endif
 }
 
+#ifndef LED_NO_TASK
 void LED_Task( void *Parameters )
 {
     TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -140,9 +153,11 @@ void LEDManage( LEDConfig_t *led_cfg )
         led_cfg->counter++;
     }
 }
+#endif /* LED_NO_TASK */
 
 void LEDUpdate( uint8_t fru, uint8_t led_num, uint8_t mode, uint8_t init_status, uint16_t t_init, uint16_t t_toggle )
 {
+#ifndef LED_NO_TASK
     LEDUpdate_t new_config = {
         .fru_id = fru,
         .led_num = led_num,
@@ -162,6 +177,25 @@ void LEDUpdate( uint8_t fru, uint8_t led_num, uint8_t mode, uint8_t init_status,
     if ( xQueueSend( led_update_queue, &new_config, 0 ) != pdTRUE ) {
         /* TODO: Handle error */
     }
+#else
+    if ( ( fru >= FRU_COUNT ) || ( led_num >= LED_CNT ) || ( mode >= LEDMODE_CNT ) ) {
+        return;
+    }
+
+    if ( mode == LEDMODE_LOCAL ) {
+        led_config[fru][led_num].mode_cfg[LEDMODE_OVERRIDE].active = false;
+        led_config[fru][led_num].mode_cfg[LEDMODE_LAMPTEST].active = false;
+    }
+
+    led_config[fru][led_num].mode = mode;
+    led_config[fru][led_num].mode_cfg[mode].active = true;
+    led_config[fru][led_num].mode_cfg[mode].init_status = init_status;
+    led_config[fru][led_num].mode_cfg[mode].t_init = t_init;
+    led_config[fru][led_num].mode_cfg[mode].t_toggle = t_toggle;
+
+    /* Apply immediately; blinking is not supported without the LED task. */
+    led_config[fru][led_num].act_func( led_config[fru][led_num].id, init_status );
+#endif
 }
 
 /* AMC LED acting function */

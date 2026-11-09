@@ -104,6 +104,15 @@ void IPMB_TXTask ( void * pvParameters )
     for ( ;; ) {
         xQueueReceive( ipmb_txqueue, &current_msg_tx, portMAX_DELAY);
 
+#ifdef DEBUG
+    printf(" IPMI Message to be sent: \n ");
+    printf(" \tNETFn: 0x%X\tCMD: 0x%X\t Data: ", (*current_msg_tx).buffer.netfn, (*current_msg_tx).buffer.cmd);
+    for (int i=0; i < (*current_msg_tx).buffer.data_len; i++) {
+        printf("0x%X ", (*current_msg_tx).buffer.data[i]);
+    }
+    printf("\n");
+#endif
+
         if ( IS_RESPONSE(current_msg_tx->buffer) ) {
             /* We're sending a response */
 
@@ -243,8 +252,12 @@ void ipmb_init ( void )
     ipmb_txqueue = xQueueCreate( IPMB_TXQUEUE_LEN, sizeof(ipmi_msg_cfg *) );
     vQueueAddToRegistry( ipmb_txqueue, "IPMB_TX_QUEUE");
 
-    xTaskCreate( IPMB_TXTask, (const char*)"IPMB_TX", 100, ( void * ) NULL, tskIPMB_TX_PRIORITY, ( TaskHandle_t * ) NULL );
-    xTaskCreate( IPMB_RXTask, (const char*)"IPMB_RX", 100, ( void * ) NULL, tskIPMB_RX_PRIORITY, ( TaskHandle_t * ) NULL );
+    if ( xTaskCreate( IPMB_TXTask, (const char*)"IPMB_TX", IPMB_TX_TASK_STACK, ( void * ) NULL, tskIPMB_TX_PRIORITY, ( TaskHandle_t * ) NULL ) != pdPASS ) {
+        printf("ERROR: IPMB_TX task creation failed\n");
+    }
+    if ( xTaskCreate( IPMB_RXTask, (const char*)"IPMB_RX", IPMB_RX_TASK_STACK, ( void * ) NULL, tskIPMB_RX_PRIORITY, ( TaskHandle_t * ) NULL ) != pdPASS ) {
+        printf("ERROR: IPMB_RX task creation failed\n");
+    }
 }
 
 ipmb_error ipmb_send_request ( ipmi_msg * req )

@@ -3,6 +3,15 @@
 #include "utils.h"
 #include "uart_debug.h"
 
+/* Boards with a small (128-byte writable) FRU EEPROM can omit the clock
+ * configuration record to stay within the device. Default: keep it. */
+#ifndef AMC_FRU_INCLUDE_CLOCK_RECORD
+#define AMC_FRU_INCLUDE_CLOCK_RECORD 1
+#endif
+#ifndef AMC_FRU_INCLUDE_ZONE3_RECORD
+#define AMC_FRU_INCLUDE_ZONE3_RECORD 1
+#endif
+
 size_t amc_fru_info_build( uint8_t **buffer )
 {
     uint8_t *hdr_ptr, *board_ptr, *product_ptr, *current_ptr, *clk_ptr, *p2p_ptr, *z3_ptr;
@@ -63,10 +72,16 @@ size_t amc_fru_info_build( uint8_t **buffer )
     offset += current_sz;
 
     /* Clock Point-to-Point Conectivity */
+#if AMC_FRU_INCLUDE_CLOCK_RECORD
     clk_off = offset;
     clock_config_descriptor_t clk_desc[] = { AMC_CLOCK_CONFIGURATION_LIST };
     clk_sz += amc_point_to_point_clock_build( &clk_ptr, clk_desc, sizeof(clk_desc)/sizeof(clk_desc[0]));
     offset += clk_sz;
+#else
+    (void)clk_off;
+    (void)clk_sz;
+    (void)clk_ptr;
+#endif
 
     /* AMC Point-to-Point Conectivity */
     p2p_off = offset;
@@ -75,13 +90,27 @@ size_t amc_fru_info_build( uint8_t **buffer )
     offset += p2p_sz;
 
     /* Zone3 Connector Compatibility */
+#if AMC_FRU_INCLUDE_ZONE3_RECORD
     z3_compat_off = offset;
     printf("\t\t-Zone3 Compatibility code: 0x%X\n", AMC_COMPATIBILITY_CODE);
     z3_compat_sz += zone3_compatibility_record_build( &z3_ptr, AMC_COMPATIBILITY_CODE );
     offset += z3_compat_sz;
+#else
+    (void)z3_compat_off;
+    (void)z3_compat_sz;
+    (void)z3_ptr;
+    /* No Zone 3 on this board: the P2P record is the last one */
+    fru_multirecord_set_eol( p2p_ptr, 1 );
+#endif
 
     /* Common Header */
     fru_header_build( &hdr_ptr, int_use_off, chassis_off, board_off, product_off, multirec_off );
+
+#ifdef AMC_FRU_MAX_SIZE
+    if (offset > AMC_FRU_MAX_SIZE) {
+        printf(">AMC FRU ERROR: %d bytes exceeds the %d-byte EEPROM limit!\n", (int)offset, AMC_FRU_MAX_SIZE);
+    }
+#endif
 
     *buffer = pvPortMalloc(offset);
     printf(">AMC FRU total size: %d bytes\n", offset);
@@ -90,17 +119,25 @@ size_t amc_fru_info_build( uint8_t **buffer )
     memcpy( (*buffer)+board_off, board_ptr, board_sz);
     memcpy( (*buffer)+product_off, product_ptr, product_sz);
     memcpy( (*buffer)+current_off, current_ptr, current_sz);
+#if AMC_FRU_INCLUDE_CLOCK_RECORD
     memcpy( (*buffer)+clk_off, clk_ptr, clk_sz);
+#endif
     memcpy( (*buffer)+p2p_off, p2p_ptr, p2p_sz);
+#if AMC_FRU_INCLUDE_ZONE3_RECORD
     memcpy( (*buffer)+z3_compat_off, z3_ptr, z3_compat_sz);
+#endif
 
     vPortFree(hdr_ptr);
     vPortFree(board_ptr);
     vPortFree(product_ptr);
     vPortFree(current_ptr);
+#if AMC_FRU_INCLUDE_CLOCK_RECORD
     vPortFree(clk_ptr);
+#endif
     vPortFree(p2p_ptr);
+#if AMC_FRU_INCLUDE_ZONE3_RECORD
     vPortFree(z3_ptr);
+#endif
 
     return offset;
 }

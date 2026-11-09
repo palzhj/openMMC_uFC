@@ -249,6 +249,15 @@ uint8_t product_info_area_build( uint8_t **buffer, uint8_t lang, const char *man
     return len;
 }
 
+void fru_multirecord_set_eol( uint8_t *rec, uint8_t eol )
+{
+    fru_multirecord_area_header_t *hdr = (fru_multirecord_area_header_t *) rec;
+
+    hdr->eol = eol ? 1 : 0;
+    hdr->header_chksum = 0;
+    hdr->header_chksum = calculate_chksum( (uint8_t *)hdr, sizeof(fru_multirecord_area_header_t) );
+}
+
 uint8_t module_current_record_build( uint8_t **buffer, uint8_t current )
 {
     uint8_t len = sizeof(fru_module_current_record_t);

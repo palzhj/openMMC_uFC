@@ -1,70 +1,29 @@
-# Object files
+# ---- in-source build tree (keep only the build guide) ----
+/build/*
+!/build/readme.md
+
+# ---- out-of-tree build / staging dirs ----
+/.hw2/
+/out/
+*.log
+
+# ---- build artifacts ----
 *.o
-*.ko
-*.obj
-*.elf
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-Debug/
-*.launch
-*.xml
-.cproject
-.project
-
-#Temporary files
-*.swp
-*.map
-*~
-*#*
-*.#*
-
-#Dependency files
 *.d
-
-#Binaries
-*.axf
+*.su
+*.elf
 *.bin
-
-#Cmake files
-CMakeFiles/
-*.dir/*
-Makefile
-*cmake_install.cmake
+*.srec
+*.hex
+*.map
+*.lst
 CMakeCache.txt
-build/
+CMakeFiles/
+cmake_install.cmake
 
-#Output files
-out/*
+# ---- third-party documents: vendor/CERN copies, not redistributable ----
+/docs/datasheets/
+/docs/specs/
 
-#Doxygen output
-*html*
-
-TAGS
-.dir-locals.el
-
-modules/GitSHA1.c
+# ---- local Renode home ----
+/.renode-home/

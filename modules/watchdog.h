@@ -38,6 +38,7 @@
 /**
  * @brief Watchdog timer timeout (in ms)
  */
+#define WATCHDOG_TASK_STACK 48
 #define WATCHDOG_TIMEOUT        1000    /* in milisseconds */
 
 /**

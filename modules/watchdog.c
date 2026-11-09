@@ -42,7 +42,7 @@ void watchdog_init( void )
     wdt_init();
     wdt_config();
     wdt_set_timeout(((WATCHDOG_TIMEOUT/1000)*WATCHDOG_CLK_FREQ));
-    xTaskCreate( WatchdogTask, (const char *) "Watchdog Task", 60, (void * ) NULL, tskWATCHDOG_PRIORITY, ( TaskHandle_t * ) NULL);
+    xTaskCreate( WatchdogTask, (const char *) "Watchdog Task", WATCHDOG_TASK_STACK, (void * ) NULL, tskWATCHDOG_PRIORITY, ( TaskHandle_t * ) NULL);
 }
 
 void WatchdogTask (void * Parameters)

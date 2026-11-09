@@ -33,18 +33,36 @@
 #define tskPAYLOAD_PRIORITY             (tskIDLE_PRIORITY+2)
 #define tskRTM_MANAGE_PRIORITY          (tskIDLE_PRIORITY+2)
 
+#define tskUCDSENSOR_PRIORITY           (tskIDLE_PRIORITY+3)
 #define tskSENSOR_PRIORITY              (tskIDLE_PRIORITY+3)
 #define tskHOTSWAP_PRIORITY             (tskIDLE_PRIORITY+3)
 #define tskLM75SENSOR_PRIORITY          (tskIDLE_PRIORITY+3)
 #define tskMAX6642SENSOR_PRIORITY       (tskIDLE_PRIORITY+3)
 #define tskINA220SENSOR_PRIORITY        (tskIDLE_PRIORITY+3)
 #define tskINA3221SENSOR_PRIORITY       (tskIDLE_PRIORITY+3)
-#define tskMAX11609SENSOR_PRIORITY      (tskIDLE_PRIORITY+3)
 
 #define tskIPMI_HANDLERS_PRIORITY       (tskIDLE_PRIORITY+4)
 #define tskIPMI_PRIORITY                (tskIDLE_PRIORITY+4)
 
 #define tskIPMB_RX_PRIORITY             (tskIDLE_PRIORITY+5)
 #define tskIPMB_TX_PRIORITY             (tskIDLE_PRIORITY+5)
+
+/* Per-task stack sizes in words.  Boards with a tight SRAM budget can override
+ * these from their CMakeLists (-DIPMB_TX_TASK_STACK=...). */
+#ifndef IPMB_TX_TASK_STACK
+#define IPMB_TX_TASK_STACK              (100)
+#endif
+#ifndef IPMB_RX_TASK_STACK
+#define IPMB_RX_TASK_STACK              (100)
+#endif
+#ifndef IPMI_TASK_STACK
+#define IPMI_TASK_STACK                 (256)
+#endif
+#ifndef PAYLOAD_TASK_STACK
+#define PAYLOAD_TASK_STACK              (256)
+#endif
+#ifndef LED_TASK_STACK
+#define LED_TASK_STACK                  (150)
+#endif
 
 #endif

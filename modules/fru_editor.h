@@ -433,6 +433,7 @@ uint8_t chassis_info_area_build( uint8_t **buffer, uint8_t type, const char *pn,
 uint8_t product_info_area_build( uint8_t **buffer, uint8_t lang, const char *manuf, const char *name, const char *part_model, const char *version, const char *serial, const char *asset_tag, const char *file_id );
 uint8_t amc_point_to_point_record_build( uint8_t **buffer, amc_p2p_descriptor_t * p2p_desc, uint8_t desc_count );
 uint8_t amc_point_to_point_clock_build( uint8_t **buffer, clock_config_descriptor_t * clk_desc, uint8_t desc_count );
+void fru_multirecord_set_eol( uint8_t *rec, uint8_t eol );
 uint8_t module_current_record_build( uint8_t **buffer, uint8_t current );
 uint8_t zone3_compatibility_record_build( uint8_t **buffer, uint32_t compat_code );
 uint8_t fmc_subtype_record_build( uint8_t **buffer, uint8_t clock_dir, uint8_t module_size, uint8_t p1_conn_size, uint8_t p2_conn_size, uint8_t p1_a_count, uint8_t p1_b_count, uint8_t p2_a_count, uint8_t p2_b_count, uint8_t p1_gbt, uint8_t p2_gbt, uint8_t eol );

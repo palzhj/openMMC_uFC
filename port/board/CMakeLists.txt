@@ -4,7 +4,10 @@ if(NOT BOARD)
   message(FATAL_ERROR "${BoldRed}Target board was not selected! You must pass the flag -DBOARD=<board_name>${ColourReset}")
 endif()
 
-if(${BOARD} MATCHES "^(afc)$")
+if(${BOARD} MATCHES "^(afc-v4)$" )
+  add_subdirectory(afc-v4)
+
+elseif(${BOARD} MATCHES "^(afc)$")
 
   if(NOT VERSION)
     message(FATAL_ERROR "${BoldRed}AFC board version was not selected! You must pass the flag -DVERSION=<major>.<minor>${ColourReset}")
@@ -19,8 +22,10 @@ if(${BOARD} MATCHES "^(afc)$")
     add_subdirectory(afc-v4)
   endif()
 
-elseif(${BOARD} MATCHES "^(afc-v4)$" )
-  add_subdirectory(afc-v4)
+elseif(${BOARD} MATCHES "^(u4fcp-v2)$" )
+  add_subdirectory(u4fcp-v2)
+elseif(${BOARD} MATCHES "^(ufc-v2)$" )
+  add_subdirectory(ufc-v2)
 
 else()
   message(FATAL_ERROR "${BoldRed}Selected board \"${BOARD}\" is not implemented!${ColourReset}")
@@ -28,6 +33,8 @@ endif()
 
 if(${BOARD} MATCHES "^(afc)")
   add_subdirectory(afc-common)
+elseif(${BOARD} MATCHES "^(u)")
+  add_subdirectory(ufc-common)
 endif()
 
 #RTM Board
@@ -48,7 +55,13 @@ set(TARGET_CONTROLLER "${TARGET_CONTROLLER_UPPER}" CACHE STRING "Target Controll
 string(TOUPPER "${TARGET_BOARD_NAME}" TARGET_BOARD_UPPER)
 set(TARGET_BOARD_NAME "${TARGET_BOARD_UPPER}" CACHE STRING "Target Board Name")
 
+# uFC-v2 has a tight flash budget: optimize the release build for size
+if(${BOARD} MATCHES "^(ufc-v2)$")
+  set(CMAKE_C_FLAGS_RELEASE "-Os -ffunction-sections -fdata-sections" PARENT_SCOPE)
+endif()
+
 #Set the modified variables in the main scope
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}" PARENT_SCOPE)
 set(PROJ_SRCS ${PROJ_SRCS} PARENT_SCOPE)
 set(PROJ_HDRS ${PROJ_HDRS} PARENT_SCOPE)
 set(TARGET_MODULES ${TARGET_MODULES} PARENT_SCOPE)

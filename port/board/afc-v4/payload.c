@@ -46,7 +46,6 @@
 #include "eeprom_24xx02.h"
 #include "i2c_mapping.h"
 #include "pin_mapping.h"
-#include <stdint.h>
 
 /* payload states
  *   0 - No power
@@ -151,7 +150,7 @@ static void check_fpga_reset( void )
     last_state = cur_state;
 }
 
-uint8_t payload_check_pgood(uint16_t* adc_readout)
+uint8_t payload_check_pgood()
 {
     /* Threshold set to ~8V */
     const uint16_t PAYLOAD_THRESHOLD = 0x9B2;
@@ -163,7 +162,6 @@ uint8_t payload_check_pgood(uint16_t* adc_readout)
     while (Chip_ADC_ReadStatus(LPC_ADC, ADC_CH1, ADC_DR_DONE_STAT) != SET) {}
     /* Read ADC value */
     Chip_ADC_ReadValue(LPC_ADC, ADC_CH1, &dataADC);
-    *adc_readout = dataADC;
 
     if (dataADC > PAYLOAD_THRESHOLD){
         return 1;
@@ -298,8 +296,7 @@ void vTaskPayload( void *pvParameters )
     uint8_t new_state = -1;
 
     /* Payload power good flag */
-    uint8_t pp_good = 0;
-    uint8_t last_pp_goods[2] = {0, 0};
+    uint8_t PP_good = 0;
 
     /* Payload DCDCs good flag */
     uint8_t DCDC_good = 0;
@@ -311,8 +308,6 @@ void vTaskPayload( void *pvParameters )
 
     TickType_t xLastWakeTime;
     mmc_err err;
-
-    uint16_t pp_adc_val;
 
     xLastWakeTime = xTaskGetTickCount();
 
@@ -363,19 +358,13 @@ void vTaskPayload( void *pvParameters )
             xEventGroupClearBits(amc_payload_evt, PAYLOAD_MESSAGE_REBOOT | PAYLOAD_MESSAGE_WARM_RST);
         }
 
-        last_pp_goods[1] = last_pp_goods[0];
-        last_pp_goods[0] = payload_check_pgood(&pp_adc_val);
-
-        if (last_pp_goods[0] == last_pp_goods[1]) {
-            pp_good = last_pp_goods[0];
-        }
-
+        PP_good = payload_check_pgood();
         DCDC_good = gpio_read_pin(PIN_PORT(GPIO_PGOOD_P1V0), PIN_NUMBER(GPIO_PGOOD_P1V0));
 
         switch(state) {
 
         case PAYLOAD_NO_POWER:
-            if (pp_good) {
+            if (PP_good) {
                 new_state = PAYLOAD_POWER_GOOD_WAIT;
             }
             break;
@@ -390,7 +379,7 @@ void vTaskPayload( void *pvParameters )
             hotswap_clear_mask_bit( HOTSWAP_AMC, HOTSWAP_BACKEND_PWR_SHUTDOWN_MASK );
             hotswap_clear_mask_bit( HOTSWAP_AMC, HOTSWAP_BACKEND_PWR_FAILURE_MASK );
 
-            if ( QUIESCED_req || ( pp_good == 0 ) ) {
+            if ( QUIESCED_req || ( PP_good == 0 ) ) {
                 new_state = PAYLOAD_SWITCHING_OFF;
             } else if ( DCDC_good == 1 ) {
                 new_state = PAYLOAD_STATE_FPGA_SETUP;
@@ -421,12 +410,7 @@ void vTaskPayload( void *pvParameters )
             break;
 
         case PAYLOAD_FPGA_ON:
-            if (last_pp_goods[0] == 0) {
-                printf("Payload power ADC value %u\n", pp_adc_val);
-            }
-
-            if ( QUIESCED_req == 1 || pp_good == 0 || DCDC_good == 0 ) {
-                printf("QUIESCED_req = %d, pp_good = %d, DCDC_good = %d\n", QUIESCED_req, pp_good, DCDC_good);
+            if ( QUIESCED_req == 1 || PP_good == 0 || DCDC_good == 0 ) {
                 new_state = PAYLOAD_SWITCHING_OFF;
             }
             break;
@@ -457,7 +441,7 @@ void vTaskPayload( void *pvParameters )
 
         case PAYLOAD_QUIESCED:
             /* Wait until power goes down to restart the cycle */
-            if (pp_good == 0 && DCDC_good == 0) {
+            if (PP_good == 0 && DCDC_good == 0) {
                 new_state = PAYLOAD_NO_POWER;
             }
             break;

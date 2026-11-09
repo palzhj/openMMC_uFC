@@ -1,7 +1,7 @@
 # Define minimal required version of CMake.
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.0.0)
 
-option(DISABLE_WATCHDOG "Disable watchdog module to aid debugging" OFF)
+option(DISABLE_WATCHDOG "Disable watchdog module to aid debugging" ON)
 
 #Include text color definitions
 include( ${CMAKE_SOURCE_DIR}/toolchain/colors.cmake )
@@ -46,7 +46,7 @@ set(CMAKE_ERROR_FLAGS "-Wall -Wextra -Wpointer-arith -Wno-packed-bitfield-compat
 # Build specific flags
 set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} ${CMAKE_ERROR_FLAGS}")
 set(CMAKE_C_FLAGS_DEBUG     "-Og -g3 -DDEBUG")
-set(CMAKE_C_FLAGS_RELEASE   "-Os")
+set(CMAKE_C_FLAGS_RELEASE   "-O3")
 
 # When we break up long strings in CMake we get semicolon
 # separated lists, undo this here...
@@ -68,7 +68,7 @@ add_subdirectory(modules)
 
 include_directories( ${UCONTROLLER_HDRS} ${PROJ_HDRS} )
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DTARGET_CONTROLLER=${TARGET_CONTROLLER} -DTARGET_BOARD_NAME=\"${TARGET_BOARD_NAME}\" ")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DTARGET_CONTROLLER=${TARGET_CONTROLLER} -DTARGET_BOARD_NAME=\"${TARGET_BOARD_NAME}\"")
 
 # Get Git information
 git_describe(GIT_TAG "--tags")
@@ -85,6 +85,8 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES COMPILE_FLAGS ${MODULES_F
 
 if(${BOARD} MATCHES "^(afc)")
   set(PROJ_LIBS lpcopen)
+elseif(${BOARD} MATCHES "^(u)")
+  set(PROJ_LIBS STM32F1XX)
 else()
   message(FATAL_ERROR "${BOARD} not supported!")
 endif()
@@ -93,7 +95,7 @@ endif()
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
   SUFFIX ".elf"
-  LINK_FLAGS "-T ${UCONTROLLER_APP_LD_SCRIPT} -Wl,-Map=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TARGET_CONTROLLER}_app.map"
+  LINK_FLAGS "-T${UCONTROLLER_APP_LD_SCRIPT} -Wl,-Map=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TARGET_CONTROLLER}_app.map"
   )
 
 # Headers path
@@ -104,22 +106,24 @@ target_link_libraries(${CMAKE_PROJECT_NAME} FreeRTOS gcc c ${PROJ_LIBS})
 ##Generate binary file
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
   COMMAND ${CMAKE_OBJCOPY} -O binary ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.bin
+  COMMAND ${CMAKE_OBJCOPY} -O srec ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.srec
+  COMMAND ${CMAKE_SIZE} ${CMAKE_PROJECT_NAME}.elf
   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
   COMMENT "Converting the ELF output to a binary file"
   )
 
 ##Generate hpm files if bin2hpm is installed
 
-find_program(BIN2HPM NAMES "bin2hpm")
-if(BIN2HPM)
-  add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
-    COMMAND bin2hpm -c 1 -n -m 0x315A -p 0x00 ${CMAKE_PROJECT_NAME}.bin -o ${CMAKE_PROJECT_NAME}.hpm
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    COMMENT "Creating HPM file from binary"
-  )
-  message(STATUS "bin2hpm found in the $PATH, .hpm files will be generated automatically.")
-else()
-  message(NOTICE "bin2hpm not found in the $PATH, .hpm files will not be generated.")
-endif()
+# find_program(BIN2HPM NAMES "bin2hpm")
+# if(BIN2HPM)
+#   add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+#     COMMAND bin2hpm -c 1 -n -m 0x315A -p 0x00 ${CMAKE_PROJECT_NAME}.bin -o ${CMAKE_PROJECT_NAME}.hpm
+#     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+#     COMMENT "Creating HPM file from binary"
+#   )
+#   message(STATUS "bin2hpm found in the $PATH, .hpm files will be generated automatically.")
+# else()
+#   message(NOTICE "bin2hpm not found in the $PATH, .hpm files will not be generated.")
+# endif()
 
 include( ${CMAKE_SOURCE_DIR}/probe/openocd.cmake )

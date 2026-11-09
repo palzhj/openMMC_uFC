@@ -69,7 +69,7 @@ void IPMITask( void * pvParameters )
             configASSERT(pdFALSE);
             continue;
         }
-#if 0
+#if DEBUG
         printf(" IPMI Message Received: \n ");
         printf(" \tNETFn: 0x%X\tCMD: 0x%X\t Data: ", req_received.netfn, req_received.cmd);
         for (int i=0; i < req_received.data_len; i++) {
@@ -116,7 +116,9 @@ void ipmi_init ( void )
 {
     ipmb_init();
     ipmb_register_rxqueue( &ipmi_rxqueue );
-    xTaskCreate( IPMITask, (const char*)"IPMI Dispatcher", 256, ( void * ) NULL, tskIPMI_PRIORITY, &TaskIPMI_Handle );
+    if ( xTaskCreate( IPMITask, (const char*)"IPMI Dispatcher", IPMI_TASK_STACK, ( void * ) NULL, tskIPMI_PRIORITY, &TaskIPMI_Handle ) != pdPASS ) {
+        printf("ERROR: IPMI task creation failed\n");
+    }
 }
 
 /**
@@ -325,6 +327,7 @@ IPMI_HANDLER(ipmi_picmg_cmd_get_fru_control_capabilities, NETFN_GRPEXT, IPMI_PIC
     rsp->completion_code = IPMI_CC_OK;
 }
 
+#ifndef DISABLE_DIAGNOSTIC_CMDS
 IPMI_HANDLER(ipmi_custom_cmd_get_free_heap, NETFN_CUSTOM, IPMI_CUSTOM_CMD_MMC_GET_FREE_HEAP, ipmi_msg *req, ipmi_msg *rsp)
 {
     uint8_t len = rsp->data_len = 0;
@@ -339,3 +342,4 @@ IPMI_HANDLER(ipmi_custom_cmd_get_free_heap, NETFN_CUSTOM, IPMI_CUSTOM_CMD_MMC_GE
     rsp->data_len = len;
     rsp->completion_code = IPMI_CC_OK;
 }
+#endif

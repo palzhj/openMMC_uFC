@@ -93,4 +93,6 @@ typedef struct {
     t_hpm_activate_firmware hpm_activate_firmware_f;
 } t_component;
 
+void hpm_init( void );
+
 #endif

@@ -26,6 +26,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/* Maximum FRU image size in bytes.  Boards whose FRU EEPROM is smaller
+ * override this (e.g. -DFRU_MAX_SIZE=128 for the 24AA025E48). */
+#ifndef FRU_MAX_SIZE
+#define FRU_MAX_SIZE 256
+#endif
+
 enum {
     FRU_AMC,
 #ifdef MODULE_RTM

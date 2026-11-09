@@ -58,8 +58,8 @@
 #include "max6642.h"
 #endif
 
-#ifdef MODULE_MAX11609
-#include "max11609.h"
+#ifdef MODULE_UCD90XXX
+#include "ucd90xxx.h"
 #endif
 
 #endif

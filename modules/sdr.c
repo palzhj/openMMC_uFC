@@ -106,14 +106,14 @@ void sensor_init( void )
 #ifdef MODULE_MAX6642
     MAX6642_init();
 #endif
-#ifdef MODULE_MAX11609
-    MAX11609_init();
-#endif
 #if defined(MODULE_INA220_CURRENT) || defined(MODULE_INA220_VOLTAGE)
     ina220_init();
 #endif
 #if defined(MODULE_INA3221_CURRENT) || defined(MODULE_INA3221_VOLTAGE)
     ina3221_init();
+#endif
+#ifdef MODULE_UCD90XXX
+    ucd_init();
 #endif
 }
 

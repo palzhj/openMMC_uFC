@@ -27,12 +27,7 @@
 #include "port.h"
 #include "fru.h"
 #include "fru_editor.h"
-#include "at24mac.h"
-#include "eeprom_24xx64.h"
 #include "utils.h"
-#include "ipmi.h"
-#include "i2c_mapping.h"
-#include "uart_debug.h"
 
 extern fru_data_t fru[FRU_COUNT];
 
@@ -42,7 +37,7 @@ void fru_init( uint8_t id )
         return;
     }
 
-#ifdef FRU_WRITE_EEPROM
+#if defined(FRU_WRITE_EEPROM) && !defined(FRU_READ_ONLY)
     printf(">FRU_WRITE_EEPROM flag enabled! Building FRU info...\n");
     fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
 
@@ -52,10 +47,14 @@ void fru_init( uint8_t id )
 
     /* Read FRU info Common Header */
     if ( !fru_check_integrity(id, &fru[id].fru_size) ) {
+#if !defined(FRU_READ_ONLY) && !defined(FRU_NO_BUILDER)
         /* Could not access the SEEPROM, create a runtime fru info */
         printf("Could not find a valid FRU information in EEPROM, building a runtime info...\n");
         fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
         fru[id].runtime = true;
+#else
+        printf("FRU: no valid data in EEPROM (builder disabled)\n");
+#endif
     }
 }
 
@@ -248,6 +247,7 @@ size_t fru_read( uint8_t id, uint8_t *rx_buff, uint16_t offset, size_t len )
     return ret_val;
 }
 
+#ifndef FRU_READ_ONLY
 size_t fru_write( uint8_t id, uint8_t *tx_buff, uint16_t offset, size_t len )
 {
     size_t ret_val = 0;
@@ -258,6 +258,7 @@ size_t fru_write( uint8_t id, uint8_t *tx_buff, uint16_t offset, size_t len )
     ret_val = fru[id].cfg.write_f( fru[id].cfg.eeprom_id, offset, tx_buff, len, pdMS_TO_TICKS(10) );
     return ret_val;
 }
+#endif
 
 /* IPMI Handlers */
 IPMI_HANDLER(ipmi_storage_get_fru_info, NETFN_STORAGE, IPMI_GET_FRU_INVENTORY_AREA_INFO_CMD, ipmi_msg * req, ipmi_msg * rsp )
@@ -314,17 +315,30 @@ IPMI_HANDLER(ipmi_storage_read_fru_data_cmd, NETFN_STORAGE, IPMI_READ_FRU_DATA_C
     rsp->completion_code = IPMI_CC_OK;
 }
 
+#ifndef FRU_READ_ONLY
 IPMI_HANDLER(ipmi_storage_write_fru_data_cmd, NETFN_STORAGE, IPMI_WRITE_FRU_DATA_CMD, ipmi_msg * req, ipmi_msg * rsp )
 {
     uint8_t len = rsp->data_len = 0;
     uint16_t offset =  (req->data[2] << 8) | (req->data[1]);
     uint8_t id = req->data[0];
     uint8_t count;
+    uint16_t end;
 
     rsp->completion_code = IPMI_CC_OK;
 
-    /* Use signed comparison here in case offset + data_len < 3 */
-    if ((offset + req->data_len - 3) < (int16_t)fru[id].fru_size) {
+    if (id >= FRU_COUNT) {
+        rsp->completion_code = IPMI_CC_INV_DATA_FIELD_IN_REQ;
+        return;
+    }
+
+    end = offset + (req->data_len - 3);
+
+    /*
+     * Writes are bounded by the EEPROM capacity (FRU_MAX_SIZE), not by the
+     * current image length, so the FRU can also be resized online.  fru_size
+     * grows to cover everything written.
+     */
+    if (end <= FRU_MAX_SIZE) {
         /* Write data to the FRU */
         count = fru_write( id, &req->data[3], offset, req->data_len - 3);
 
@@ -337,6 +351,11 @@ IPMI_HANDLER(ipmi_storage_write_fru_data_cmd, NETFN_STORAGE, IPMI_WRITE_FRU_DATA
             rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
             return ;
         }
+
+        if (end > fru[id].fru_size) {
+            fru[id].fru_size = end;
+        }
+
         /* Count written (1 based) */
         rsp->data[len++] = count +1;
     } else {
@@ -347,3 +366,4 @@ IPMI_HANDLER(ipmi_storage_write_fru_data_cmd, NETFN_STORAGE, IPMI_WRITE_FRU_DATA
 
     rsp->data_len = len;
 }
+#endif

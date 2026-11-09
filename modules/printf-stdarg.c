@@ -29,7 +29,7 @@
 
 //#define putchar(c) (void)0
 
-static void printchar(char **str, int c)
+static void printchar(char **str, char c)
 {
     if (str) {
         **str = c;
@@ -37,7 +37,7 @@ static void printchar(char **str, int c)
     }
     else {
         if (c == '\n') {
-            int cr = '\r';
+            char cr = '\r';
             (void) putchar(cr);
         }
         (void) putchar(c);

@@ -10,7 +10,7 @@ if(FREERTOS_TRACE)
 endif()
 
 #Port files
-if(${TARGET_CONTROLLER} MATCHES "^(lpc|LPC)17")
+if(${TARGET_CONTROLLER} MATCHES "^((lpc|LPC)17)|((stm|STM)32)")
   set(FREERTOS_INC ${FREERTOS_INC} ${CMAKE_CURRENT_SOURCE_DIR}/portable/GCC/ARM_CM3)
   set(LIBFREERTOS_SRCS ${LIBFREERTOS_SRCS}
     portable/GCC/ARM_CM3/port.c
@@ -21,6 +21,7 @@ if(${TARGET_CONTROLLER} MATCHES "^(lpc|LPC)17")
   set(FREERTOS_FLAGS ${FREERTOS_FLAGS} -mcpu=${TARGET_CPU} -mtune=${TARGET_CPU})
   set(FREERTOS_FLAGS ${FREERTOS_FLAGS} -march=${TARGET_ARCH})
   set(FREERTOS_FLAGS ${FREERTOS_FLAGS} -mthumb -mthumb-interwork -mno-sched-prolog -mapcs-frame)
+
 else()
   message(FATAL_ERROR "${BoldRed}The specified controller doesn't have a supported FreeRTOS port!${ColourReset}")
 endif()

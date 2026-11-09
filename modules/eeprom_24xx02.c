@@ -30,6 +30,7 @@
 
 /* FreeRTOS includes */
 #include "FreeRTOS.h"
+#include "task.h"
 #include "string.h"
 
 /* Project Includes */
@@ -47,9 +48,18 @@ size_t eeprom_24xx02_read( uint8_t id, uint16_t address, uint8_t *rx_data, size_
         return 0;
     }
 
-    if (i2c_take_by_chipid( id, &i2c_addr, &i2c_interface, timeout ) ) {
-        rx_len = xI2CMasterWriteRead( i2c_interface, i2c_addr, (uint8_t *)&address, 1, rx_data, buf_len );
-        i2c_give( i2c_interface );
+    /* The first bus accesses after power-up / I2C init can fail (the I2C mux
+     * NACKs its first transactions), so retry the whole take+read. This may
+     * run before the FreeRTOS scheduler starts -> busy wait, not vTaskDelay. */
+    for ( uint8_t attempt = 0; attempt < 10; attempt++ ) {
+        if ( i2c_take_by_chipid( id, &i2c_addr, &i2c_interface, timeout ) ) {
+            rx_len = xI2CMasterWriteRead( i2c_interface, i2c_addr, (uint8_t *)&address, 1, rx_data, buf_len );
+            i2c_give( i2c_interface );
+            if ( rx_len == buf_len ) {
+                break;
+            }
+        }
+        for ( volatile uint32_t d = 0; d < 20000; d++ ) { }
     }
 
     return rx_len;
@@ -65,6 +75,7 @@ size_t eeprom_24xx02_write( uint8_t id, uint16_t address, uint8_t *tx_data, size
     uint16_t curr_addr;
 
     size_t tx_len = 0;
+    uint32_t retries = 0;
 
     if ( tx_data != NULL ) {
         curr_addr = address;
@@ -90,10 +101,17 @@ size_t eeprom_24xx02_write( uint8_t id, uint16_t address, uint8_t *tx_data, size
                 if (i2c_written) {
                     tx_len += i2c_written - 1; /* Remove byte address from data written size */
                     curr_addr += i2c_written - 1;
+                    retries = 0;
+                } else if (++retries > 200) {
+                    /* EEPROM keeps NACKing (write-protected or absent) */
+                    i2c_give( i2c_interface );
+                    break;
                 }
                 i2c_give( i2c_interface );
             }
-            vTaskDelay(pdMS_TO_TICKS(1)); /* Avoid too much unnecessary I2C trafic*/
+            /* 24AA025E48 internal write cycle is 5 ms. Do NOT use vTaskDelay():
+             * fru_init() may run before the scheduler is started. */
+            for (volatile uint32_t d = 0; d < 60000; d++) { }
         }
     }
 

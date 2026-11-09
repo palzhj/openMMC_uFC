@@ -161,7 +161,7 @@ adn_connect_map_t adn4604_out_status( void )
 mmc_err adn4604_termination_ctl( uint8_t cfg )
 {
     uint8_t i2c_addr, i2c_interf;
-    uint8_t msg[2] = { ADN_TERMINATION_CTL_REG, (cfg & 0xF0) };
+    uint8_t msg[2] = { ADN_TERMINATION_CTL_REG, (cfg & 0xF) };
     uint8_t tx_len = 0;
 
     if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10) ) ) {
