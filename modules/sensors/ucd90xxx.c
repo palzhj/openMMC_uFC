@@ -382,8 +382,8 @@ uint16_t pmbus2sdr_convert(ucd_data_t *data, float value)
 
   /* Calculate the converted value using the linearization formula */
   float converted_value = (value / ucd_pow10(Rexp) - (float)B * ucd_pow10(Bexp)) / (float)M;
-  /* Return the result as a 16-bit unsigned integer */
-  return (uint16_t)converted_value;
+  /* Return the result as a 16-bit unsigned integer (round, not truncate) */
+  return (uint16_t)(converted_value + 0.5f);
 }
 
 /**
