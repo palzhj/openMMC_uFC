@@ -77,6 +77,11 @@ if (CLOCK_PROGRAM)
   list(APPEND TARGET_MODULES "CLOCK_PROGRAM")
 endif()
 
+option(CLOCK_STORE "Clock configuration store in flash (FRU slots) over IPMI" OFF)
+if (CLOCK_STORE)
+  list(APPEND TARGET_MODULES "CLOCK_STORE")
+endif()
+
 option(I2C_ACCESS "Enable generic I2C transfers over IPMI" OFF)
 if (I2C_ACCESS)
   list(APPEND TARGET_MODULES "I2C_ACCESS")

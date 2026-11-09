@@ -34,6 +34,9 @@
 #include "payload.h"
 #endif
 #include "i2c.h"
+#ifdef MODULE_CLOCK_STORE
+#include "clock_store.h"
+#endif
 #include "i2c_mapping.h"
 #include "fru.h"
 #include "scansta1101.h"
@@ -125,6 +128,10 @@ int main( void )
     LED_init();
 
     i2c_init();
+
+#ifdef MODULE_CLOCK_STORE
+    clock_store_init();
+#endif
 
 
     ipmb_addr = get_ipmb_addr( );
