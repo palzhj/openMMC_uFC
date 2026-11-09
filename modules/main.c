@@ -129,10 +129,6 @@ int main( void )
 
     i2c_init();
 
-#ifdef MODULE_CLOCK_STORE
-    clock_store_init();
-#endif
-
 
     ipmb_addr = get_ipmb_addr( );
 
