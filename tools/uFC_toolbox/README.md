@@ -172,9 +172,9 @@ always shows the 16 bytes that are written to the device.
 - **Write to device** — writes the loaded table from the PC to the Si5345
   RAM over I²C (page‑aware, 300 ms pause). Effective immediately, **lost on
   power‑cycle**
-- **Write to flash** — builds the FRU slot (current matrix + loaded table),
-  uploads it to the MMC clock store (`0x1A/0x1B/0x1C`) and activates it
-  (`0x19`); it is also applied at the next power‑on (target slot `auto`/`A`/`B`)
+- **Write to flash** — builds the FRU slot (current matrix + loaded table)
+  and uploads it to the MMC clock store (`0x1A/0x1B/0x1C`); it is applied
+  when the MMC is rebooted (target slot `auto`/`A`/`B`)
 - **slot** selector (placed before the button it affects) — `auto` (write
   the inactive slot, atomic), `A` or `B` (explicit target; the pointer is
   updated after a successful finish)
