@@ -3,10 +3,13 @@
 Open Source modular IPM Controller firmware, ported to the **uFC v2.0** and
 **u4FCP v1/v2** AMC modules.
 
-This tree is a fork of [lnls-dig/openMMC](https://github.com/lnls-dig/openMMC)
-targeting the STM32F1 family. Each board has its own port under
-`port/board/`; the low-level drivers (`modules/`, `port/ucontroller/`) are
-shared and take the device addresses from the board's mapping.
+This tree is a **research fork** of
+[lnls-dig/openMMC](https://github.com/lnls-dig/openMMC) targeting the STM32F1
+family. Each board has its own port under `port/board/`; the low-level drivers
+(`modules/`, `port/ucontroller/`) are shared and take the device addresses from
+the board's mapping. The board ports, the newboot/EEPROM/mux fixes and the
+FRU changes are modifications made in 2026 for scientific use, tracked in the
+git history and noted where they are not obvious.
 
 | board | MCU | flash / SRAM | board EEPROM | clock store | flash map (KB) | build |
 |---|---|---|---|---|---|---|
@@ -262,8 +265,10 @@ This project is distributed under the **GNU General Public License v3.0 or
 later** — see [LICENSE](LICENSE).
 
 It is a **research fork** of
-[lnls-dig/openMMC](https://github.com/lnls-dig/openMMC); the uFC‑v2 board port
-(`port/board/ufc-v2/`), the newboot/EEPROM/mux fixes and the FRU changes are
+[lnls-dig/openMMC](https://github.com/lnls-dig/openMMC); the uFC‑v2, u4FCP‑v1
+and u4FCP‑v2 board ports (`port/board/ufc-v2/`, `port/board/u4fcp-v1/`,
+`port/board/u4fcp-v2/`), the newboot/EEPROM/mux fixes, the FRU changes and the
+clock‑configuration store (ADN4604/Si5345, flash or board EEPROM) are
 modifications made in 2026 for scientific use. Modifications are tracked in the
 git history and noted where they are not obvious.
 
