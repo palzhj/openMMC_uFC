@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # noqa: E402
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
                       mfg_minutes_to_str, mfg_str_to_minutes,
-                      parse_si5345_txt, program_si5345,
+                      parse_si5345_txt, program_si5345, read_si5345,
                       build_clock_slot, upload_clock_slot)
 
 APP_TITLE = "uFC Toolbox"
@@ -353,10 +353,10 @@ class FruEditor(tk.Tk):
         mux.pack(fill="both", expand=True, pady=(0, 4))
         mrow = ttk.Frame(mux)
         mrow.pack(fill="x", pady=(0, 4))
-        readb = ttk.Button(mrow, text="Read clocks", style="Primary.TButton",
+        readb = ttk.Button(mrow, text="Read from device", style="Primary.TButton",
                            command=self.clock_switch_read)
         readb.pack(side="left")
-        self._hint(readb, "Read the 16 port bytes from the switch (mux 0x70 ch2, 0x58)")
+        self._hint(readb, "Read the 16 port bytes from the switch and update the table")
         writeb = ttk.Button(mrow, text="Write to device", command=self.clock_switch_write)
         writeb.pack(side="left", padx=(8, 0))
         self._hint(writeb, "Write the 16 port bytes to the switch (volatile)")
@@ -441,14 +441,11 @@ class FruEditor(tk.Tk):
         pll.pack(fill="x", pady=(0, 4))
         prow = ttk.Frame(pll)
         prow.pack(fill="x")
-        st = ttk.Button(prow, text="Read status", command=self.clock_status)
-        st.pack(side="left")
-        self._hint(st, "Si5345 programming status (0x17)")
-        prog = ttk.Button(prow, text="Program (built-in)", command=self.clock_program)
-        prog.pack(side="left", padx=(6, 0))
-        self._hint(prog, "Program the Si5345 from the firmware's compiled table (0x16)")
+        rd = ttk.Button(prow, text="Read from device", command=self.si_read_device)
+        rd.pack(side="left")
+        self._hint(rd, "Read the loaded register list from the Si5345 and save it to a file")
         lf = ttk.Button(prow, text="Load Si5345 file…", command=self.si_load)
-        lf.pack(side="left", padx=(14, 0))
+        lf.pack(side="left", padx=(6, 0))
         self._hint(lf, "Load a ClockBuilder register script (pre/body/post)")
         dev = ttk.Button(prow, text="Write to device", style="Primary.TButton",
                          command=self.si_write_device)
@@ -464,10 +461,6 @@ class FruEditor(tk.Tk):
         fl.pack(side="left", padx=(6, 0))
         self._hint(fl, "Store matrix + Si5345 table in the MMC clock store and "
                        "activate it now (also applied at the next power-on)")
-        applyb = ttk.Button(prow, text="Activate stored config", command=self.store_apply)
-        applyb.pack(side="left", padx=(8, 0))
-        self._hint(applyb, "Re-apply the stored slot without rewriting it "
-                           "(switch matrix + Si5345)")
         srow2 = ttk.Frame(pll)
         srow2.pack(fill="x", pady=(2, 0))
         infob = ttk.Button(srow2, text="Stored config info", command=self.store_status)
@@ -1036,6 +1029,43 @@ class FruEditor(tk.Tk):
             self._status("Si5345 programmed (device)", "ok")
         except Exception as e:
             self._status("Si5345 write failed", "error")
+            self._clock_log("ERROR: %s" % e)
+
+    def si_read_device(self):
+        """Read the loaded register list from the Si5345 and save it as a script."""
+        if not self.si_groups:
+            self._clock_log("ERROR: load a Si5345 register file first "
+                            "(it defines the addresses to read)")
+            return
+        path = filedialog.asksaveasfilename(
+            title="Save the Si5345 register dump",
+            defaultextension=".txt",
+            initialfile="Si5345-dump.txt",
+            filetypes=[("ClockBuilder text", "*.txt")])
+        if not path:
+            return
+        try:
+            def progress(n):
+                if n % 64 == 0:
+                    self._clock_log("Si5345: %d registers read" % n)
+                    self.update_idletasks()
+            vals = read_si5345(self._access(), self.si_groups, progress=progress)
+            lines = ["# Si534x/7x/8x/9x Registers Script",
+                     "# Part: Si5345",
+                     "# Dumped from the device by uFC Toolbox",
+                     "Address,Data"]
+            for section, title in (("pre", "configuration preamble"),
+                                   ("body", "configuration registers"),
+                                   ("post", "configuration postamble")):
+                lines.append("# Start %s" % title)
+                lines += ["0x%04X,0x%02X" % (a, v) for a, v in vals[section]]
+                lines.append("# End %s" % title)
+            open(path, "w").write("\n".join(lines) + "\n")
+            n = sum(len(v) for v in vals.values())
+            self._clock_log("Si5345: %d registers read, saved to %s" % (n, path))
+            self._status("Si5345 dump saved", "ok")
+        except Exception as e:
+            self._status("Si5345 read failed", "error")
             self._clock_log("ERROR: %s" % e)
 
     def si_write_flash(self):
