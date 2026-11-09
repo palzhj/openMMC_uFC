@@ -34,6 +34,7 @@
 /* Project Includes */
 #include "port.h"
 #include "adn4604.h"
+#include "task.h"
 #include "i2c.h"
 #include "i2c_mapping.h"
 
@@ -99,12 +100,25 @@ mmc_err adn4604_reset( void )
     uint8_t update[2] = { ADN_RESET_REG, 0x01 };
     uint8_t tx_len = 0;
 
-    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10)) ) {
-        tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, update, sizeof(update) );
-        i2c_give(i2c_interf);
+    /* The switch may NACK the first access while its supply is still
+     * ramping (it is reset right after the payload power is enabled), so
+     * retry a few times before reporting a failure. */
+    for (uint8_t attempt = 0; attempt < 5; attempt++) {
+        if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10)) ) {
+            tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, update, sizeof(update) );
+            i2c_give(i2c_interf);
+        }
+        if (tx_len) {
+            if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+                vTaskDelay(pdMS_TO_TICKS(10));   /* let the reset complete */
+            }
+            return MMC_OK;
+        }
+        if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
     }
-    if (!tx_len) return MMC_TIMEOUT_ERR;
-    return MMC_OK;
+    return MMC_TIMEOUT_ERR;
 }
 
 mmc_err adn4604_xpt_config( uint8_t map, adn_connect_map_t xpt_con )
