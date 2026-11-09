@@ -60,6 +60,14 @@ void fru_init( uint8_t id )
 
 uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
 {
+#ifdef RENODE_SIM
+    /* The emulated STM32F103 has no EEPROM on the I2C bus (the real board
+     * populates a CAT24C512 at 0x54); report "no valid FRU" so fru_init
+     * builds the runtime image and the boot can continue. */
+    (void)id;
+    (void)fru_size;
+    return 0;
+#endif
     uint8_t common_header[8] = {0};
     uint8_t chassis_off, board_off, product_off, multirec_off;
     uint8_t *rec_buff = pvPortMalloc(128);
