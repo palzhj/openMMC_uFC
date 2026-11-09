@@ -9,8 +9,9 @@ if (NOT TARGET_BOARD_NAME)
   set(TARGET_BOARD_NAME "u4FCP-v1" CACHE STRING "Board Name")
 endif()
 
-# reuse the u4FCP-v2 board sources (same i2c/pin mapping, SDR, FRU, payload)
-set(BOARD_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../u4fcp-v2)
+# independent copy of the u4FCP board sources (identical devices, but this
+# port can diverge from the v2)
+set(BOARD_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 #List all modules used by this board
 set(TARGET_MODULES
