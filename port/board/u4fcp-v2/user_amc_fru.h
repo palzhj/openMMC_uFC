@@ -27,26 +27,26 @@
  * Common defines
  *********************************************/
 #define AMC_LANG_CODE               0
-#define AMC_FRU_FILE_ID             "AMCFRU"       //Allows knowing the source of the FRU present in the memory
+#define AMC_FRU_FILE_ID             "u4fcp-v2.fru"       //Allows knowing the source of the FRU present in the memory
 
 /*********************************************
  * Board information area
  *********************************************/
 #define AMC_BOARD_MANUFACTURING_TIME 16226822               /* Amount of minutes since 0:00 1/1/96 */
 #define AMC_BOARD_MANUFACTURER      "IHEP"
-#define AMC_BOARD_NAME              "FMC Carrier for AMC"
+#define AMC_BOARD_NAME              "u4FCP"
 #define AMC_BOARD_SN                "SL01"
-#define AMC_BOARD_PN                "SHINE"
+#define AMC_BOARD_PN                "u4FCP-v2"
 
 /*********************************************
  * Product information area
  *********************************************/
-#define AMC_PRODUCT_MANUFACTURER    "Jie Zhang"
+#define AMC_PRODUCT_MANUFACTURER    "IHEP"
 #define AMC_PRODUCT_NAME            "u4FCP"
-#define AMC_PRODUCT_PN              "AMC"
+#define AMC_PRODUCT_PN              "u4FCP-v2"
 #define AMC_PRODUCT_VERSION         "2.2"
-#define AMC_PRODUCT_SN              ""
-#define AMC_PRODUCT_ASSET_TAG       "Generic FRU"
+#define AMC_PRODUCT_SN              "SL01"
+#define AMC_PRODUCT_ASSET_TAG       "IHEP"
 
 /*********************************************
  * AMC: Point to point connectivity record

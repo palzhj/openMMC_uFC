@@ -22,33 +22,38 @@ JLinkExe -CommanderScript flash.jlink
 
 ## Programming a brand-new board (production flow)
 
-`program.sh` does the whole bring-up: flashes newboot + application over
-SWD, clears the firmware-update record, writes the FRU with a **unique serial
-number** and (optionally) restores the clock configuration. The serial is the
-only mandatory argument.
+The bring-up is split in two steps, plus a convenience wrapper:
+
+| script | does |
+|---|---|
+| `jlink_program.sh` | newboot + application over SWD, `fw_info` cleared |
+| `fru_program.sh <serial>` | FRU with the unique serial (+ optional clock store) |
+| `program.sh <serial>` | both of the above in one go |
 
 ```bash
-# board in AMC12, MCH at 192.168.1.41
+# 1. flash a blank board (SWD)
+./jlink_program.sh --bin-dir uart-debug
+
+# 2. in the crate (MCH at 192.168.1.41, board in AMC12): FRU with the serial
+./fru_program.sh U4FCP2-0001
+./fru_program.sh U4FCP2-0001 --slot 7 --mch 192.168.1.41
+./fru_program.sh U4FCP2-0001 --clock-store clock-slot.bin
+
+# or both, when the J-Link and the crate are connected at the same time
 ./program.sh U4FCP2-0001
-
-# another slot / MCH
-./program.sh U4FCP2-0001 --slot 7 --mch 192.168.1.41
-
-# board already flashed: only the FRU (+ clock store)
-./program.sh U4FCP2-0001 --no-flash --clock-store clock-slot.bin
 ```
 
-What it does:
+What the steps do:
 
-1. **SWD** — `newboot.bin` at `0x08000000`, `openMMC.bin` at `0x08002000`,
-   and `fw_info` (`0x0801FC00`, 8 bytes) cleared to `0xFFFFFFFF` so the
-   bootloader boots the application instead of a stale staging image.
-2. **Waits** for the MMC to answer at `0x70 + 2*slot` through the MCH bridge.
-3. **FRU** — the MMC serves its FRU from the CAT24C512 (`FRU_USE_COMPILED`
-   is OFF; `user_amc_fru.h` is only the factory fallback used when the EEPROM
-   holds no valid FRU, so the board still boots in the crate with a blank
-   EEPROM and reports the factory values). `program_fru.py` builds the image
-   from `fru_template.bin`
+1. **jlink_program.sh** — `newboot.bin` at `0x08000000`, `openMMC.bin` at
+   `0x08002000`, and `fw_info` (`0x0801FC00`, 8 bytes) cleared to `0xFFFFFFFF`
+   so the bootloader boots the application instead of a stale staging image.
+2. **fru_program.sh** — waits for the MMC at `0x70 + 2*slot` through the MCH
+   bridge, then writes the FRU. The MMC serves its FRU from the CAT24C512
+   (`FRU_USE_COMPILED` is OFF; `user_amc_fru.h` is only the factory fallback
+   used when the EEPROM holds no valid FRU, so the board still boots in the
+   crate with a blank EEPROM and reports the factory values).
+   `program_fru.py` builds the image from `fru_template.bin`
    (header + board/product areas + the 100‑byte multi‑record area with the
    point‑to‑point/clock/module‑current records), sets the board and product
    serials to the argument and the manufacturing time to now, writes the
