@@ -294,17 +294,18 @@ class FruEditor(tk.Tk):
                 "uFC: 128 (24AA025E48 half page); u4FCP: 512 (FRU_MAX_SIZE).\n"
                 "Set automatically by the board template.")
 
-        info = ttk.Frame(self, padding=(16, 2, 16, 4))
-        info.pack(fill="x")
+        # path / FRU / EEPROM info: right side of the header row (saves a row)
+        info = ttk.Frame(tpl)
+        info.pack(side="right", padx=(14, 0))
         self.path_var = tk.StringVar()
         self.fruinfo_var = tk.StringVar(value="no FRU read yet")
         tk.Label(info, textvariable=self.path_var, bg=BG, fg=MUTED,
-                 font=(UI_FONT, 8), anchor="w").pack(fill="x")
+                 font=(UI_FONT, 8), anchor="e", justify="right").pack(anchor="e")
         tk.Label(info, textvariable=self.fruinfo_var, bg=BG, fg=MUTED,
-                 font=(UI_FONT, 8), anchor="w").pack(fill="x")
+                 font=(UI_FONT, 8), anchor="e", justify="right").pack(anchor="e")
         self.addr_var = tk.StringVar()
         tk.Label(info, textvariable=self.addr_var, bg=BG, fg=MUTED,
-                 font=(UI_FONT, 8), anchor="w").pack(fill="x")
+                 font=(UI_FONT, 8), anchor="e", justify="right").pack(anchor="e")
 
         # notebook
         self.nb = ttk.Notebook(self)
