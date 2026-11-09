@@ -105,11 +105,19 @@ class FruAccess:
             raise ValueError("unknown bridge mode %r" % bridge)
 
     def _ipmi(self, *args):
-        out = subprocess.run([ipmitool_cmd()] + self.bridge + ["raw"] + list(args),
-                             capture_output=True, text=True, timeout=20)
-        if out.returncode != 0:
-            raise RuntimeError((out.stderr or out.stdout).strip() or "ipmitool failed")
-        return bytes(int(x, 16) for x in out.stdout.split())
+        last = ""
+        for attempt in range(5):
+            out = subprocess.run([ipmitool_cmd()] + self.bridge + ["raw"] + list(args),
+                                 capture_output=True, text=True, timeout=20)
+            if out.returncode == 0:
+                return bytes(int(x, 16) for x in out.stdout.split())
+            last = (out.stderr or out.stdout).strip() or "ipmitool failed"
+            # IPMI completion codes (rsp=0x..) are real answers: don't retry.
+            # Transport drops/timeouts have no completion code: retry them.
+            if "rsp=0x" in last or attempt == 4:
+                break
+            time.sleep(0.4)
+        raise RuntimeError(last)
 
     def raw(self, *args):
         """Raw IPMI command through the configured bridge."""
@@ -132,21 +140,42 @@ class FruAccess:
             length -= n
         return bytes(data)
 
+    def _write_chunk(self, offset, chunk):
+        wr_cmd = self._addr_cmd()[0]
+        args = ["0x32", wr_cmd]
+        if wr_cmd == "0x14":
+            args.append("0x%02x" % self.i2c_addr)
+        args += [str(offset & 0xFF), str((offset >> 8) & 0xFF),
+                 *["0x%02x" % b for b in chunk]]
+        self._ipmi(*args)
+
     def write(self, offset, data):
-        while data:
-            # The MMC slave RX accepts 6 header + data_len <= 31 bytes, so a
-            # request carries at most 25 data bytes: 2 address bytes + 23 payload.
-            n = min(23, len(data))
-            chunk = data[:n]
-            wr_cmd = self._addr_cmd()[0]
-            args = ["0x32", wr_cmd]
-            if wr_cmd == "0x14":
-                args.append("0x%02x" % self.i2c_addr)
-            args += [str(offset & 0xFF), str((offset >> 8) & 0xFF),
-                     *["0x%02x" % b for b in chunk]]
-            self._ipmi(*args)
-            offset += n
-            data = data[n:]
+        data = bytes(data)
+        # Small chunks with per-chunk verification: a request over the MCH
+        # double bridge is occasionally dropped while the MMC writes the
+        # EEPROM page, so retry and repair from a read-back.
+        CHUNK = 8
+        pos = 0
+        while pos < len(data):
+            chunk = data[pos:pos + CHUNK]
+            for _attempt in range(4):
+                try:
+                    self._write_chunk(offset + pos, chunk)
+                    break
+                except RuntimeError:
+                    time.sleep(0.2)
+            pos += CHUNK
+            time.sleep(0.01)
+        back = self.read(offset, len(data))
+        if back != data:
+            for pos in range(0, len(data), CHUNK):
+                n = min(CHUNK, len(data) - pos)
+                if back[pos:pos + n] != data[pos:pos + n]:
+                    self._write_chunk(offset + pos, data[pos:pos + n])
+                    time.sleep(0.01)
+            back = self.read(offset, len(data))
+            if back != data:
+                raise RuntimeError("EEPROM write verification failed")
 
     def dump(self):
         return self.read(0, self.eeprom_size)
