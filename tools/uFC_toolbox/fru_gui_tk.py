@@ -359,8 +359,13 @@ class FruEditor(tk.Tk):
                                width=5, state="readonly")
         slotsel.pack(side="left")
         self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
-        ttk.Button(row2, text="Apply store", command=self.store_apply).pack(side="left", padx=(8, 0))
-        ttk.Button(row2, text="Store status", command=self.store_status).pack(side="left", padx=(4, 0))
+        applyb = ttk.Button(row2, text="Apply stored config", command=self.store_apply)
+        applyb.pack(side="left", padx=(8, 0))
+        self._hint(applyb, "Read the stored slot from flash and apply it now "
+                           "(switch matrix + Si5345) without power-cycling")
+        infob = ttk.Button(row2, text="Stored config info", command=self.store_status)
+        infob.pack(side="left", padx=(4, 0))
+        self._hint(infob, "Show the active slot, length and CRC of the stored configuration")
         self.si_label = tk.StringVar(value="no Si5345 file loaded")
         ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
         self.si_groups = None

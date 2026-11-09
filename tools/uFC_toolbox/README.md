@@ -157,8 +157,7 @@ always shows the 16 bytes that are written to the device.
   it **at the next power‑on** (target slot `auto`/`A`/`B`)
 - **slot** selector — `auto` (write the inactive slot, atomic), `A` or `B`
   (explicit target; the pointer is updated after a successful finish)
-- **Apply store** / **Store status** — `0x19` / `0x18` (status shows the
-  active slot)
+- **Apply stored config** / **Stored config info** — `0x19` / `0x18` (info shows the active slot, length and CRC)
 - hovering any column header, control or button shows a short explanation in
   the hint line at the bottom of the tab (no help dialog)
 - **Status** — command `0x17`
