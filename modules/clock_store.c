@@ -290,6 +290,10 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         }
         const uint8_t *data = rec + 4;
         uint8_t recid = data[3];
+#ifdef MODULE_UART_DEBUG
+        printf("[CLKS] rec off=%u rlen=%u chk=%s recid=0x%02x\n",
+               (unsigned)off, rlen, (chk == 0) ? "ok" : "bad", recid);
+#endif
         uint8_t plen = (uint8_t)(rlen - 6u);
         const uint8_t *payload = data + 5;
         if (plen >= 8u) {
@@ -297,9 +301,18 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
             uint8_t dlen = (uint8_t)(plen - 8u);
             uint8_t dev_addr = payload[4];
             if (recid == 0x40 && dlen == 16u) {
+#ifdef MODULE_UART_DEBUG
+                printf("[CLKS] switch record addr=0x%02x dlen=%u\n", dev_addr, dlen);
+#endif
                 if (!clock_store_apply_switch(p, dev_addr)) {
+#ifdef MODULE_UART_DEBUG
+                    printf("[CLKS] switch apply FAILED\n");
+#endif
                     return 0;
                 }
+#ifdef MODULE_UART_DEBUG
+                printf("[CLKS] switch apply OK\n");
+#endif
             } else if ((recid & 0xF0) == 0x30 && dlen >= 3u) {
                 for (uint8_t i = 0; i + 2u < dlen; i += 3u) {
                     uint16_t addr = ((uint16_t)p[i] << 8) | p[i + 1];
@@ -345,7 +358,11 @@ int clock_store_apply(void)
     clock_ptr_t ptr;
     int found;
 
-    if (!ptr_load(&ptr, &found)) {
+    int ok = ptr_load(&ptr, &found);
+#ifdef MODULE_UART_DEBUG
+    printf("[CLKS] ptr_load=%d found=%d slot=%d len=%u\n", ok, found, ptr.slot, ptr.len);
+#endif
+    if (!ok) {
         return apply_slot(0) || apply_slot(1);
     }
     if (apply_slot(ptr.slot)) {

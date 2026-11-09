@@ -570,31 +570,22 @@ void vTaskPayload(void *pvParameters)
       // eeprom_24xx02_write(CHIP_ID_RTC_EEPROM, 0x0, clock_config, 16, 10);
       if (PAYLOAD_FPGA_ON)
       {
-        if (clock_store_apply_boot())
-        {
-          /* a valid configuration is stored in the EEPROM: keep it instead of
-           * overwriting it with the compiled defaults */
-          printf("clock config taken from the EEPROM\n");
-        }
+        if (adn4604_reset() == MMC_OK)
+          printf("ADN4604 reset OK\n");
         else
-        {
-          if (adn4604_reset() == MMC_OK)
-            printf("ADN4604 reset OK\n");
-          else
-            printf("ADN4604 reset ERROR\n");
-          if (clock_configuration(clock_config) == MMC_OK)
-            printf("ADN4604 config OK\n");
-          else
-            printf("ADN4604 config ERROR\n");
-          if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) == MMC_OK)
-            printf("PLL0 config OK\n");
-          else
-            printf("PLL0 config ERROR\n");
-          if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) == MMC_OK)
-            printf("PLL1 config OK\n");
-          else
-            printf("PLL1 config ERROR\n");
-        }
+          printf("ADN4604 reset ERROR\n");
+        if (clock_configuration(clock_config) == MMC_OK)
+          printf("ADN4604 config OK\n");
+        else
+          printf("ADN4604 config ERROR\n");
+        if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) == MMC_OK)
+          printf("PLL0 config OK\n");
+        else
+          printf("PLL0 config ERROR\n");
+        if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) == MMC_OK)
+          printf("PLL1 config OK\n");
+        else
+          printf("PLL1 config ERROR\n");
       }
 #endif
       xEventGroupClearBits(amc_payload_evt, PAYLOAD_MESSAGE_CLOCK_CONFIG);
@@ -696,8 +687,16 @@ void vTaskPayload(void *pvParameters)
     case PAYLOAD_STATE_CLK_SETUP:
       if (QUIESCED_req || (PP_good == 0)) new_state = PAYLOAD_SWITCHING_OFF;
 #ifdef MODULE_ADN4604
-      /* Configure clock switch */
-      if (adn4604_reset() == MMC_OK)
+      /* The switch and PLLs are powered from the main power, which is up now.
+       * Prefer the configuration stored in the EEPROM; use the compiled
+       * defaults only when the store holds no valid slot. */
+      if (clock_store_apply_boot())
+      {
+        printf("clock config taken from the EEPROM\n");
+        FPGA_prom_timer = 0;
+        new_state = PAYLOAD_STATE_FPGA_SETUP;
+      }
+      else if (adn4604_reset() == MMC_OK)
       {
         if (clock_configuration(clock_config) == MMC_OK)
         {

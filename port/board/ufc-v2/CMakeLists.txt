@@ -80,6 +80,7 @@ endif()
 option(CLOCK_STORE "Clock configuration store in flash (FRU slots) over IPMI" OFF)
 if (CLOCK_STORE)
   list(APPEND TARGET_MODULES "CLOCK_STORE")
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DCLOCK_STORE_APPLY_IN_PAYLOAD")
   set(PROJ_SRCS ${PROJ_SRCS} ${CMAKE_SOURCE_DIR}/modules/idt_8v54816.c)
 endif()
 

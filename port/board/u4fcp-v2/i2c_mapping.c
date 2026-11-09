@@ -46,7 +46,8 @@ bool i2c_set_mux_bus(uint8_t bus_id, i2c_mux_state_t *i2c_mux, int8_t new_state)
     uint8_t tca_channel = 1 << new_state;
 
     /* Select desired channel in the I2C switch */
-    if( xI2CMasterWrite( i2c_bus_map[i2c_chip_map[CHIP_ID_MUX_0].bus_id].i2c_interface, i2c_chip_map[CHIP_ID_MUX_0].i2c_address, &tca_channel, 1 ) != 0 ) {
+    /* xI2CMasterWrite returns the number of bytes written (1 = success) */
+    if( xI2CMasterWrite( i2c_bus_map[i2c_chip_map[CHIP_ID_MUX_0].bus_id].i2c_interface, i2c_chip_map[CHIP_ID_MUX_0].i2c_address, &tca_channel, 1 ) != 1 ) {
         /* We failed to configure the I2C Mux, release the semaphore */
         xSemaphoreGive( i2c_mux->semaphore );
         return false;

@@ -81,6 +81,8 @@ option(CLOCK_STORE "Clock configuration store (EEPROM slots) over IPMI" ON)
 if (CLOCK_STORE)
   list(APPEND TARGET_MODULES "CLOCK_STORE")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DCLOCK_STORE_EEPROM")
+  # the ADN4604/Si5345 are powered from the payload main power:
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DCLOCK_STORE_APPLY_IN_PAYLOAD")
 endif()
 option(I2C_ACCESS "Enable generic I2C transfers over IPMI" ON)
 if (I2C_ACCESS)

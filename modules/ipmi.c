@@ -62,9 +62,12 @@ void IPMITask( void * pvParameters )
 {
     ipmi_msg req_received;
 
-#ifdef MODULE_CLOCK_STORE
+#if defined(MODULE_CLOCK_STORE) && !defined(CLOCK_STORE_APPLY_IN_PAYLOAD)
     /* Apply the stored clock configuration once, after the scheduler starts
-     * (the I2C semaphores are not usable before vTaskStartScheduler). */
+     * (the I2C semaphores are not usable before vTaskStartScheduler).
+     * Boards whose clock switch/PLLs are powered from the payload's main
+     * power define CLOCK_STORE_APPLY_IN_PAYLOAD instead: their payload
+     * applies the stored configuration when the main power is up. */
     clock_store_init();
 #endif
 

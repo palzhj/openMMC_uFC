@@ -70,7 +70,7 @@ mmc_err adn4604_tx_control( uint8_t output, uint8_t tx_mode )
      */
     enable[1] = tx_mode << 4;
 
-    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10)) ) {
+    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100)) ) {
         tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, enable, sizeof(enable) );
         i2c_give(i2c_interf);
     }
@@ -85,7 +85,7 @@ mmc_err adn4604_update( void )
     uint8_t update[2] = { ADN_XPT_UPDATE_REG, 0x01 };
     uint8_t tx_len = 0;
 
-    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10)) ) {
+    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100)) ) {
         tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, update, sizeof(update) );
         i2c_give(i2c_interf);
     }
@@ -104,13 +104,13 @@ mmc_err adn4604_reset( void )
      * ramping (it is reset right after the payload power is enabled), so
      * retry a few times before reporting a failure. */
     for (uint8_t attempt = 0; attempt < 5; attempt++) {
-        if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10)) ) {
+        if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100)) ) {
             tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, update, sizeof(update) );
             i2c_give(i2c_interf);
         }
         if (tx_len) {
             if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-                vTaskDelay(pdMS_TO_TICKS(10));   /* let the reset complete */
+                vTaskDelay(pdMS_TO_TICKS(100));   /* let the reset complete */
             }
             return MMC_OK;
         }
@@ -128,7 +128,7 @@ mmc_err adn4604_xpt_config( uint8_t map, adn_connect_map_t xpt_con )
 
     adn_connect_cfg_t cfg = { map, xpt_con };
 
-    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10)) ) {
+    if (i2c_take_by_chipid(CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100)) ) {
         tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, (uint8_t *)&cfg, sizeof(cfg) );
         i2c_give(i2c_interf);
     }
@@ -144,7 +144,7 @@ mmc_err adn4604_active_map( uint8_t map )
     /* Select the active map */
     uint8_t map_sel[2] = { ADN_XPT_MAP_TABLE_SEL_REG, map };
 
-    if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10) ) ) {
+    if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100) ) ) {
         tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, map_sel, sizeof(map_sel) );
         i2c_give( i2c_interf );
     }
@@ -159,7 +159,7 @@ adn_connect_map_t adn4604_out_status( void )
     uint8_t cmd;
     adn_connect_map_t stat_map = {0};
 
-    if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10) ) ) {
+    if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100) ) ) {
 
         /* Read all outputs status */
         for ( i = 0; i < 8; i++ ) {
@@ -178,7 +178,7 @@ mmc_err adn4604_termination_ctl( uint8_t cfg )
     uint8_t msg[2] = { ADN_TERMINATION_CTL_REG, (cfg & 0xF) };
     uint8_t tx_len = 0;
 
-    if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(10) ) ) {
+    if ( i2c_take_by_chipid( CHIP_ID_ADN, &i2c_addr, &i2c_interf, pdMS_TO_TICKS(100) ) ) {
         tx_len = xI2CMasterWrite( i2c_interf, i2c_addr, msg, sizeof(msg) );
         i2c_give( i2c_interf );
     }
