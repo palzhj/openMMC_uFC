@@ -132,8 +132,10 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 
 ## Board template
 
-The header row `Board template [uFC ▾] Load` selects the board description
-(`tools/clocking/<template>-clocking.json`). It is shared by all tabs: the
+The header row `Board template [uFC | u4FCP v1 | u4FCP v2] Load` selects the
+board description (`tools/clocking/<template>-clocking.json`); the two u4FCP
+hardware revisions share the clocking data but carry their own EEPROM part
+(AT24CM01 vs CAT24C512) in the `fru` block. It is shared by all tabs: the
 Clock tab uses it for the block diagram, source list and port capabilities,
 and the I²C transfer tab shows the selected board above its fields (so
 board-specific presets can be added there).
@@ -297,7 +299,8 @@ storage parameters from its clocking file (`fru` block):
 | template | `EEPROM I²C` | `EEPROM size (B)` | `FRU writable (B)` |
 |---|---|---|---|
 | uFC | 0x50 | 256 | 128 (24AA025E48 half page) |
-| u4FCP | 0x54 | 512 | 512 (`FRU_MAX_SIZE`) |
+| u4FCP v1 | 0x54 | 512 | 512 (`FRU_MAX_SIZE`, AT24CM01) |
+| u4FCP v2 | 0x54 | 512 | 512 (`FRU_MAX_SIZE`, CAT24C512) |
 
 So a board switch no longer leaves the 128‑byte uFC default in place when
 reading/writing an u4FCP FRU.

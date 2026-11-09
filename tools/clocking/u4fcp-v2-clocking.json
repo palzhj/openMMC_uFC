@@ -212,6 +212,7 @@
  "fru": {
   "eeprom_addr": "0x54",
   "eeprom_size": 512,
-  "writable": 512
+  "writable": 512,
+  "part": "CAT24C512 (512 Kbit, 64 KB)"
  }
 }

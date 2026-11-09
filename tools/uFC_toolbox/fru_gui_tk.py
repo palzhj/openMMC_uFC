@@ -150,6 +150,8 @@ class FruEditor(tk.Tk):
         if not cfg:
             return
         board = cfg.get("board")
+        if board == "u4FCP":
+            board = "u4FCP v2"      # saved before the v1/v2 split
         if board in self.CLOCKING_TEMPLATES:
             self.template_var.set(board)
             self.template_load()
@@ -261,7 +263,7 @@ class FruEditor(tk.Tk):
         self.template = "uFC"
         self.template_var = tk.StringVar(value=self.template)
         tbox = ttk.Combobox(tpl, textvariable=self.template_var,
-                            values=("uFC", "u4FCP"), width=10, state="readonly")
+                            values=("uFC", "u4FCP v1", "u4FCP v2"), width=10, state="readonly")
         tbox.pack(side="left", padx=(6, 6))
         Tooltip(tbox, "Clock/board description used by the tabs\n"
                       "(tools/clocking/<template>-clocking.json)")
@@ -786,7 +788,7 @@ class FruEditor(tk.Tk):
     CLK_GREY = "#8A8A80"
     CLK_EDGE = "#5B6152"
 
-    CLOCKING_TEMPLATES = {"uFC": "ufc", "u4FCP": "u4fcp"}
+    CLOCKING_TEMPLATES = {"uFC": "ufc", "u4FCP v1": "u4fcp-v1", "u4FCP v2": "u4fcp-v2"}
 
     def _clocking_path(self):
         import os
