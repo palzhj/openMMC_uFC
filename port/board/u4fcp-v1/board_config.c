@@ -25,7 +25,12 @@
 
 void board_init()
 {
-  // NVIC_PriorityGroupConfig( NVIC_PriorityGroup_4 );
+  /* 4 preemption bits / 0 subpriority bits: the FreeRTOS port's
+   * FromISR priority checks (configPRIO_BITS 4) assume this grouping;
+   * with the reset default (all bits subpriority) every NVIC priority
+   * ends up numerically too urgent and vTaskNotifyGiveFromISR()
+   * hits configASSERT -> vAssertCalled() spins with interrupts off. */
+  NVIC_PriorityGroupConfig( NVIC_PriorityGroup_4 );
 #ifdef DEBUG
   // printf("MMC_ENABLE_B=%d\n", gpio_read_pin(PIN_PORT(GPIO_MMC_ENABLE), PIN_NUMBER(GPIO_MMC_ENABLE)));
   // printf("AMC_MODE=%d\n", gpio_read_pin(PIN_PORT(AMC_MODE_ENABLE), PIN_NUMBER(AMC_MODE_ENABLE)));
