@@ -7,6 +7,7 @@ Reads/writes the FRU EEPROM through a NAT-MCH (IPMI raw commands 0x32/0x12,
 """
 
 import argparse
+import json
 import zlib
 import datetime
 import os
@@ -105,7 +106,61 @@ class FruEditor(tk.Tk):
         self._on_bridge_change()
         self.size_var.trace_add("write", lambda *_: self._update_address())
         self.i2c_var.trace_add("write", lambda *_: self._update_address())
+        self._restore_settings()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
+
+    def _on_close(self):
+        self._save_settings()
+        self.destroy()
+
+    # -------------------------------------------------------------- settings
+    CONFIG_PATH = os.path.expanduser("~/.config/ufc-toolbox.json")
+
+    def _load_settings(self):
+        try:
+            with open(self.CONFIG_PATH) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _save_settings(self):
+        try:
+            os.makedirs(os.path.dirname(self.CONFIG_PATH), exist_ok=True)
+            data = {
+                "board": getattr(self, "template", "uFC"),
+                "mch": self.mch_var.get(),
+                "bridge": self.bridge_var.get(),
+                "transit": self.transit_var.get(),
+                "transit_ch": self.tch_var.get(),
+                "target": self.target_var.get(),
+                "bus": self.bus_var.get(),
+                "eeprom_i2c": self.i2c_var.get(),
+                "eeprom_size": self.size_var.get(),
+                "fru_limit": self.limit_var.get(),
+            }
+            with open(self.CONFIG_PATH, "w") as f:
+                json.dump(data, f, indent=1)
+        except Exception as e:
+            if hasattr(self, "clock_out"):
+                self._clock_log("settings not saved: %s" % e)
+
+    def _restore_settings(self):
+        cfg = self._load_settings()
+        if not cfg:
+            return
+        board = cfg.get("board")
+        if board in self.CLOCKING_TEMPLATES:
+            self.template_var.set(board)
+            self.template_load()
+        for var, key in ((self.mch_var, "mch"), (self.bridge_var, "bridge"),
+                         (self.transit_var, "transit"), (self.tch_var, "transit_ch"),
+                         (self.target_var, "target"), (self.bus_var, "bus"),
+                         (self.size_var, "eeprom_size"), (self.limit_var, "fru_limit")):
+            if cfg.get(key) is not None:
+                var.set(str(cfg[key]))
+        if cfg.get("eeprom_i2c") is not None:
+            self.i2c_var.set(str(cfg["eeprom_i2c"]))
 
     # ---------------------------------------------------------------- style
     def _style(self):
@@ -538,6 +593,8 @@ class FruEditor(tk.Tk):
                                 % self.CLOCKING_TEMPLATES.get(self.template, "u4fcp"))
         if hasattr(self, "tpl_info_var"):
             self.tpl_info_var.set("board: %s" % self.template)
+        if hasattr(self, "mch_var"):
+            self._save_settings()
 
     def _mux_sources(self):
         """All input-capable mux ports from the clocking file: {port: name}."""

@@ -301,3 +301,11 @@ storage parameters from its clocking file (`fru` block):
 
 So a board switch no longer leaves the 128‑byte uFC default in place when
 reading/writing an u4FCP FRU.
+
+
+## Remembered settings
+
+The board template and the connection fields (MCH, bridge, transit/target/bus,
+EEPROM address/size/limit) are remembered in `~/.config/ufc-toolbox.json` and
+restored on start, so the toolbox reopens with the last used board (and its
+FRU storage parameters).
