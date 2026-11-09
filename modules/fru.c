@@ -377,8 +377,9 @@ IPMI_HANDLER(ipmi_storage_write_fru_data_cmd, NETFN_STORAGE, IPMI_WRITE_FRU_DATA
      * grows to cover everything written.
      */
     if (end <= FRU_MAX_SIZE) {
-        /* Write data to the FRU */
-        count = fru_write( id, &req->data[3], offset, req->data_len - 3);
+        /* The request layout is [id, offset_lo, offset_hi, count, data...];
+         * the payload starts after the count byte. */
+        count = fru_write( id, &req->data[4], offset, req->data_len - 4);
 
         /*
          * If count == 0, it may indicate that the fru_write function
