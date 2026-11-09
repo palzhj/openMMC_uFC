@@ -131,12 +131,6 @@ class FruEditor(tk.Tk):
                      lightcolor=LINE, darkcolor=LINE, focuscolor=BG, padding=(12, 6),
                      font=(UI_FONT, 9))
         st.map("TButton", background=[("active", "#F3F0E9"), ("pressed", "#EDE9DF")])
-        st.configure("Primary.TButton", background=ACCENT, foreground="#FFFFFF",
-                     bordercolor=ACCENT, lightcolor=ACCENT, darkcolor=ACCENT,
-                     padding=(14, 6), font=(UI_FONT, 9, "bold"))
-        st.map("Primary.TButton",
-               background=[("active", ACCENT_HOVER), ("pressed", ACCENT_HOVER)],
-               foreground=[("disabled", "#D8E6E2")])
         st.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(0, 4, 0, 0))
         st.configure("TNotebook.Tab", background=BG, foreground=MUTED,
                      padding=(14, 6), borderwidth=0)
@@ -256,7 +250,7 @@ class FruEditor(tk.Tk):
 
         toolbar = ttk.Frame(self.fields_tab, padding=(12, 8, 12, 0))
         toolbar.pack(fill="x")
-        ttk.Button(toolbar, text="Read FRU", style="Primary.TButton",
+        ttk.Button(toolbar, text="Read FRU",
                    command=self.read_fru).pack(side="left")
         ttk.Button(toolbar, text="Write FRU",
                    command=self.write_fru).pack(side="left", padx=(8, 0))
@@ -355,7 +349,7 @@ class FruEditor(tk.Tk):
         mux.pack(fill="both", expand=True, pady=(0, 4))
         mrow = ttk.Frame(mux)
         mrow.pack(fill="x", pady=(0, 4))
-        readb = ttk.Button(mrow, text="Read from device", style="Primary.TButton",
+        readb = ttk.Button(mrow, text="Read from device",
                            command=self.clock_switch_read)
         readb.pack(side="left")
         self._hint(readb, "Read the 16 port bytes from the switch and update the table")
@@ -450,7 +444,7 @@ class FruEditor(tk.Tk):
         lf = ttk.Button(prow, text="Load Si5345 file…", command=self.si_load)
         lf.pack(side="left", padx=(6, 0))
         self._hint(lf, "Load a ClockBuilder register script (pre/body/post)")
-        dev = ttk.Button(prow, text="Write to device", style="Primary.TButton",
+        dev = ttk.Button(prow, text="Write to device",
                          command=self.si_write_device)
         dev.pack(side="left", padx=(8, 0))
         self._hint(dev, "Write the loaded table to the Si5345 RAM over I2C - "
@@ -1431,7 +1425,7 @@ class FruEditor(tk.Tk):
         self.i2c_rlen = tk.StringVar(value="8")
         ttk.Entry(row, textvariable=self.i2c_rlen, width=4).pack(side="left", padx=(6, 16))
 
-        ttk.Button(row, text="Transfer", style="Primary.TButton",
+        ttk.Button(row, text="Transfer",
                    command=self.i2c_transfer).pack(side="left")
 
         datarow = ttk.Frame(parent)
