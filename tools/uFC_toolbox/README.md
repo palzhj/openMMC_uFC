@@ -159,9 +159,8 @@ always shows the 16 bytes that are written to the device.
   (explicit target; the pointer is updated after a successful finish)
 - **Apply store** / **Store status** — `0x19` / `0x18` (status shows the
   active slot)
-- **?** — opens the clock-tab help (byte layout, every column and button);
-  hovering the column headers and the controls shows the same explanations
-  as tooltips
+- hovering any column header, control or button shows a short explanation in
+  the hint line at the bottom of the tab (no help dialog)
 - **Status** — command `0x17`
 - **Export diagram** — save the merged Graphviz `.dot` (includes the FPGA
   port/pin tables)
