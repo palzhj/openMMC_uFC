@@ -1,3 +1,4 @@
+import zlib
 #!/usr/bin/env python3
 """
 fru_core.py -- FRU EEPROM access backend (IPMI raw commands 0x32/0x12, 0x13).
@@ -106,6 +107,10 @@ class FruAccess:
         if out.returncode != 0:
             raise RuntimeError((out.stderr or out.stdout).strip() or "ipmitool failed")
         return bytes(int(x, 16) for x in out.stdout.split())
+
+    def raw(self, *args):
+        """Raw IPMI command through the configured bridge."""
+        return self._ipmi(*args)
 
     def _addr_cmd(self):
         return ("0x12", "0x13") if self.i2c_addr == 0x50 else ("0x14", "0x15")
@@ -292,6 +297,70 @@ def program_si5345(access, groups, bus=1, muxes=((0x70, 2),), dev=0x69,
     total += run(groups.get("body", []))
     total += run(groups.get("post", []))
     return total
+
+
+def build_clock_slot(matrix, si_groups=None, seq=1):
+    """Build the 74..3000 byte FRU slot the MMC clock store expects."""
+    import struct
+
+    def chk(data):
+        return (-sum(data)) & 0xFF
+
+    mfr = bytes([0x5A, 0x31, 0x00])
+    records = []
+
+    if si_groups:
+        table = b"".join(bytes([a >> 8, a & 0xFF, d])
+                         for a, d in si_groups["pre"] + si_groups["body"] + si_groups["post"])
+        chunk_max = 255 - 6 - 8             # record_len = 6 + payload, 8-byte dev header
+        chunks = [table[i:i + chunk_max] for i in range(0, len(table), chunk_max)]
+        for idx, part in enumerate(chunks):
+            devhdr = bytes([1, idx, len(chunks), 1, 0x69, 1, 0x70, 2])
+            data = bytearray(mfr + bytes([0x30 + idx, 0x00]) + devhdr + part)
+            data.append(0); data[-1] = chk(data)
+            rec = bytearray([0xC0, 0x02, len(data)])
+            if idx == len(chunks) - 1 and not matrix:
+                rec[1] |= 0x80
+            rec.append(0); rec[-1] = chk(rec)
+            records.append(bytes(rec) + bytes(data))
+
+    devhdr = bytes([2, 0, 1, 1, 0x58, 1, 0x70, 2])
+    data = bytearray(mfr + bytes([0x40, 0x00]) + devhdr + bytes(matrix))
+    data.append(0); data[-1] = chk(data)
+    rec = bytearray([0xC0, 0x02 | 0x80, len(data)])
+    rec.append(0); rec[-1] = chk(rec)
+    records.append(bytes(rec) + bytes(data))
+
+    fru = bytearray([1, 0, 0, 0, 0, 1, 0, 0])
+    fru[7] = chk(fru[:7])
+    for r in records:
+        fru += r
+
+    hdr = bytearray(32)
+    hdr[0:4] = b"UFCC"
+    struct.pack_into("<HHII", hdr, 4, 1, 32, len(fru), zlib.crc32(fru) & 0xFFFFFFFF)
+    struct.pack_into("<IHBBI", hdr, 16, seq, 1, len(records), 0, 0)
+    return bytes(hdr) + bytes(fru)
+
+
+def upload_clock_slot(access, slot, progress=None):
+    """Upload a slot with begin/block/finish; returns the finish response."""
+    crc = zlib.crc32(slot) & 0xFFFFFFFF
+    r = access.raw("0x32", "0x1a", "0xff", str(len(slot) & 0xFF),
+                   str((len(slot) >> 8) & 0xFF), str(crc & 0xFF),
+                   str((crc >> 8) & 0xFF), str((crc >> 16) & 0xFF),
+                   str((crc >> 24) & 0xFF))
+    off = 0
+    while off < len(slot):
+        chunk = slot[off:off + 20]
+        args = ["0x32", "0x1b", str(off & 0xFF), str((off >> 8) & 0xFF)]
+        args += ["0x%02x" % b for b in chunk]
+        access.raw(*args)
+        off += len(chunk)
+        if progress and off % 200 == 0:
+            progress(off)
+    return access.raw("0x32", "0x1c", str(crc & 0xFF), str((crc >> 8) & 0xFF),
+                      str((crc >> 16) & 0xFF), str((crc >> 24) & 0xFF))
 
 
 def parse_fru(raw, limit=FRU_MAX_SIZE):

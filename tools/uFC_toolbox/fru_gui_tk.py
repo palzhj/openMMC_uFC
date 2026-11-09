@@ -7,6 +7,7 @@ Reads/writes the FRU EEPROM through a NAT-MCH (IPMI raw commands 0x32/0x12,
 """
 
 import argparse
+import zlib
 import datetime
 import os
 import queue
@@ -24,7 +25,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # noqa: E402
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
                       mfg_minutes_to_str, mfg_str_to_minutes,
-                      parse_si5345_txt, program_si5345)
+                      parse_si5345_txt, program_si5345,
+                      build_clock_slot, upload_clock_slot)
 
 APP_TITLE = "uFC Toolbox"
 
@@ -343,6 +345,8 @@ class FruEditor(tk.Tk):
         ttk.Radiobutton(row2, text="flash", variable=self.si_target,
                         value="flash").pack(side="left", padx=(4, 0))
         ttk.Button(row2, text="Write Si5345", command=self.si_write).pack(side="left", padx=(8, 0))
+        ttk.Button(row2, text="Apply store", command=self.store_apply).pack(side="left", padx=(8, 0))
+        ttk.Button(row2, text="Store status", command=self.store_status).pack(side="left", padx=(4, 0))
         self.si_label = tk.StringVar(value="no Si5345 file loaded")
         ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
         self.si_groups = None
@@ -906,7 +910,17 @@ class FruEditor(tk.Tk):
             self._clock_log("ERROR: load a Si5345 register file first")
             return
         if self.si_target.get() == "flash":
-            self._clock_log("flash target: the clock store write protocol is not implemented in the MMC yet")
+            try:
+                slot = build_clock_slot(self.clock_matrix, self.si_groups)
+                self._clock_log("clock slot: %d bytes, crc %08x" %
+                                (len(slot), zlib.crc32(slot) & 0xFFFFFFFF))
+                r = upload_clock_slot(self._access(), slot,
+                                      progress=lambda n: self._clock_log("flash: %d bytes" % n))
+                self._clock_log("slot uploaded, finish: %s" % r.hex())
+                self._status("Clock config written to flash", "ok")
+            except Exception as e:
+                self._status("Flash write failed", "error")
+                self._clock_log("ERROR: %s" % e)
             return
         try:
             total = 0
@@ -920,6 +934,25 @@ class FruEditor(tk.Tk):
             self._status("Si5345 programmed", "ok")
         except Exception as e:
             self._status("Si5345 write failed", "error")
+            self._clock_log("ERROR: %s" % e)
+
+    def store_apply(self):
+        try:
+            r = self._access().raw("0x32", "0x19")
+            self._clock_log("store apply: %s" % r.hex())
+        except Exception as e:
+            self._clock_log("ERROR: %s" % e)
+
+    def store_status(self):
+        try:
+            r = self._access().raw("0x32", "0x18")
+            if len(r) >= 8 and r[0]:
+                crc = r[4] | (r[5] << 8) | (r[6] << 16) | (r[7] << 24)
+                self._clock_log("store: valid, slot %s, %d bytes, crc %08x" %
+                                ("AB"[r[1] & 1], r[2] | (r[3] << 8), crc))
+            else:
+                self._clock_log("store: empty")
+        except Exception as e:
             self._clock_log("ERROR: %s" % e)
 
     def clock_export_dot(self):

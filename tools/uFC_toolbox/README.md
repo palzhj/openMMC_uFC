@@ -149,9 +149,11 @@ always shows the 16 bytes that are written to the device.
 - **Program (built-in)** — firmware command `0x16`, writes the compiled table
 - **Load Si5345 file…** — load a ClockBuilder register script
   (e.g. `Si5345-RevD-Registers.txt`); the counts (pre/body/post) are shown
-- **Write Si5345** — writes the loaded table from the PC over I²C
-  (page‑aware 8‑bit addressing, 300 ms calibration pause); target selector
-  **device** / **flash** (flash needs the MMC clock store, not implemented)
+- **Write Si5345** — writes the loaded table either
+  - **device**: from the PC over I²C (page‑aware, 300 ms pause), or
+  - **flash**: builds the FRU slot (matrix + Si5345 table) and uploads it to
+    the MMC clock store (`0x1A/0x1B/0x1C`), which the MMC applies at power‑on
+- **Apply store** / **Store status** — `0x19` / `0x18`
 - **Status** — command `0x17`
 - **Export diagram** — save the merged Graphviz `.dot` (includes the FPGA
   port/pin tables)
