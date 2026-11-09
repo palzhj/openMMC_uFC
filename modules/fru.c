@@ -70,7 +70,10 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
 #endif
     uint8_t common_header[8] = {0};
     uint8_t chassis_off, board_off, product_off, multirec_off;
-    uint8_t *rec_buff = pvPortMalloc(128);
+    /* Sizes are taken from the FRU data (a length byte x 8 for the areas,
+     * up to 255 for a multirecord body), so the buffer is allocated for the
+     * record being read instead of a fixed 128 bytes. */
+    uint8_t *rec_buff = NULL;
     uint8_t rec_len = 0;
     size_t total_len = 0;
 
@@ -102,19 +105,26 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         }
         rec_len *= 8;
         if (rec_len > 0) {
-            if (fru[id].runtime) {
+            if (fru[id].runtime && rec_len <= FRU_MAX_SIZE) {
+                rec_buff = pvPortMalloc(rec_len);
+                if (!rec_buff) return 0;
                 memcpy( &rec_buff[0], &fru[id].buffer[chassis_off], rec_len);
-            } else {
+            } else if (!fru[id].runtime) {
+                rec_buff = pvPortMalloc(rec_len);
+                if (!rec_buff) return 0;
                 fru[id].cfg.read_f( fru[id].cfg.eeprom_id, chassis_off, &rec_buff[0], rec_len, pdMS_TO_TICKS(10) );
             }
-            if ( !((calculate_chksum( &rec_buff[0], rec_len ) == 0) && rec_buff[0] == 1) ) {
+            if (rec_buff && !((calculate_chksum( &rec_buff[0], rec_len ) == 0) && rec_buff[0] == 1) ) {
                 /* Wrong checksum */
                 printf(" Error!\n");
+                vPortFree(rec_buff);
                 return 0;
             } else {
                 printf(" Success!\n");
                 total_len += rec_len;
             }
+            vPortFree(rec_buff);
+            rec_buff = NULL;
         }
     }
 
@@ -128,19 +138,26 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         rec_len *= 8;
 
         if (rec_len > 0) {
-            if (fru[id].runtime) {
+            if (fru[id].runtime && rec_len <= FRU_MAX_SIZE) {
+                rec_buff = pvPortMalloc(rec_len);
+                if (!rec_buff) return 0;
                 memcpy( &rec_buff[0], &fru[id].buffer[board_off], rec_len);
-            } else {
+            } else if (!fru[id].runtime) {
+                rec_buff = pvPortMalloc(rec_len);
+                if (!rec_buff) return 0;
                 fru[id].cfg.read_f( fru[id].cfg.eeprom_id, board_off, &rec_buff[0], rec_len, pdMS_TO_TICKS(10) );
             }
-            if ( !((calculate_chksum( &rec_buff[0], rec_len ) == 0) && rec_buff[0] == 1) ) {
+            if (rec_buff && !((calculate_chksum( &rec_buff[0], rec_len ) == 0) && rec_buff[0] == 1) ) {
                 /* Wrong checksum */
                 printf(" Error!\n");
+                vPortFree(rec_buff);
                 return 0;
             } else {
                 printf(" Success!\n");
                 total_len += rec_len;
             }
+            vPortFree(rec_buff);
+            rec_buff = NULL;
         }
     }
 
@@ -154,19 +171,26 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         rec_len *= 8;
 
         if (rec_len > 0) {
-            if (fru[id].runtime) {
+            if (fru[id].runtime && rec_len <= FRU_MAX_SIZE) {
+                rec_buff = pvPortMalloc(rec_len);
+                if (!rec_buff) return 0;
                 memcpy( &rec_buff[0], &fru[id].buffer[product_off], rec_len);
-            } else {
+            } else if (!fru[id].runtime) {
+                rec_buff = pvPortMalloc(rec_len);
+                if (!rec_buff) return 0;
                 fru[id].cfg.read_f( fru[id].cfg.eeprom_id, product_off, &rec_buff[0], rec_len, pdMS_TO_TICKS(10) );
             }
-            if ( !((calculate_chksum( &rec_buff[0], rec_len ) == 0 ) && rec_buff[0] == 1) ) {
+            if (rec_buff && !((calculate_chksum( &rec_buff[0], rec_len ) == 0 ) && rec_buff[0] == 1) ) {
                 /* Wrong checksum */
                 printf(" Error!\n");
+                vPortFree(rec_buff);
                 return 0;
             } else {
                 printf(" Success!\n");
                 total_len += rec_len;
             }
+            vPortFree(rec_buff);
+            rec_buff = NULL;
         }
     }
 
@@ -175,6 +199,8 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         uint8_t rec_chksum;
         rec_len = 0;
         printf("[FRU][%s] Checking MULTIRECORD AREA records...\n", id == FRU_AMC ? "AMC" : "RTM");
+        rec_buff = pvPortMalloc(5 + 255);
+        if (!rec_buff) return 0;
         do {
             if (fru[id].runtime) {
                 memcpy( &rec_buff[0], &fru[id].buffer[multirec_off], 5);
@@ -195,6 +221,10 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
             eol = rec_buff[1] & (1 << 7);
             if (rec_len > 0) {
                 if (fru[id].runtime) {
+                    if (rec_len > FRU_MAX_SIZE - multirec_off) {
+                        vPortFree(rec_buff);
+                        return 0;
+                    }
                     memcpy( &rec_buff[0], &fru[id].buffer[multirec_off], rec_len );
                 } else {
                     fru[id].cfg.read_f( fru[id].cfg.eeprom_id, multirec_off, &rec_buff[0], rec_len, pdMS_TO_TICKS(10) );
@@ -209,6 +239,8 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
                 }
             }
         } while(eol == 0);
+        vPortFree(rec_buff);
+        rec_buff = NULL;
     }
 
     if (fru_size) {
@@ -216,8 +248,6 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
     }
 
     printf("[FRU][%s] FRU info is healthy!\n", id == FRU_AMC ? "AMC" : "RTM");
-
-    vPortFree(rec_buff);
     return 1;
 }
 
