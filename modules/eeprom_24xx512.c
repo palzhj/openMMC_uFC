@@ -47,22 +47,28 @@ size_t eeprom_24xx512_read(uint8_t id, uint16_t address, uint8_t *rx_data, size_
 {
   uint8_t i2c_addr;
   uint8_t i2c_interface;
-  uint8_t bytes_to_read;
-  uint8_t i2c_read;
+  size_t bytes_to_read;
+  uint8_t i2c_read = 0;
   size_t rx_len = 0;
   uint8_t addr8[2];
-
-  addr8[0] = (address >> 8) & 0xFF;
-  addr8[1] = (address) & 0xFF;
+  uint8_t retries = 0;
 
   if (rx_data != NULL)
   {
     while (rx_len < buf_len)
     {
+      /* The I2C transfer is limited to one byte of length; read the rest in
+       * chunks and move the EEPROM address forward by the bytes already read. */
       bytes_to_read = buf_len - rx_len;
+      if (bytes_to_read > 255) {
+        bytes_to_read = 255;
+      }
+      addr8[0] = ((address + rx_len) >> 8) & 0xFF;
+      addr8[1] = (address + rx_len) & 0xFF;
       if (i2c_take_by_chipid(id, &i2c_addr, &i2c_interface, timeout))
       {
-        i2c_read = xI2CMasterWriteRead(i2c_interface, i2c_addr, addr8, 2, rx_data, bytes_to_read);
+        i2c_read = xI2CMasterWriteRead(i2c_interface, i2c_addr, addr8, 2,
+                                       rx_data + rx_len, bytes_to_read);
         /* When trying to read, the EEPROM will reply with NACKs if it's busy.
           * If the i2c receives a NACK when trying to read, the function returns only
           * the number of bytes successfully read, and we should increment only this value
@@ -70,7 +76,16 @@ size_t eeprom_24xx512_read(uint8_t id, uint16_t address, uint8_t *rx_data, size_
         rx_len += i2c_read;
         i2c_give(i2c_interface);
       }
-      vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+      if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+      } else if (i2c_read == 0) {
+        /* No scheduler yet (FRU read at boot): wait with a busy loop for the
+         * EEPROM to finish its power-up/write cycle, but do not spin forever. */
+        if (++retries > 20) {
+          break;
+        }
+        for (volatile uint32_t spin = 0; spin < 50000; spin++) { }
+      }
     }
   }
 
@@ -120,7 +135,11 @@ size_t eeprom_24xx512_write(uint8_t id, uint16_t address, uint8_t *tx_data, size
         }
         i2c_give(i2c_interface);
       }
-      vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+      if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
+        vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+      } else if (i2c_written == 0) {
+        break; /* no scheduler: do not spin forever on a silent bus */
+      }
     }
   }
 

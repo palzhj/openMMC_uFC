@@ -54,6 +54,8 @@ licensing and training services.
 
 #define configUSE_NEWLIB_REENTRANT              0
 
+#define INCLUDE_xTaskGetSchedulerState           1
+
 #define configUSE_PREEMPTION                    1
 #define configUSE_IDLE_HOOK                     0
 #define configMAX_PRIORITIES                    ( 5 )
