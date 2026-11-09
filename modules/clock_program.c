@@ -102,6 +102,11 @@ static uint8_t si5345_write(uint16_t addr, uint8_t data)
     return si5345_write8(reg, data);
 }
 
+uint8_t clock_program_write_entry(uint16_t addr, uint8_t data)
+{
+    return si5345_write(addr, data);
+}
+
 static uint8_t si5345_write_table(const si5345_reg_t *regs, uint16_t count)
 {
     for (uint16_t i = 0; i < count; i++) {
