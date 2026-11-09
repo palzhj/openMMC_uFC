@@ -308,6 +308,10 @@ IPMI_HANDLER(ipmi_get_device_locator_record, NETFN_GRPEXT, IPMI_PICMG_CMD_GET_DE
 
 IPMI_HANDLER(ipmi_picmg_cmd_fru_control, NETFN_GRPEXT, IPMI_PICMG_CMD_FRU_CONTROL, ipmi_msg *req, ipmi_msg *rsp)
 {
+    if ( req->data_len < 3 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint8_t len = rsp->data_len = 0;
     uint8_t fru_id = req->data[1];
     uint8_t fru_ctl = req->data[2];

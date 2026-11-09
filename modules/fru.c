@@ -311,6 +311,10 @@ size_t fru_write( uint8_t id, uint8_t *tx_buff, uint16_t offset, size_t len )
 /* IPMI Handlers */
 IPMI_HANDLER(ipmi_storage_get_fru_info, NETFN_STORAGE, IPMI_GET_FRU_INVENTORY_AREA_INFO_CMD, ipmi_msg * req, ipmi_msg * rsp )
 {
+    if ( req->data_len < 1 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint8_t len = rsp->data_len = 0;
 
     uint8_t id = req->data[0];
@@ -330,6 +334,10 @@ IPMI_HANDLER(ipmi_storage_get_fru_info, NETFN_STORAGE, IPMI_GET_FRU_INVENTORY_AR
 
 IPMI_HANDLER(ipmi_storage_read_fru_data_cmd, NETFN_STORAGE, IPMI_READ_FRU_DATA_CMD, ipmi_msg * req, ipmi_msg * rsp )
 {
+    if ( req->data_len < 4 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint32_t offset;
     uint8_t len = rsp->data_len = 0;
     uint8_t fru_id = req->data[0];

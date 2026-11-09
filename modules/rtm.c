@@ -159,6 +159,10 @@ void rtm_manage_init( void )
 
 IPMI_HANDLER(ipmi_picmg_set_power_level, NETFN_GRPEXT, IPMI_PICMG_CMD_SET_POWER_LEVEL, ipmi_msg *req, ipmi_msg *rsp )
 {
+    if ( req->data_len < 3 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     int len = rsp->data_len = 0;
     uint8_t fru_id = req->data[1];
     uint8_t power_level = req->data[2];

@@ -295,6 +295,10 @@ uint8_t event_receiver_lun = 0x00;
 
 IPMI_HANDLER(ipmi_se_set_event_receiver, NETFN_SE, IPMI_SET_EVENT_RECEIVER_CMD, ipmi_msg *req, ipmi_msg *rsp)
 {
+    if ( req->data_len < 2 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     /* Update the event receiver address (even if its 0xFF,
        the checking will be done in check_sensor_event function) */
     event_receiver_addr = req->data[0];
@@ -327,6 +331,10 @@ IPMI_HANDLER(ipmi_se_get_event_receiver, NETFN_SE, IPMI_GET_EVENT_RECEIVER_CMD, 
 
 IPMI_HANDLER(ipmi_se_get_sdr, NETFN_SE, IPMI_GET_DEVICE_SDR_CMD, ipmi_msg *req,  ipmi_msg *rsp)
 {
+    if ( req->data_len < 6 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint16_t recv_reserv_id = req->data[0] | (req->data[1] << 8);
     uint16_t record_id = req->data[2] | (req->data[3] << 8);
     uint8_t offset = req->data[4];
@@ -406,6 +414,10 @@ IPMI_HANDLER(ipmi_se_reserve_device_sdr, NETFN_SE, IPMI_RESERVE_DEVICE_SDR_REPOS
 }
 
 IPMI_HANDLER(ipmi_se_get_sensor_reading, NETFN_SE, IPMI_GET_SENSOR_READING_CMD,  ipmi_msg *req, ipmi_msg* rsp) {
+    if ( req->data_len < 1 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     int sensor_number = req->data[0];
     int len = rsp->data_len;
 
@@ -439,6 +451,10 @@ IPMI_HANDLER(ipmi_se_get_sensor_reading, NETFN_SE, IPMI_GET_SENSOR_READING_CMD, 
 }
 
 IPMI_HANDLER(ipmi_se_get_sensor_threshold, NETFN_SE, IPMI_GET_SENSOR_THRESHOLD_CMD,  ipmi_msg *req, ipmi_msg* rsp) {
+    if ( req->data_len < 1 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     int sensor_number = req->data[0];
     int len = rsp->data_len;
 

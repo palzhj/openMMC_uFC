@@ -264,6 +264,10 @@ void rtm_led_act( uint8_t id, uint8_t action )
 
 IPMI_HANDLER(ipmi_picmg_set_fru_led_state, NETFN_GRPEXT, IPMI_PICMG_CMD_SET_FRU_LED_STATE, ipmi_msg *req, ipmi_msg *rsp)
 {
+    if ( req->data_len < 4 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint8_t fru_id = req->data[1];
     uint8_t led_num = req->data[2];
     uint8_t function = req->data[3];
@@ -278,7 +282,11 @@ IPMI_HANDLER(ipmi_picmg_set_fru_led_state, NETFN_GRPEXT, IPMI_PICMG_CMD_SET_FRU_
         LEDUpdate( fru_id, led_num, LEDMODE_OVERRIDE, LEDINIT_ON, 0, 0 );
         break;
     case 0xFB:
-        /* Lamp Test */
+        /* Lamp Test (the granularity byte follows the function) */
+        if ( req->data_len < 5 ) {
+            rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+            return;
+        }
         LEDUpdate( fru_id, led_num, LEDMODE_LAMPTEST, LEDINIT_ON, req->data[4], 0 );
         break;
     case 0xFC:
@@ -302,6 +310,10 @@ IPMI_HANDLER(ipmi_picmg_set_fru_led_state, NETFN_GRPEXT, IPMI_PICMG_CMD_SET_FRU_
 
 IPMI_HANDLER(ipmi_picmg_get_fru_led_properties, NETFN_GRPEXT, IPMI_PICMG_CMD_GET_FRU_LED_PROPERTIES, ipmi_msg *req, ipmi_msg *rsp )
 {
+    if ( req->data_len < 2 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint8_t len = rsp->data_len = 0;
     uint8_t fru = req->data[1];
     uint8_t led_bitf = 0;
@@ -330,6 +342,10 @@ IPMI_HANDLER(ipmi_picmg_get_fru_led_properties, NETFN_GRPEXT, IPMI_PICMG_CMD_GET
 
 IPMI_HANDLER(ipmi_picmg_get_fru_led_state, NETFN_GRPEXT, IPMI_PICMG_CMD_GET_FRU_LED_STATE, ipmi_msg *req, ipmi_msg *rsp )
 {
+    if ( req->data_len < 3 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint8_t len = rsp->data_len = 0;
     uint8_t fru = req->data[1];
     uint8_t id = req->data[2];
@@ -379,6 +395,10 @@ IPMI_HANDLER(ipmi_picmg_get_fru_led_state, NETFN_GRPEXT, IPMI_PICMG_CMD_GET_FRU_
 
 IPMI_HANDLER(ipmi_picmg_get_led_color_capabilities, NETFN_GRPEXT, IPMI_PICMG_CMD_GET_LED_COLOR_CAPABILITIES, ipmi_msg *req, ipmi_msg *rsp )
 {
+    if ( req->data_len < 3 ) {
+        rsp->completion_code = IPMI_CC_REQ_DATA_INV_LENGTH;
+        return;
+    }
     uint8_t len = rsp->data_len = 0;
     uint8_t fru = req->data[1];
     uint8_t led_id = req->data[2];
