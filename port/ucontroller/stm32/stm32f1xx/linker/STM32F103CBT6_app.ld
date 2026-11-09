@@ -41,21 +41,16 @@ _Min_Stack_Size = 512;    /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 50K
+  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 0xEE00
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
 __BootFlash_start     = 0x08000000;   /* newboot (first stage), 8 KB */
 __BootFlash_end       = 0x08001FFF;
 __AppFlash_start      = 0x08002000;   /* Application start address (vector table) */
-__AppFlash_end        = 0x0800E7FF;   /* 50 KB application end address (last byte) */
-__FWUpdateFlash_start = 0x0800E800;   /* Firmware update region start address */
-__FWUpdateFlash_end   = 0x0801AFFF;   /* 50 KB firmware update region end address */
-__ClockConfig_start   = 0x0801B000;   /* 19 KB clock configuration region */
-__ClockConfig_end     = 0x0801FBFF;
-__ClockPointer_addr   = 0x0801B000;   /* 1 KB pointer page (A/B selection) */
-__ClockSlotA_addr     = 0x0801B400;   /* 9 KB slot A */
-__ClockSlotB_addr     = 0x0801D800;   /* 9 KB slot B */
+__AppFlash_end        = 0x08010DFF;   /* 59.5 KB application end address (last byte) */
+__FWUpdateFlash_start = 0x08010E00;   /* Firmware update (staging) region */
+__FWUpdateFlash_end   = 0x0801FBFF;   /* 59.5 KB staging end address (last byte) */
 __FWInfo_addr         = 0x0801FC00;   /* Last 1 KB page, 256 B fw_info record */
 
 /* Define output sections */

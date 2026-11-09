@@ -39,8 +39,18 @@ under `port/board/ufc-v2/`.
 | Clock configuration | `0x0801B000` | 19 KB | 1 KB pointer + 9 KB slot A + 9 KB slot B (FRU records) |
 | `fw_info` | `0x0801FC00` | 1 KB | pending‑update flag (`0xAA…`) used by newboot |
 
-The same layout is used by the other AMC boards (u4FCP‑v2, STM32F103CBT6):
-build with `-DTARGET_BOARD_NAME=u4FCP-v2 -DTARGET_CONTROLLER=STM32F103CBT6`.
+This is the **uFC‑v2** layout (STM32F100CBT6, clock store in flash). The
+u4FCP boards keep the clock configuration in their EEPROM instead, which
+frees the flash clock region:
+
+| board | flash map | clock store in |
+|---|---|---|
+| uFC‑v2 (F100CBT6) | 8 / 50 / 50 / **19** / 1 KB | flash `0x0801B000` |
+| u4FCP‑v2 (F103CBT6) | 8 / **59.5** / **59.5** / 1 KB | CAT24C512 EEPROM (0x200 pointer, slots 0x300/0x1B00, 6 KB each) |
+| u4FCP‑v1 (F103C8T6, 64 KB) | 8 / 55 / — / 1 KB | AT24CM01 EEPROM (same offsets); staging in the EEPROM upper 64 KB |
+
+Build the u4FCP boards with `-DBOARD=u4fcp-v2` / `-DBOARD=u4fcp-v1`
+(STM32F103CBT6 / STM32F103C8T6).
 
 The clock region is used by the **clock configuration store** (`-DCLOCK_STORE=ON`):
 a 1 KB pointer page plus 9 KB A/B FRU-format slots; the MMC applies the valid

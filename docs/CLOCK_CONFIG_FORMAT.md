@@ -1,6 +1,9 @@
 # Clock configuration store — on-flash format (FRU records)
 
-Reserved region: **19 KB** at `0x0801B000–0x0801FBFF` (`__ClockConfig_start/end`).
+Reserved region on the uFC: **19 KB** at `0x0801B000–0x0801FBFF`
+(`__ClockConfig_start/end`). On the u4FCP boards the same FRU-format slots
+are stored in the EEPROM: pointer `0x0200`, slot A `0x0300`, slot B
+`0x1B00` (6 KB each; AT24CM01/CAT24C512, slave 0x54).
 Purpose: hold clock/device configuration so it can be changed over IPMI without
 reflashing, with a built-in fallback in `.text`.
 
