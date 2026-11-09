@@ -38,6 +38,8 @@ endif()
 option(CLOCK_STORE "Clock configuration store in flash (FRU slots) over IPMI" ON)
 if (CLOCK_STORE)
   list(APPEND TARGET_MODULES "CLOCK_STORE")
+  # the u4FCP keeps the clock configuration in its 64 KB CAT24C512
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DCLOCK_STORE_EEPROM")
 endif()
 option(I2C_ACCESS "Enable generic I2C transfers over IPMI" ON)
 if (I2C_ACCESS)
