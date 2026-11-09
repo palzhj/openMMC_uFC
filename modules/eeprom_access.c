@@ -56,7 +56,9 @@
 #include "i2c_mapping.h"
 
 #define EEPROM_ACCESS_CHIP        CHIP_ID_EEPROM
+#ifndef EEPROM_ACCESS_SIZE
 #define EEPROM_ACCESS_SIZE        256u                              /* 24AA025E48: 2 Kbit */
+#endif
 #define EEPROM_ACCESS_WRITE_MAX   ( IPMI_MSG_MAX_LENGTH - 2u )      /* addr + payload */
 #define EEPROM_ACCESS_WRITE_AT_MAX ( IPMI_MSG_MAX_LENGTH - 3u )     /* i2c + addr + payload */
 #define EEPROM_ACCESS_READ_MAX    ( IPMI_MSG_MAX_LENGTH - 1u )      /* completion code + payload */

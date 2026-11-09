@@ -69,6 +69,9 @@ endif()
 option(EEPROM_ACCESS "Enable raw EEPROM access over IPMI" ON)
 if (EEPROM_ACCESS)
   list(APPEND TARGET_MODULES "EEPROM_ACCESS")
+  # the u4FCP EEPROM is 64 KB (CAT24C512) / 128 KB (AT24CM01); the raw
+  # access commands use 16-bit offsets, so allow the whole 64 KB window
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DEEPROM_ACCESS_SIZE=65536u")
 endif()
 option(CLOCK_PROGRAM "Program the Si5345 clock generator over IPMI" ON)
 if (CLOCK_PROGRAM)
