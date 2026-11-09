@@ -28,7 +28,64 @@ from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # no
                       parse_si5345_txt, program_si5345,
                       build_clock_slot, upload_clock_slot)
 
+class Tooltip:
+    """Small hover help for a widget."""
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip = None
+        widget.bind("<Enter>", self._show, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+
+    def _show(self, _event=None):
+        if self.tip:
+            return
+        x = self.widget.winfo_rootx() + 12
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry("+%d+%d" % (x, y))
+        tk.Label(self.tip, text=self.text, justify="left", background="#FFFFE1",
+                 relief="solid", borderwidth=1, font=(UI_FONT, 8),
+                 padx=6, pady=3).pack()
+
+    def _hide(self, _event=None):
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
+
 APP_TITLE = "uFC Toolbox"
+
+CLOCK_HELP = """8V54816A port byte (16 bytes, one per port):
+  bit7    direction: 0 = input, 1 = output
+  bit6    100 ohm internal termination
+  bit5    polarity: 1 = non-inverted, 0 = inverted
+  bit3:0  source port (which input feeds this output)
+
+  dir    in / out. Only CLK9-CLK11 are output-only and CLK7/CLK8 input-only;
+         AMC TCLK/FCLK, S7/FPGA INOUT and the FMC clocks are bidirectional
+         (capability comes from ufc-clocking.json).
+  source input port routed to this output.
+  term   switch the 100 ohm termination on (bit6).
+  pol    ticked = non-inverted (bit5=1); untick to invert the pair.
+  byte   resulting matrix byte, written to the 8V54816A at 0x58 behind the
+         TCA9548A mux 0x70 channel 2.
+
+Buttons:
+  Read clocks / Write now   read/write the 16 bytes of the switch
+  Program (built-in)        program the Si5345 from the firmware table (0x16)
+  Status                    Si5345 programming status (0x17)
+  Load Si5345 file...       parse a ClockBuilder register script (pre/body/post)
+  Write Si5345  device      write the loaded table from the PC over I2C
+                flash       upload matrix + table to the MMC clock store
+  Apply store               re-apply the stored configuration (0x19)
+  Store status              active slot / length / CRC (0x18)
+
+The clock store lives in the 19 KB region (pointer page + 9 KB A/B slots);
+the MMC applies the valid slot at power-on.
+"""
 
 # ---- house palette --------------------------------------------------------
 BG = "#FAF9F5"          # paper ground
@@ -347,6 +404,7 @@ class FruEditor(tk.Tk):
         ttk.Button(row2, text="Write Si5345", command=self.si_write).pack(side="left", padx=(8, 0))
         ttk.Button(row2, text="Apply store", command=self.store_apply).pack(side="left", padx=(8, 0))
         ttk.Button(row2, text="Store status", command=self.store_status).pack(side="left", padx=(4, 0))
+        ttk.Button(row2, text="?", width=2, command=self.clock_help).pack(side="left", padx=(8, 0))
         self.si_label = tk.StringVar(value="no Si5345 file loaded")
         ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
         self.si_groups = None
@@ -356,11 +414,16 @@ class FruEditor(tk.Tk):
         ttk.Label(tbl, text="8V54816A ports — direction, source, 100 Ω termination, polarity",
                   style="Hint.TLabel").grid(row=0, column=0, columnspan=6, sticky="w", pady=(0, 2))
 
-        headers = (("port / signal", 0), ("dir", 1), ("source", 2),
-                   ("term", 3), ("pol", 4), ("byte", 5))
-        for text, col in headers:
-            ttk.Label(tbl, text=text, style="Hint.TLabel").grid(row=1, column=col,
-                                                                sticky="w", padx=(4, 8))
+        headers = (("port / signal", 0, "8V54816A port and its signal name"),
+                   ("dir", 1, "in: input (bit7=0) / out: output (bit7=1)"),
+                   ("source", 2, "input port routed to this output (bits3:0)"),
+                   ("term", 3, "100 ohm internal termination (bit6)"),
+                   ("pol", 4, "ticked = non-inverted (bit5=1), unticked = inverted"),
+                   ("byte", 5, "matrix byte written to the switch (0x58)"))
+        for text, col, tip in headers:
+            lbl = ttk.Label(tbl, text=text, style="Hint.TLabel")
+            lbl.grid(row=1, column=col, sticky="w", padx=(4, 8))
+            Tooltip(lbl, tip)
         for col, weight in ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)):
             tbl.columnconfigure(col, weight=weight)
 
@@ -376,15 +439,22 @@ class FruEditor(tk.Tk):
             ttk.Label(tbl, text="%s %s" % (port, name), width=22, anchor="w",
                       font=(UI_FONT, 9)).grid(row=row, column=0, sticky="w", padx=(4, 8))
             d = tk.StringVar(value="in")
-            ttk.Combobox(tbl, textvariable=d, values=("in", "out"), width=4,
-                         state="readonly").grid(row=row, column=1, sticky="w", padx=(4, 8))
+            dirbox = ttk.Combobox(tbl, textvariable=d, values=("in", "out"), width=4,
+                                  state="readonly")
+            dirbox.grid(row=row, column=1, sticky="w", padx=(4, 8))
+            Tooltip(dirbox, "Direction: in (bit7=0) or out (bit7=1)")
             src = tk.StringVar(value="-")
             srcbox = ttk.Combobox(tbl, textvariable=src, width=24, state="disabled")
             srcbox.grid(row=row, column=2, sticky="w", padx=(4, 8))
+            Tooltip(srcbox, "Input port routed to this output (source field)")
             term = tk.BooleanVar(value=False)
-            ttk.Checkbutton(tbl, variable=term).grid(row=row, column=3, sticky="w", padx=(4, 8))
+            termbox = ttk.Checkbutton(tbl, variable=term)
+            termbox.grid(row=row, column=3, sticky="w", padx=(4, 8))
+            Tooltip(termbox, "100 ohm internal termination (bit6)")
             pol = tk.BooleanVar(value=True)
-            ttk.Checkbutton(tbl, variable=pol).grid(row=row, column=4, sticky="w", padx=(4, 8))
+            polbox = ttk.Checkbutton(tbl, variable=pol)
+            polbox.grid(row=row, column=4, sticky="w", padx=(4, 8))
+            Tooltip(polbox, "Polarity: ticked = non-inverted (bit5=1)")
             byte = tk.StringVar(value="0x00")
             ttk.Label(tbl, textvariable=byte, width=6, font=(MONO_FONT, 9)).grid(
                 row=row, column=5, sticky="w", padx=(4, 8))
@@ -935,6 +1005,15 @@ class FruEditor(tk.Tk):
         except Exception as e:
             self._status("Si5345 write failed", "error")
             self._clock_log("ERROR: %s" % e)
+
+    def clock_help(self):
+        win = tk.Toplevel(self)
+        win.title("Clock tab help")
+        txt = tk.Text(win, width=96, height=30, font=(MONO_FONT, 9), wrap="word",
+                      bg=PANEL, fg=INK, relief="flat", padx=10, pady=8)
+        txt.pack(fill="both", expand=True)
+        txt.insert("end", CLOCK_HELP)
+        txt.configure(state="disabled")
 
     def store_apply(self):
         try:
