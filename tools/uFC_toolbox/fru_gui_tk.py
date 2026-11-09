@@ -1694,11 +1694,21 @@ class FruEditor(tk.Tk):
         presets = ttk.Frame(parent)
         presets.pack(fill="x", pady=(0, 8))
         ttk.Label(presets, text="Presets", style="Hint.TLabel").pack(side="left", padx=(0, 8))
-        for label, fn in (("EEPROM FRU", self._preset_eeprom),
-                          ("UCD PMBus", self._preset_pmbus),
-                          ("Clock 8V54816", self._preset_clock),
-                          ("Si5345", self._preset_si5345)):
-            ttk.Button(presets, text=label, command=fn).pack(side="left", padx=(0, 6))
+        for label, fn, tip in (
+                ("EEPROM FRU", self._preset_eeprom,
+                 "FRU EEPROM at the board template's address;\nread 8 bytes"),
+                ("UCD PMBus", self._preset_pmbus,
+                 "UCD90xxx @0x11; needs the PMBus command (0x8B) in Write data"),
+                ("Clock switch", self._preset_clock,
+                 "crosspoint at the template's address; needs its register byte"),
+                ("Si5345", self._preset_si5345,
+                 "PLL at the template's address; needs its register byte")):
+            b = ttk.Button(presets, text=label, command=fn)
+            b.pack(side="left", padx=(0, 6))
+            Tooltip(b, tip)
+        self.i2c_preset_hint = tk.StringVar(value="")
+        tk.Label(parent, textvariable=self.i2c_preset_hint, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(anchor="w")
 
         out = ttk.Frame(parent)
         out.pack(fill="both", expand=True)
@@ -1783,7 +1793,12 @@ class FruEditor(tk.Tk):
             self.i2c_out.insert("end", "(no data)")
         self.i2c_out.configure(state="disabled")
 
-    def _preset(self, bus, muxes, dev, wdata, rlen):
+    def _preset(self, bus, muxes, dev, need_byte, rlen, note=""):
+        """Fill the transfer fields; the write stays empty (read only).
+
+        need_byte is the register/command byte the chip expects before a
+        read - shown as a hint, so it can be typed into 'Write data' (with
+        write length 1) when needed."""
         self.i2c_bus.set("I2C2" if bus == 1 else "I2C1")
         for i, (a, c) in enumerate(self.mux_vars):
             if i < len(muxes):
@@ -1791,21 +1806,30 @@ class FruEditor(tk.Tk):
             else:
                 a.set(""); c.set("")
         self.i2c_dev.set("0x%02x" % dev)
-        self.i2c_wdata.set(" ".join("%02x" % b for b in wdata))
-        self.i2c_wlen.set(str(len(wdata)))
+        self.i2c_wdata.set("")
+        self.i2c_wlen.set("0")
         self.i2c_rlen.set(str(rlen))
+        if hasattr(self, "i2c_preset_hint"):
+            if need_byte is None:
+                self.i2c_preset_hint.set("")
+            else:
+                self.i2c_preset_hint.set(
+                    "preset needs write %02x with write len 1%s"
+                    % (need_byte, (": " + note) if note else ""))
 
     def _preset_eeprom(self):
-        self._preset(1, [(0x70, 0)], 0x50, b"\x00", 8)
+        self._preset(1, [(0x70, 0)], self._i2c_addr(), 0x00, 8, "EEPROM word address")
 
     def _preset_pmbus(self):
-        self._preset(1, [(0x70, 0)], 0x11, b"\x8b", 2)
+        self._preset(1, [(0x70, 0)], 0x11, 0x8B, 2, "PMBus command")
 
     def _preset_clock(self):
-        self._preset(1, [(0x70, 2)], 0x58, b"\x00", 1)
+        self._preset(1, [(0x70, 2)], self.clock_switch_addr(), 0x00, 1,
+                     "crosspoint register")
 
     def _preset_si5345(self):
-        self._preset(1, [(0x70, 2)], 0x69, b"\x00", 1)
+        self._preset(1, [(0x70, 2)], self.clock_pll_addr(), 0x00, 1,
+                     "Si5345 register")
 
     def _labeled(self, parent, text, value, width, tip=None):
         box = ttk.Frame(parent)
