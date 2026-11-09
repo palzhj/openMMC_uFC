@@ -333,8 +333,14 @@ IPMI_HANDLER(ipmi_picmg_upload_firmware_block, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_
         /* WARNING: This function can't block! */
         /* req->data[1] holds the block number */
         if(req->data[1] == expected_block_n) {
-               rsp->completion_code = active_component->hpm_upload_block_f(&block_data[0], block_sz);
-               expected_block_n++;
+               uint8_t cc = active_component->hpm_upload_block_f(&block_data[0], block_sz);
+               rsp->completion_code = cc;
+               /* Only advance on success: a failed block (flash program
+                * error) must be retried by the uploader, not silently
+                * skipped - otherwise the rest of the image is lost. */
+               if (cc == IPMI_CC_OK || cc == IPMI_CC_COMMAND_IN_PROGRESS) {
+                   expected_block_n++;
+               }
         } else {	/* Repeated block, ignore it */
                rsp->completion_code = IPMI_CC_OK;
         }

@@ -144,6 +144,29 @@ static uint8_t program_page(uint32_t offset, const uint32_t *data, uint32_t size
     return program_page_abs(staging_start() + offset, data, size);
 }
 
+/* Program a staging page, retrying after erasing the containing 1 KB page.
+ * A failed word program leaves the page partially written; the only way to
+ * recover it is to erase the flash page and write it again. */
+static uint8_t hpm_program_page_retry(uint32_t offset, uint32_t *data, uint32_t size)
+{
+    uint8_t cc = program_page(offset, data, size);
+    if (cc == IPMI_CC_OK) {
+        return cc;
+    }
+
+    const uint32_t page = (staging_start() + offset) & ~(STM32_FLASH_PAGE_SIZE - 1u);
+    FLASH_Unlock();
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+    portDISABLE_INTERRUPTS();
+    FLASH_Status st = FLASH_ErasePage(page);
+    portENABLE_INTERRUPTS();
+    FLASH_Lock();
+    if (st != FLASH_COMPLETE) {
+        return IPMI_CC_UNSPECIFIED_ERROR;
+    }
+    return program_page(offset, data, size);
+}
+
 static void hpm_reset_task(void *arg)
 {
     (void)arg;
@@ -188,7 +211,7 @@ static uint8_t hpm_upload_block(uint8_t *block, uint16_t size)
 
     /* Fill the current page and flush it */
     memcpy(&((uint8_t *)hpm_page)[hpm_page_index], block, available);
-    if (program_page(hpm_page_addr, hpm_page, HPM_PAGE_SIZE) != IPMI_CC_OK) {
+    if (hpm_program_page_retry(hpm_page_addr, hpm_page, HPM_PAGE_SIZE) != IPMI_CC_OK) {
         return IPMI_CC_UNSPECIFIED_ERROR;
     }
 
@@ -216,7 +239,7 @@ static uint8_t hpm_finish_upload(uint32_t image_size)
     }
 
     if (hpm_page_index != 0u) {
-        if (program_page(hpm_page_addr, hpm_page, HPM_PAGE_SIZE) != IPMI_CC_OK) {
+        if (hpm_program_page_retry(hpm_page_addr, hpm_page, HPM_PAGE_SIZE) != IPMI_CC_OK) {
             return IPMI_CC_UNSPECIFIED_ERROR;
         }
         hpm_image_size += hpm_page_index;

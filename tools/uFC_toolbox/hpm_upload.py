@@ -30,6 +30,10 @@ def ipmitool(bridge, args, retries=6, delay=0.3):
         if out.returncode == 0:
             return bytes(int(x, 16) for x in out.stdout.split())
         last = (out.stderr or out.stdout).strip()
+        # 0xC0 "command in progress" is a normal answer for long-duration
+        # commands (a block that flushed a flash page).
+        if "rsp=0xc0" in last:
+            return b""
         time.sleep(delay)
     raise RuntimeError(last)
 
