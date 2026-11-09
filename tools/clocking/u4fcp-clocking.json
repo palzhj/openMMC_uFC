@@ -208,5 +208,10 @@
    }
   ],
   "store": "eeprom"
+ },
+ "fru": {
+  "eeprom_addr": "0x54",
+  "eeprom_size": 512,
+  "writable": 512
  }
 }

@@ -1573,5 +1573,10 @@
    }
   ],
   "store": "flash"
+ },
+ "fru": {
+  "eeprom_addr": "0x50",
+  "eeprom_size": 256,
+  "writable": 128
  }
 }

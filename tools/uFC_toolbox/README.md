@@ -287,3 +287,17 @@ It drives the Clock tab: the MUX block title, the PLL selector (`PLL0`,
 store slot (switch record: `addr`; Si5345 records: the selected PLL's
 `addr`). The uFC uses 0x58/0x69 (8V54816A + one Si5345, flash store), the
 u4FCP 0x48/0x68/0x69 (ADN4604 + two Si5345, EEPROM store).
+
+
+## Board template → FRU EEPROM settings
+
+Selecting the board template (uFC / u4FCP) also applies the board's FRU
+storage parameters from its clocking file (`fru` block):
+
+| template | `EEPROM I²C` | `EEPROM size (B)` | `FRU writable (B)` |
+|---|---|---|---|
+| uFC | 0x50 | 256 | 128 (24AA025E48 half page) |
+| u4FCP | 0x54 | 512 | 512 (`FRU_MAX_SIZE`) |
+
+So a board switch no longer leaves the 128‑byte uFC default in place when
+reading/writing an u4FCP FRU.

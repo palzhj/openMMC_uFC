@@ -508,6 +508,18 @@ class FruEditor(tk.Tk):
             return
         self.template_label.set("%s — %s" % (self.template, os.path.basename(path)))
         self.clock_cfg = doc.get("clock", {}) or {}
+        fru = doc.get("fru") or {}
+        if fru and hasattr(self, "i2c_var"):
+            if fru.get("eeprom_addr") is not None:
+                self.i2c_var.set(str(fru["eeprom_addr"]))
+            if fru.get("eeprom_size") is not None:
+                self.size_var.set(str(fru["eeprom_size"]))
+            if fru.get("writable") is not None:
+                self.limit_var.set(str(fru["writable"]))
+            if hasattr(self, "clock_out"):
+                self._clock_log("board %s: FRU EEPROM %s, size %s B, writable %s B" % (
+                    self.template, fru.get("eeprom_addr", "?"),
+                    fru.get("eeprom_size", "?"), fru.get("writable", "?")))
         if hasattr(self, "pll_box"):
             plls = self.clock_cfg.get("plls") or [{"addr": 0x69}]
             self.pll_box["values"] = tuple("PLL%d" % i for i in range(len(plls)))
