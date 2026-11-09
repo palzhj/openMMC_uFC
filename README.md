@@ -39,6 +39,9 @@ under `port/board/ufc-v2/`.
 | Clock configuration | `0x0801B000` | 19 KB | 1 KB pointer + 9 KB slot A + 9 KB slot B (FRU records) |
 | `fw_info` | `0x0801FC00` | 1 KB | pending‑update flag (`0xAA…`) used by newboot |
 
+The same layout is used by the other AMC boards (u4FCP‑v2, STM32F103CBT6):
+build with `-DTARGET_BOARD_NAME=u4FCP-v2 -DTARGET_CONTROLLER=STM32F103CBT6`.
+
 The clock region is used by the **clock configuration store** (`-DCLOCK_STORE=ON`):
 a 1 KB pointer page plus 9 KB A/B FRU-format slots; the MMC applies the valid
 slot at power‑on (switch matrix + Si5345 table) and the toolbox can upload a

@@ -41,17 +41,22 @@ _Min_Stack_Size = 512; /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 8K
+  FLASH (rx)      : ORIGIN = 0x08000000, LENGTH = 8K
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
-__BootFlash_start     = 0x08002000;   /* Bootloader start address (vector table) */
-__BootFlash_end       = 0x08003FFF;   /* Bootloader end address (last byte) */
-__AppFlash_start      = 0x08004000;   /* Application start address (vector table) */
-__AppFlash_end        = 0x08011FFF;   /* 56K Application end address (last byte) */
-__FWUpdateFlash_start = 0x08012000;   /* Firmware update region start address */
-__FWUpdateFlash_end   = 0x0801FFFF;   /* 56K Firmware update region end address (last byte) */
-__FWInfo_addr         = __FWUpdateFlash_end - 255; /* Last 256 bytes of flash reserved to the fw_info struct */
+__BootFlash_start     = 0x08000000;   /* newboot (first stage), 8 KB */
+__BootFlash_end       = 0x08001FFF;
+__AppFlash_start      = 0x08002000;   /* Application start address (vector table) */
+__AppFlash_end        = 0x0800E7FF;   /* 50 KB application end address (last byte) */
+__FWUpdateFlash_start = 0x0800E800;   /* Firmware update region start address */
+__FWUpdateFlash_end   = 0x0801AFFF;   /* 50 KB firmware update region end address */
+__ClockConfig_start   = 0x0801B000;   /* 19 KB clock configuration region */
+__ClockConfig_end     = 0x0801FBFF;
+__ClockPointer_addr   = 0x0801B000;   /* 1 KB pointer page (A/B selection) */
+__ClockSlotA_addr     = 0x0801B400;   /* 9 KB slot A */
+__ClockSlotB_addr     = 0x0801D800;   /* 9 KB slot B */
+__FWInfo_addr         = 0x0801FC00;   /* Last 1 KB page, 256 B fw_info record */
 
 /* Define output sections */
 SECTIONS
@@ -126,6 +131,14 @@ SECTIONS
 
     . = ALIGN(4);
     _edata = .;        /* define a global symbol at data end */
+  } >RAM
+
+  /* FreeRTOS heap lives in .noinit_RAM2: keep it out of the load image */
+  .noinit_RAM2 (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.noinit_RAM2*)
+    . = ALIGN(4);
   } >RAM
 
   /* Uninitialized data section */

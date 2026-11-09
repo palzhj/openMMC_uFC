@@ -32,11 +32,11 @@
 /*********************************************
  * Board information area
  *********************************************/
-#define AMC_BOARD_MANUFACTURING_TIME 15254640               /* Amount of minutes since 0:00 1/1/96 */
+#define AMC_BOARD_MANUFACTURING_TIME 16226822               /* Amount of minutes since 0:00 1/1/96 */
 #define AMC_BOARD_MANUFACTURER      "IHEP"
 #define AMC_BOARD_NAME              "FMC Carrier for AMC"
-#define AMC_BOARD_SN                "TA00"
-#define AMC_BOARD_PN                "TAO"
+#define AMC_BOARD_SN                "SL01"
+#define AMC_BOARD_PN                "SHINE"
 
 /*********************************************
  * Product information area
@@ -44,7 +44,7 @@
 #define AMC_PRODUCT_MANUFACTURER    "Jie Zhang"
 #define AMC_PRODUCT_NAME            "u4FCP"
 #define AMC_PRODUCT_PN              "AMC"
-#define AMC_PRODUCT_VERSION         "2.1"
+#define AMC_PRODUCT_VERSION         "2.2"
 #define AMC_PRODUCT_SN              ""
 #define AMC_PRODUCT_ASSET_TAG       "Generic FRU"
 
@@ -65,7 +65,7 @@
 /**********************************************
  * PICMG: Module current record
  **********************************************/
-#define AMC_MODULE_CURRENT_RECORD            current_in_ma(5400)
+#define AMC_MODULE_CURRENT_RECORD            current_in_ma(8000)
 
 /*********************************************
  * RTM Compatibility Record
