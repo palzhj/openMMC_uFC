@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # noqa: E402
                       EEPROM_SIZE, FRU_MAX_SIZE, FRU_MAX_STRING,
                       mfg_minutes_to_str, mfg_str_to_minutes,
-                      parse_si5345_txt, program_si5345, read_si5345,
+                      parse_si5345_txt, program_si5345, read_si5345, default_si5345_groups,
                       build_clock_slot, upload_clock_slot)
 
 APP_TITLE = "uFC Toolbox"
@@ -1033,10 +1033,10 @@ class FruEditor(tk.Tk):
 
     def si_read_device(self):
         """Read the loaded register list from the Si5345 and save it as a script."""
-        if not self.si_groups:
-            self._clock_log("ERROR: load a Si5345 register file first "
-                            "(it defines the addresses to read)")
-            return
+        groups = self.si_groups
+        if not groups:
+            groups = default_si5345_groups()
+            self._clock_log("no register file loaded — reading the default Si5345 register set")
         path = filedialog.asksaveasfilename(
             title="Save the Si5345 register dump",
             defaultextension=".txt",
@@ -1049,7 +1049,7 @@ class FruEditor(tk.Tk):
                 if n % 64 == 0:
                     self._clock_log("Si5345: %d registers read" % n)
                     self.update_idletasks()
-            vals = read_si5345(self._access(), self.si_groups, progress=progress)
+            vals = read_si5345(self._access(), groups, progress=progress)
             lines = ["# Si534x/7x/8x/9x Registers Script",
                      "# Part: Si5345",
                      "# Dumped from the device by uFC Toolbox",
