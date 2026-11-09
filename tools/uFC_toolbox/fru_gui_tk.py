@@ -28,66 +28,7 @@ from fru_core import (FruAccess, parse_fru, build_image, image_for_eeprom,  # no
                       parse_si5345_txt, program_si5345,
                       build_clock_slot, upload_clock_slot)
 
-class Tooltip:
-    """Small hover help for a widget."""
-
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tip = None
-        widget.bind("<Enter>", self._show, add="+")
-        widget.bind("<Leave>", self._hide, add="+")
-
-    def _show(self, _event=None):
-        if self.tip:
-            return
-        x = self.widget.winfo_rootx() + 12
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
-        self.tip = tk.Toplevel(self.widget)
-        self.tip.wm_overrideredirect(True)
-        self.tip.wm_geometry("+%d+%d" % (x, y))
-        tk.Label(self.tip, text=self.text, justify="left", background="#FFFFE1",
-                 relief="solid", borderwidth=1, font=(UI_FONT, 8),
-                 padx=6, pady=3).pack()
-
-    def _hide(self, _event=None):
-        if self.tip:
-            self.tip.destroy()
-            self.tip = None
-
-
 APP_TITLE = "uFC Toolbox"
-
-CLOCK_HELP = """8V54816A port byte (16 bytes, one per port):
-  bit7    direction: 0 = input, 1 = output
-  bit6    100 ohm internal termination
-  bit5    polarity: 1 = non-inverted, 0 = inverted
-  bit3:0  source port (which input feeds this output)
-
-  dir    in / out. Only CLK9-CLK11 are output-only and CLK7/CLK8 input-only;
-         AMC TCLK/FCLK, S7/FPGA INOUT and the FMC clocks are bidirectional
-         (capability comes from ufc-clocking.json).
-  source input port routed to this output.
-  term   switch the 100 ohm termination on (bit6).
-  pol    ticked = non-inverted (bit5=1); untick to invert the pair.
-  byte   resulting matrix byte, written to the 8V54816A at 0x58 behind the
-         TCA9548A mux 0x70 channel 2.
-
-Buttons:
-  Read clocks / Write now   read/write the 16 bytes of the switch
-  Program (built-in)        program the Si5345 from the firmware table (0x16)
-  Status                    Si5345 programming status (0x17)
-  Load Si5345 file...       parse a ClockBuilder register script (pre/body/post)
-  Write to device           write the loaded table to the Si5345 now (I2C);
-                            volatile, lost on power-cycle
-  Write to flash            store matrix + table in the MMC clock store;
-                            applied at the next power-on (slot auto/A/B)
-  Apply store               re-apply the stored configuration (0x19)
-  Store status              active slot / length / CRC (0x18)
-
-The clock store lives in the 19 KB region (pointer page + 9 KB A/B slots);
-the MMC applies the valid slot at power-on.
-"""
 
 # ---- house palette --------------------------------------------------------
 BG = "#FAF9F5"          # paper ground
@@ -384,6 +325,11 @@ class FruEditor(tk.Tk):
         ("CLK14", "FMC1_CLK"), ("CLK15", "FMC1_GBTCLK"),
     ]
 
+    def _hint(self, widget, text):
+        """Show text in the clock hint line while the pointer is over widget."""
+        widget.bind("<Enter>", lambda _e: self.clock_hint.set(text), add="+")
+        widget.bind("<Leave>", lambda _e: self.clock_hint.set(""), add="+")
+
     def _build_clock_tab(self, parent):
         row = ttk.Frame(parent)
         row.pack(fill="x", pady=(0, 6))
@@ -401,21 +347,20 @@ class FruEditor(tk.Tk):
         dev = ttk.Button(row2, text="Write to device", style="Primary.TButton",
                          command=self.si_write_device)
         dev.pack(side="left", padx=(10, 0))
-        Tooltip(dev, "Write the loaded table to the Si5345 RAM over I2C.\n"
-                     "Effective immediately, lost on power-cycle.")
+        self._hint(dev, "Write the loaded table to the Si5345 RAM over I2C - "
+                        "immediate, lost on power-cycle")
         fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
         fl.pack(side="left", padx=(6, 0))
-        Tooltip(fl, "Store matrix + Si5345 table in the MMC clock store.\n"
-                    "Applied automatically at the next power-on.")
+        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
+                       "applied automatically at the next power-on")
         ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
         self.slot_sel = tk.StringVar(value="auto")
         slotsel = ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
                                width=5, state="readonly")
         slotsel.pack(side="left")
-        Tooltip(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
+        self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
         ttk.Button(row2, text="Apply store", command=self.store_apply).pack(side="left", padx=(8, 0))
         ttk.Button(row2, text="Store status", command=self.store_status).pack(side="left", padx=(4, 0))
-        ttk.Button(row2, text="?", width=2, command=self.clock_help).pack(side="left", padx=(8, 0))
         self.si_label = tk.StringVar(value="no Si5345 file loaded")
         ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
         self.si_groups = None
@@ -434,7 +379,7 @@ class FruEditor(tk.Tk):
         for text, col, tip in headers:
             lbl = ttk.Label(tbl, text=text, style="Hint.TLabel")
             lbl.grid(row=1, column=col, sticky="w", padx=(4, 8))
-            Tooltip(lbl, tip)
+            self._hint(lbl, tip)
         for col, weight in ((0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)):
             tbl.columnconfigure(col, weight=weight)
 
@@ -453,19 +398,19 @@ class FruEditor(tk.Tk):
             dirbox = ttk.Combobox(tbl, textvariable=d, values=("in", "out"), width=4,
                                   state="readonly")
             dirbox.grid(row=row, column=1, sticky="w", padx=(4, 8))
-            Tooltip(dirbox, "Direction: in (bit7=0) or out (bit7=1)")
+            self._hint(dirbox, "Direction: in (bit7=0) or out (bit7=1)")
             src = tk.StringVar(value="-")
             srcbox = ttk.Combobox(tbl, textvariable=src, width=24, state="disabled")
             srcbox.grid(row=row, column=2, sticky="w", padx=(4, 8))
-            Tooltip(srcbox, "Input port routed to this output (source field)")
+            self._hint(srcbox, "Input port routed to this output (source field)")
             term = tk.BooleanVar(value=False)
             termbox = ttk.Checkbutton(tbl, variable=term)
             termbox.grid(row=row, column=3, sticky="w", padx=(4, 8))
-            Tooltip(termbox, "100 ohm internal termination (bit6)")
+            self._hint(termbox, "100 ohm internal termination (bit6)")
             pol = tk.BooleanVar(value=True)
             polbox = ttk.Checkbutton(tbl, variable=pol)
             polbox.grid(row=row, column=4, sticky="w", padx=(4, 8))
-            Tooltip(polbox, "Polarity: ticked = non-inverted (bit5=1)")
+            self._hint(polbox, "Polarity: ticked = non-inverted (bit5=1)")
             byte = tk.StringVar(value="0x00")
             ttk.Label(tbl, textvariable=byte, width=6, font=(MONO_FONT, 9)).grid(
                 row=row, column=5, sticky="w", padx=(4, 8))
@@ -488,6 +433,10 @@ class FruEditor(tk.Tk):
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,
                                  highlightbackground=LINE, padx=8, pady=6)
         self.clock_out.pack(fill="x")
+
+        self.clock_hint = tk.StringVar(value="")
+        ttk.Label(parent, textvariable=self.clock_hint, style="Hint.TLabel").pack(
+            fill="x", pady=(4, 0))
 
     def _mux_sources(self):
         """All input-capable mux ports from the clocking file: {port: name}."""
@@ -1018,15 +967,6 @@ class FruEditor(tk.Tk):
         except Exception as e:
             self._status("Flash write failed", "error")
             self._clock_log("ERROR: %s" % e)
-
-    def clock_help(self):
-        win = tk.Toplevel(self)
-        win.title("Clock tab help")
-        txt = tk.Text(win, width=96, height=30, font=(MONO_FONT, 9), wrap="word",
-                      bg=PANEL, fg=INK, relief="flat", padx=10, pady=8)
-        txt.pack(fill="both", expand=True)
-        txt.insert("end", CLOCK_HELP)
-        txt.configure(state="disabled")
 
     def store_apply(self):
         try:
