@@ -1,16 +1,18 @@
 /*
  *   openMMC -- Open Source modular IPM Controller firmware
  *
- *   Clock configuration store: 19 KB region at __ClockConfig_start
- *   - 1 KB pointer page: two copies of the active-slot record
- *   - 9 KB slot A, 9 KB slot B: FRU-format record file
- *
- *   IPMI custom commands (NetFn 0x32):
+ *   Clock configuration store (FRU-format slots):
  *     0x18 status   -> [valid, slot, len_lo, len_hi, crc0..3]
  *     0x19 apply    -> [result]
  *     0x1A begin    -> [slot, len_lo, len_hi, crc0..3]
  *     0x1B block    -> [off_lo, off_hi, data...]
  *     0x1C finish   -> [crc0..3]
+ *
+ *   Two storage backends:
+ *     - flash (uFC): 1 KB pointer page + 9 KB slot A/B, linker symbols
+ *       __ClockPointer_addr / __ClockSlotA_addr / __ClockSlotB_addr;
+ *     - EEPROM (u4FCP, CAT24C512): FRU 0x0000..0x01FF, pointer 0x0200,
+ *       slot A 0x0300, slot B 0x1B00, 6 KB each (CLOCK_STORE_EEPROM).
  */
 
 #include <string.h>
@@ -18,20 +20,31 @@
 #include "port.h"
 #include "clock_store.h"
 #include "clock_program.h"
-#include "idt_8v54816.h"
 #include "ipmi.h"
 #include "i2c.h"
 #include "i2c_mapping.h"
 
+#if defined(CLOCK_STORE_EEPROM)
+#include "eeprom_24xx512.h"
+#endif
+
 #define CLOCK_PTR_MAGIC   0x50434655u   /* "UFCP" */
 #define CLOCK_SLOT_MAGIC  0x43434655u   /* 'UFCC' */
-#define CLOCK_SLOT_SIZE   (9u * 1024u)
 #define CLOCK_PTR_COPY2   512u
-#define CLOCK_PAGE_SIZE   1024u
 
+#if defined(CLOCK_STORE_EEPROM)
+#define CLOCK_SLOT_SIZE   6144u
+#define CLOCK_PAGE_SIZE   128u
+#define CLOCK_PTR_OFF     0x0200u
+#define CLOCK_SLOT_A_OFF  0x0300u
+#define CLOCK_SLOT_B_OFF  0x1B00u
+#else
+#define CLOCK_SLOT_SIZE   (9u * 1024u)
+#define CLOCK_PAGE_SIZE   1024u
 extern uint32_t __ClockPointer_addr;
 extern uint32_t __ClockSlotA_addr;
 extern uint32_t __ClockSlotB_addr;
+#endif
 
 typedef struct __attribute__((packed)) {
     uint32_t magic;
@@ -40,7 +53,7 @@ typedef struct __attribute__((packed)) {
     uint8_t  flags;        /* bit0 = valid */
     uint16_t len;
     uint32_t crc;          /* CRC32 of the slot payload */
-    uint32_t hdr_crc;      /* CRC32 of the preceding 20 bytes */
+    uint32_t hdr_crc;      /* CRC32 of the preceding 16 bytes */
 } clock_ptr_t;
 
 typedef struct __attribute__((packed)) {
@@ -77,9 +90,97 @@ static uint32_t crc32(const uint8_t *data, uint32_t len)
     return ~crc;
 }
 
-static uint32_t slot_base(uint8_t slot)
+/* ---- storage backend (region 0 = pointer, 1 = slot A, 2 = slot B) ------ */
+
+#if defined(CLOCK_STORE_EEPROM)
+static uint16_t region_off(uint8_t region)
 {
-    return (slot == 0) ? (uint32_t)&__ClockSlotA_addr : (uint32_t)&__ClockSlotB_addr;
+    return (region == 0) ? CLOCK_PTR_OFF : (region == 1 ? CLOCK_SLOT_A_OFF : CLOCK_SLOT_B_OFF);
+}
+
+static int store_read(uint8_t region, uint16_t off, uint8_t *buf, uint16_t len)
+{
+    size_t n = eeprom_24xx512_read(CHIP_ID_EEPROM, (uint16_t)(region_off(region) + off),
+                                   buf, len, pdMS_TO_TICKS(200));
+    return n == len;
+}
+
+static int store_write(uint8_t region, uint16_t off, const uint8_t *buf, uint16_t len)
+{
+    size_t n = eeprom_24xx512_write(CHIP_ID_EEPROM, (uint16_t)(region_off(region) + off),
+                                    (uint8_t *)buf, len, pdMS_TO_TICKS(200));
+    return n == len;
+}
+
+static int store_erase(uint8_t region, uint16_t len)
+{
+    (void)region;
+    (void)len;
+    return 1;   /* EEPROM is overwritten, no erase needed */
+}
+#else
+static uint32_t region_base(uint8_t region)
+{
+    return (region == 0) ? (uint32_t)&__ClockPointer_addr :
+           (region == 1 ? (uint32_t)&__ClockSlotA_addr : (uint32_t)&__ClockSlotB_addr);
+}
+
+static int store_read(uint8_t region, uint16_t off, uint8_t *buf, uint16_t len)
+{
+    memcpy(buf, (const void *)(region_base(region) + off), len);
+    return 1;
+}
+
+static int store_write(uint8_t region, uint16_t off, const uint8_t *buf, uint16_t len)
+{
+    uint32_t addr = region_base(region) + off;
+    FLASH_Unlock();
+    for (uint16_t i = 0; i + 1 < len; i += 2) {
+        uint16_t hw = buf[i] | ((uint16_t)buf[i + 1] << 8);
+        if (FLASH_ProgramHalfWord(addr + i, hw) != FLASH_COMPLETE) {
+            FLASH_Lock();
+            return 0;
+        }
+    }
+    FLASH_Lock();
+    return 1;
+}
+
+static int store_erase(uint8_t region, uint16_t len)
+{
+    uint32_t base = region_base(region);
+    FLASH_Unlock();
+    for (uint32_t a = base; a < base + len; a += CLOCK_PAGE_SIZE) {
+        if (FLASH_ErasePage(a) != FLASH_COMPLETE) {
+            FLASH_Lock();
+            return 0;
+        }
+    }
+    FLASH_Lock();
+    return 1;
+}
+#endif
+
+/* CRC over `len` bytes stored in a region, read in small chunks. */
+static uint32_t store_crc(uint8_t region, uint16_t off, uint32_t len)
+{
+    uint8_t chunk[256];
+    uint32_t crc = 0xFFFFFFFFu;
+    while (len) {
+        uint16_t n = (len > sizeof(chunk)) ? sizeof(chunk) : (uint16_t)len;
+        if (!store_read(region, off, chunk, n)) {
+            return 0;
+        }
+        for (uint16_t i = 0; i < n; i++) {
+            crc ^= chunk[i];
+            for (uint8_t b = 0; b < 8; b++) {
+                crc = (crc >> 1) ^ (0xEDB88320u & (~((crc & 1u)) + 1u));
+            }
+        }
+        off += n;
+        len -= n;
+    }
+    return ~crc;
 }
 
 /* ---- pointer record ---------------------------------------------------- */
@@ -90,8 +191,9 @@ static int ptr_load(clock_ptr_t *best, int *found)
     clock_ptr_t cand;
     *found = 0;
     for (int copy = 0; copy < 2; copy++) {
-        memcpy(&cand, (const void *)((uint32_t)&__ClockPointer_addr + copy * CLOCK_PTR_COPY2),
-               sizeof(cand));
+        if (!store_read(0, (uint16_t)(copy * CLOCK_PTR_COPY2), (uint8_t *)&cand, sizeof(cand))) {
+            continue;
+        }
         if (cand.magic != CLOCK_PTR_MAGIC) {
             continue;
         }
@@ -124,79 +226,24 @@ static int ptr_write(uint8_t slot, uint16_t len, uint32_t crc)
     next.crc = crc;
     next.hdr_crc = crc32((const uint8_t *)&next, 16);
 
-    FLASH_Unlock();
-    FLASH_Status st = FLASH_ErasePage((uint32_t)&__ClockPointer_addr);
-    if (st == FLASH_COMPLETE) {
-        for (int copy = 0; copy < 2; copy++) {
-            uint32_t base = (uint32_t)&__ClockPointer_addr + copy * CLOCK_PTR_COPY2;
-            const uint8_t *p = (const uint8_t *)&next;
-            for (uint32_t i = 0; i < sizeof(next); i += 2) {
-                uint16_t hw = p[i] | ((uint16_t)p[i + 1] << 8);
-                if (FLASH_ProgramHalfWord(base + i, hw) != FLASH_COMPLETE) {
-                    st = FLASH_ERROR_PG;
-                    break;
-                }
-            }
-        }
+    if (!store_erase(0, CLOCK_PTR_COPY2)) {
+        return 0;
     }
-    FLASH_Lock();
-    return st == FLASH_COMPLETE;
-}
-
-/* ---- flash helpers ----------------------------------------------------- */
-
-static int flash_erase(uint32_t addr, uint32_t len)
-{
-    FLASH_Unlock();
-    for (uint32_t a = addr & ~(CLOCK_PAGE_SIZE - 1u); a < addr + len; a += CLOCK_PAGE_SIZE) {
-        if (FLASH_ErasePage(a) != FLASH_COMPLETE) {
-            FLASH_Lock();
+    for (int copy = 0; copy < 2; copy++) {
+        if (!store_write(0, (uint16_t)(copy * CLOCK_PTR_COPY2), (const uint8_t *)&next, sizeof(next))) {
             return 0;
         }
     }
-    FLASH_Lock();
-    return 1;
-}
-
-static int flash_write(uint32_t addr, const uint8_t *data, uint16_t len)
-{
-    FLASH_Unlock();
-    for (uint16_t i = 0; i + 1 < len; i += 2) {
-        uint16_t hw = data[i] | ((uint16_t)data[i + 1] << 8);
-        if (FLASH_ProgramHalfWord(addr + i, hw) != FLASH_COMPLETE) {
-            FLASH_Lock();
-            return 0;
-        }
-    }
-    FLASH_Lock();
     return 1;
 }
 
 /* ---- slot validation / apply ------------------------------------------- */
 
-static int slot_load(uint8_t slot, clock_slot_hdr_t *hdr, const uint8_t **fru)
-{
-    const uint8_t *base = (const uint8_t *)slot_base(slot);
-    memcpy(hdr, base, sizeof(*hdr));
-    if (hdr->magic != CLOCK_SLOT_MAGIC || hdr->hdr_len != sizeof(*hdr)) {
-        return 0;
-    }
-    if (hdr->payload_len == 0 || hdr->payload_len + hdr->hdr_len > CLOCK_SLOT_SIZE) {
-        return 0;
-    }
-    if (crc32(base + hdr->hdr_len, hdr->payload_len) != hdr->crc) {
-        return 0;
-    }
-    *fru = base + hdr->hdr_len;
-    return 1;
-}
-
-/* Board hook: apply the 16-byte switch record. The default writes it raw to
- * the 8V54816A; boards with a different crosspoint override this. */
+/* Board hook: apply the 16-byte switch record. The default does nothing;
+ * boards with a crosspoint provide a strong implementation (the uFC's
+ * 8V54816A writer lives in idt_8v54816.c, the u4FCP's ADN4604 in payload.c). */
 __attribute__((weak)) int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
 {
-    /* No switch driver linked for this board: boards with a crosspoint
-     * provide a strong implementation (idt_8v54816.c / payload.c). */
     (void)matrix;
     (void)addr;
     return 0;
@@ -211,24 +258,33 @@ __attribute__((weak)) int clock_store_apply_si5345(uint8_t addr, uint16_t reg, u
     return clock_program_write_entry(reg, val);
 }
 
-/* FRU multirecord parsing: returns 1 on success. */
-static int apply_fru(const uint8_t *fru, uint32_t len)
+/* Parse the FRU multirecord file stored in a slot region and apply it. */
+static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
 {
-    if (len < 8 || fru[0] != 0x01) {
+    uint8_t fru[8];
+    uint8_t rec[4 + 255];
+    uint16_t si_count = 0;
+
+    if (len < 8 || !store_read(region, fru_off, fru, 8) || fru[0] != 0x01) {
         return 0;
     }
     uint32_t off = (uint32_t)fru[5] * 8u;
-    uint16_t si_count = 0;
 
     while (off + 4u <= len) {
-        const uint8_t *rec = fru + off;
+        if (!store_read(region, (uint16_t)(fru_off + off), rec, 4)) {
+            return 0;
+        }
         uint8_t rlen = rec[2];
-        uint8_t chk = 0;
         if (rec[0] != 0xC0 || off + 4u + rlen > len) {
             break;
         }
-        for (uint8_t i = 0; i < 4; i++) chk += rec[i];
-        for (uint8_t i = 0; i < rlen; i++) chk += rec[4 + i];
+        if (!store_read(region, (uint16_t)(fru_off + off + 4u), rec + 4, rlen)) {
+            return 0;
+        }
+        uint8_t chk = 0;
+        for (uint8_t i = 0; i < 4u + rlen; i++) {
+            chk += rec[i];
+        }
         if (chk != 0) {
             return 0;
         }
@@ -239,7 +295,7 @@ static int apply_fru(const uint8_t *fru, uint32_t len)
         if (plen >= 8u) {
             const uint8_t *p = payload + 8;
             uint8_t dlen = (uint8_t)(plen - 8u);
-            uint8_t dev_addr = payload[4];   /* FRU device header: bus/addr */
+            uint8_t dev_addr = payload[4];
             if (recid == 0x40 && dlen == 16u) {
                 if (!clock_store_apply_switch(p, dev_addr)) {
                     return 0;
@@ -264,31 +320,39 @@ static int apply_fru(const uint8_t *fru, uint32_t len)
     return 1;
 }
 
+static int apply_slot(uint8_t slot)
+{
+    clock_slot_hdr_t hdr;
+    uint8_t region = (uint8_t)(slot ? 2 : 1);
+
+    if (!store_read(region, 0, (uint8_t *)&hdr, sizeof(hdr))) {
+        return 0;
+    }
+    if (hdr.magic != CLOCK_SLOT_MAGIC || hdr.hdr_len != sizeof(hdr)) {
+        return 0;
+    }
+    if (hdr.payload_len == 0 || hdr.payload_len + hdr.hdr_len > CLOCK_SLOT_SIZE) {
+        return 0;
+    }
+    if (store_crc(region, (uint16_t)hdr.hdr_len, hdr.payload_len) != hdr.crc) {
+        return 0;
+    }
+    return apply_fru_stream(region, (uint16_t)hdr.hdr_len, hdr.payload_len);
+}
+
 int clock_store_apply(void)
 {
     clock_ptr_t ptr;
-    clock_slot_hdr_t hdr;
-    const uint8_t *fru;
     int found;
-    uint8_t order[2];
-    int n = 0;
 
-    /* Prefer the pointer's slot, fall back to the other one if its
-     * header/CRC is invalid (the A/B slots are self-describing). */
-    found = ptr_load(&ptr, &found);
-    if (found) {
-        order[n++] = ptr.slot;
-        order[n++] = ptr.slot ? 0 : 1;
-    } else {
-        order[n++] = 0;
-        order[n++] = 1;
+    if (!ptr_load(&ptr, &found)) {
+        return apply_slot(0) || apply_slot(1);
     }
-    for (int i = 0; i < n; i++) {
-        if (slot_load(order[i], &hdr, &fru) && apply_fru(fru, hdr.payload_len)) {
-            return 1;
-        }
+    if (apply_slot(ptr.slot)) {
+        return 1;
     }
-    return 0;
+    /* fall back to the other slot (both are self describing) */
+    return apply_slot(ptr.slot ? 0 : 1);
 }
 
 int clock_store_init(void)
@@ -301,13 +365,17 @@ int clock_store_status(uint8_t *valid, uint8_t *slot, uint16_t *len, uint32_t *c
     clock_ptr_t ptr;
     int found;
     clock_slot_hdr_t hdr;
-    const uint8_t *fru;
+    uint8_t region;
 
     *valid = 0;
     if (!ptr_load(&ptr, &found)) {
         return 0;
     }
-    if (!slot_load(ptr.slot, &hdr, &fru)) {
+    region = (uint8_t)(ptr.slot ? 2 : 1);
+    if (!store_read(region, 0, (uint8_t *)&hdr, sizeof(hdr)) ||
+        hdr.magic != CLOCK_SLOT_MAGIC || hdr.hdr_len != sizeof(hdr) ||
+        hdr.payload_len == 0 || hdr.payload_len + hdr.hdr_len > CLOCK_SLOT_SIZE ||
+        store_crc(region, (uint16_t)hdr.hdr_len, hdr.payload_len) != hdr.crc) {
         return 0;
     }
     *valid = 1;
@@ -374,7 +442,7 @@ IPMI_HANDLER(ipmi_clock_store_begin_cmd, NETFN_CUSTOM, IPMI_CUSTOM_CMD_CLOCK_STO
         rsp->completion_code = IPMI_CC_INV_DATA_FIELD_IN_REQ;
         return;
     }
-    if (!flash_erase(slot_base(slot), len)) {
+    if (!store_erase((uint8_t)(slot ? 2 : 1), len)) {
         rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
         return;
     }
@@ -401,7 +469,7 @@ IPMI_HANDLER(ipmi_clock_store_block_cmd, NETFN_CUSTOM, IPMI_CUSTOM_CMD_CLOCK_STO
         rsp->completion_code = IPMI_CC_INV_DATA_FIELD_IN_REQ;
         return;
     }
-    if (!flash_write(slot_base(wr.slot) + off, &req->data[2], n)) {
+    if (!store_write((uint8_t)(wr.slot ? 2 : 1), off, &req->data[2], n)) {
         rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
         return;
     }
@@ -421,8 +489,8 @@ IPMI_HANDLER(ipmi_clock_store_finish_cmd, NETFN_CUSTOM, IPMI_CUSTOM_CMD_CLOCK_ST
     }
     uint32_t crc = (uint32_t)req->data[0] | ((uint32_t)req->data[1] << 8) |
                    ((uint32_t)req->data[2] << 16) | ((uint32_t)req->data[3] << 24);
-    uint32_t base = slot_base(wr.slot);
-    uint32_t calc = crc32((const uint8_t *)base, wr.written);
+    uint8_t region = (uint8_t)(wr.slot ? 2 : 1);
+    uint32_t calc = store_crc(region, 0, wr.written);
     if (crc != wr.crc || calc != crc) {
         wr.active = 0;
         rsp->data[0] = 0;
