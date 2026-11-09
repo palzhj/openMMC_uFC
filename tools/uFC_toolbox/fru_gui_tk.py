@@ -401,6 +401,10 @@ class FruEditor(tk.Tk):
                         value="device").pack(side="left", padx=(10, 0))
         ttk.Radiobutton(row2, text="flash", variable=self.si_target,
                         value="flash").pack(side="left", padx=(4, 0))
+        ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
+        self.slot_sel = tk.StringVar(value="auto")
+        ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
+                     width=5, state="readonly").pack(side="left")
         ttk.Button(row2, text="Write Si5345", command=self.si_write).pack(side="left", padx=(8, 0))
         ttk.Button(row2, text="Apply store", command=self.store_apply).pack(side="left", padx=(8, 0))
         ttk.Button(row2, text="Store status", command=self.store_status).pack(side="left", padx=(4, 0))
@@ -984,7 +988,8 @@ class FruEditor(tk.Tk):
                 slot = build_clock_slot(self.clock_matrix, self.si_groups)
                 self._clock_log("clock slot: %d bytes, crc %08x" %
                                 (len(slot), zlib.crc32(slot) & 0xFFFFFFFF))
-                r = upload_clock_slot(self._access(), slot,
+                slot_index = {"auto": 0xFF, "A": 0, "B": 1}.get(self.slot_sel.get(), 0xFF)
+                r = upload_clock_slot(self._access(), slot, slot_index,
                                       progress=lambda n: self._clock_log("flash: %d bytes" % n))
                 self._clock_log("slot uploaded, finish: %s" % r.hex())
                 self._status("Clock config written to flash", "ok")

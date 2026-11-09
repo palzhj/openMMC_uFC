@@ -343,10 +343,13 @@ def build_clock_slot(matrix, si_groups=None, seq=1):
     return bytes(hdr) + bytes(fru)
 
 
-def upload_clock_slot(access, slot, progress=None):
-    """Upload a slot with begin/block/finish; returns the finish response."""
+def upload_clock_slot(access, slot, slot_index=0xFF, progress=None):
+    """Upload a slot with begin/block/finish; returns the finish response.
+
+    slot_index: 0 = A, 1 = B, 0xFF = the inactive slot (auto).
+    """
     crc = zlib.crc32(slot) & 0xFFFFFFFF
-    r = access.raw("0x32", "0x1a", "0xff", str(len(slot) & 0xFF),
+    r = access.raw("0x32", "0x1a", "0x%02x" % (slot_index & 0xFF), str(len(slot) & 0xFF),
                    str((len(slot) >> 8) & 0xFF), str(crc & 0xFF),
                    str((crc >> 8) & 0xFF), str((crc >> 16) & 0xFF),
                    str((crc >> 24) & 0xFF))
