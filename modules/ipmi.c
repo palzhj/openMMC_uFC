@@ -75,6 +75,9 @@ void IPMITask( void * pvParameters )
     for ( ;; ) {
 
         if( xQueueReceive( ipmi_rxqueue, &req_received , portMAX_DELAY ) == pdFALSE) {
+#ifdef MODULE_UART_DEBUG
+            printf("[IPMI] queue false\n");
+#endif
             /* Should no return pdFALSE */
             configASSERT(pdFALSE);
             continue;

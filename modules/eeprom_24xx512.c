@@ -101,6 +101,12 @@ size_t eeprom_24xx512_read32(uint8_t id, uint32_t address, uint8_t *rx_data, siz
       }
       if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+        /* A silent/busy EEPROM must not hang the calling task (the IPMI
+         * task reads the clock store first thing after the scheduler
+         * starts): give up after ~100 ms of consecutive failures. */
+        if (i2c_read == 0 && ++retries > 20) {
+          break;
+        }
       } else if (i2c_read == 0) {
         /* No scheduler yet (FRU read at boot): wait with a busy loop for the
          * EEPROM to finish its power-up/write cycle, but do not spin forever. */
@@ -124,6 +130,7 @@ size_t eeprom_24xx512_write32(uint8_t id, uint32_t address, uint8_t *tx_data, si
   uint32_t curr_addr;
   uint8_t i2c_written = 0;
   size_t tx_len = 0;
+  uint8_t retries = 0;
 
   if (tx_data != NULL)
   {
@@ -163,6 +170,10 @@ size_t eeprom_24xx512_write32(uint8_t id, uint32_t address, uint8_t *tx_data, si
       }
       if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
         vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+        /* Never spin forever on a silent/busy EEPROM. */
+        if (i2c_written == 0 && ++retries > 20) {
+          break;
+        }
       } else if (i2c_written == 0) {
         break; /* no scheduler: do not spin forever on a silent bus */
       }
@@ -211,6 +222,7 @@ size_t eeprom_24xx512_write_at(uint8_t id, uint8_t i2c_addr_override, uint16_t a
     uint8_t i2c_written = 0;
     size_t tx_len = 0;
     uint16_t curr_addr = address;
+    uint8_t retries = 0;
 
     if (tx_data == NULL) {
         return 0;
@@ -234,6 +246,9 @@ size_t eeprom_24xx512_write_at(uint8_t id, uint8_t i2c_addr_override, uint16_t a
         }
         if (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
             vTaskDelay(pdMS_TO_TICKS(5));
+            if (i2c_written == 0 && ++retries > 20) {
+                break;
+            }
         } else {
             for (volatile uint32_t d = 0; d < 20000; d++) { }
         }

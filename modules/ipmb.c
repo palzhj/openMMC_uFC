@@ -194,7 +194,9 @@ void IPMB_RXTask ( void *pvParameters )
     for ( ;; ) {
         /* Checks if there's any incoming messages (the task remains blocked here) */
         rx_len = xI2CSlaveReceive( IPMB_I2C, &ipmb_buffer_rx[1], IPMI_MSG_MAX_LENGTH - 1, portMAX_DELAY );
-
+#ifdef MODULE_UART_DEBUG
+        printf("[IPMB] rx_len=%d\n", rx_len);
+#endif
         if ( rx_len > 0 ) {
 
             ipmb_buffer_rx[0] = ipmb_addr;
@@ -208,6 +210,9 @@ void IPMB_RXTask ( void *pvParameters )
              */
 
             if ( ipmb_assert_chksum( ipmb_buffer_rx, rx_len ) != ipmb_error_success ) {
+#ifdef MODULE_UART_DEBUG
+                printf("[IPMB] bad checksum, dropped\n");
+#endif
                 continue;
             }
 
@@ -242,17 +247,12 @@ void IPMB_RXTask ( void *pvParameters )
     }
 }
 
-void ipmb_slave_enable ( void )
+void ipmb_init ( void )
 {
     vI2CConfig( IPMB_I2C, IPMB_I2C_FREQ );
 
     /* vI2CSlaveSetup expects i2c addr < 0x80, ipmb_addr is in format XXXX XXX0 */
     vI2CSlaveSetup( IPMB_I2C, ipmb_addr >> 1);
-}
-
-void ipmb_init ( void )
-{
-    ipmb_slave_enable();
 
     ipmb_txqueue = xQueueCreate( IPMB_TXQUEUE_LEN, sizeof(ipmi_msg_cfg *) );
     vQueueAddToRegistry( ipmb_txqueue, "IPMB_TX_QUEUE");

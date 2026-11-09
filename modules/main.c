@@ -165,14 +165,6 @@ int main( void )
 
     ipmb_addr = get_ipmb_addr( );
 
-    /* Answer the MCH from the first milliseconds: the IPMB slave address is
-     * enabled before the slow module init, so a booting MMC is not NACKing
-     * the MCH (which would log bus errors / flash the red LED). The RX task
-     * hands out any buffered request once the scheduler starts. */
-    if (ipmb_addr != IPMB_ADDR_DISCONNECTED) {
-        ipmb_slave_enable();
-    }
-
     ram_report("start");
 #ifdef MODULE_FRU
     fru_init(FRU_AMC);

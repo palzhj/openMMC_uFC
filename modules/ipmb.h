@@ -247,12 +247,6 @@ void IPMB_RXTask ( void *pvParameters );
 void ipmb_init ( void );
 
 /**
- * @brief Enable the IPMB slave address (ACK the MCH) without starting the
- * IPMB tasks; call as early as possible after i2c_init().
- */
-void ipmb_slave_enable ( void );
-
-/**
  * @brief Format and send a request via IPMB channel
  */
 ipmb_error ipmb_send_request ( ipmi_msg * req );
