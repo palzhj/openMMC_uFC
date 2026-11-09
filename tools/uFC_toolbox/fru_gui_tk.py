@@ -1329,15 +1329,32 @@ class FruEditor(tk.Tk):
         ttk.Button(row2, text="Check target", command=self._ota_check).pack(side="left", padx=(16, 0))
 
         row3 = ttk.Frame(parent)
-        row3.pack(fill="x", pady=(0, 8))
+        row3.pack(fill="x", pady=(0, 4))
         self.ota_buttons = []
+        tips = {
+            "Upload": "ipmitool 'hpm upgrade' (HPM.1 image).\n"
+                      "Large blocks - use it when the target is reached directly\n"
+                      "(KCS, native IPMB); .bin/.hex need 'bin2hpm' in PATH.",
+            "Upload (bridge)": "In-tool HPM upload with 20-byte blocks.\n"
+                               "This is the path that works through the MCH\n"
+                               "IPMB bridge; takes a raw .bin/.hex file.",
+            "Activate": "Activate the staged image: the MMC writes fw_info\n"
+                        "and resets; the bootloader copies the image.",
+            "Upload + Activate": "ipmitool upload (.hpm) followed by activate.",
+        }
         for text, cmd in (("Upload", self._ota_upload),
-                          ("Upload (IPMB, .bin)", self._ota_upload_raw),
+                          ("Upload (bridge)", self._ota_upload_raw),
                           ("Activate", self._ota_activate),
                           ("Upload + Activate", self._ota_upload_activate)):
             b = ttk.Button(row3, text=text, command=cmd)
             b.pack(side="left", padx=(0, 8))
+            Tooltip(b, tips.get(text, ""))
             self.ota_buttons.append(b)
+
+        ttk.Label(parent,
+                  text="Upload = ipmitool HPM.1 (.hpm) · Upload (bridge) = in-tool HPM,"
+                       " 20-byte IPMB blocks, .bin/.hex",
+                  style="Hint.TLabel").pack(anchor="w", pady=(0, 8))
 
         self.ota_pbar = ttk.Progressbar(parent, orient="horizontal", mode="determinate",
                                         maximum=100)
