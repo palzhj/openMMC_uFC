@@ -28,7 +28,8 @@ The bring-up is split in two steps, plus a convenience wrapper:
 |---|---|
 | `jlink_program.sh` | newboot + application over SWD, `fw_info` cleared |
 | `fru_program.sh <serial>` | FRU with the unique serial (+ optional clock store) |
-| `program.sh <serial>` | both of the above in one go |
+| `clk_program.sh` | write/capture the clock configuration preset |
+| `program.sh <serial>` | both flash + FRU in one go |
 
 ```bash
 # 1. flash a blank board (SWD)
@@ -37,7 +38,13 @@ The bring-up is split in two steps, plus a convenience wrapper:
 # 2. in the crate (MCH at 192.168.1.41, board in AMC12): FRU with the serial
 ./fru_program.sh U4FCP2-0001
 ./fru_program.sh U4FCP2-0001 --slot 7 --mch 192.168.1.41
-./fru_program.sh U4FCP2-0001 --clock-store clock-slot.bin
+
+# 3. clock configuration preset (capture once from a programmed board)
+./clk_program.sh --dump clk-preset.bin         # from a working board
+./clk_program.sh clk-preset.bin --apply        # write it, apply now
+
+# or everything in one command:
+./program.sh U4FCP2-0001 --clock-store clk-preset.bin
 
 # or both, when the J-Link and the crate are connected at the same time
 ./program.sh U4FCP2-0001

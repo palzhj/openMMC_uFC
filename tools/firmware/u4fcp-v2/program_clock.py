@@ -48,6 +48,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dump", metavar="FILE")
     ap.add_argument("--upload", metavar="FILE")
+    ap.add_argument("--apply", action="store_true",
+                    help="apply the written configuration now (0x32 0x19)")
     ap.add_argument("--mch", default="192.168.1.41")
     ap.add_argument("--slot", type=int, default=12)
     ap.add_argument("--bus", default="0")
@@ -82,6 +84,9 @@ def main():
           % (valid, slot_idx, length, crc))
     if not valid:
         sys.exit("restored clock store is not valid")
+    if args.apply:
+        rsp = access.raw("0x32", "0x19")
+        print("apply: %s" % ("OK" if rsp and rsp[0] == 1 else "FAILED"))
 
 
 if __name__ == "__main__":
