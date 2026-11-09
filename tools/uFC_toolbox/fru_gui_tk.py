@@ -215,6 +215,25 @@ class FruEditor(tk.Tk):
             strip, "FRU writable (B)", str(fru_limit), 7,
             tip="Bytes of the FRU image that are written.\nThe 24AA025E48 only allows the lower 128 bytes.")
 
+        # board template (shared by every tab)
+        tpl = ttk.Frame(self, padding=(16, 2, 16, 4))
+        tpl.pack(fill="x")
+        tlab = ttk.Label(tpl, text="Board template", style="FieldLabel.TLabel")
+        tlab.pack(side="left")
+        self.template = "uFC"
+        self.template_var = tk.StringVar(value=self.template)
+        tbox = ttk.Combobox(tpl, textvariable=self.template_var,
+                            values=("uFC", "u4FCP"), width=10, state="readonly")
+        tbox.pack(side="left", padx=(6, 6))
+        Tooltip(tbox, "Clock/board description used by the tabs\n"
+                      "(tools/clocking/<template>-clocking.json)")
+        tload = ttk.Button(tpl, text="Load", command=self.template_load)
+        tload.pack(side="left")
+        Tooltip(tload, "Load the selected board template")
+        self.template_label = tk.StringVar(value="uFC — ufc-clocking.json")
+        tk.Label(tpl, textvariable=self.template_label, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(side="left", padx=(12, 0))
+
         info = ttk.Frame(self, padding=(16, 2, 16, 4))
         info.pack(fill="x")
         self.path_var = tk.StringVar()
@@ -331,25 +350,8 @@ class FruEditor(tk.Tk):
         widget.bind("<Leave>", lambda _e: self.clock_hint.set(""), add="+")
 
     def _build_clock_tab(self, parent):
-        # ---- block 1: board template -----------------------------------
-        tpl = ttk.LabelFrame(parent, text="1  Board template", padding=(8, 4))
-        tpl.pack(fill="x", pady=(0, 4))
-        ttk.Label(tpl, text="Template", style="FieldLabel.TLabel").pack(side="left")
-        self.template = getattr(self, "template", "uFC")
-        self.template_var = tk.StringVar(value=self.template)
-        tplbox = ttk.Combobox(tpl, textvariable=self.template_var,
-                              values=("uFC", "u4FCP"), width=10, state="readonly")
-        tplbox.pack(side="left", padx=(6, 6))
-        self._hint(tplbox, "Clocking description to load for this board")
-        loadb = ttk.Button(tpl, text="Load", command=self.template_load)
-        loadb.pack(side="left")
-        self._hint(loadb, "Load <template>-clocking.json (tools/clocking/)")
-        self.template_label = tk.StringVar(value="uFC — ufc-clocking.json")
-        ttk.Label(tpl, textvariable=self.template_label,
-                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
-
         # ---- block 2: MUX ----------------------------------------------
-        mux = ttk.LabelFrame(parent, text="2  8V54816A MUX", padding=(8, 4))
+        mux = ttk.LabelFrame(parent, text="1  8V54816A MUX", padding=(8, 4))
         mux.pack(fill="both", expand=True, pady=(0, 4))
         mrow = ttk.Frame(mux)
         mrow.pack(fill="x", pady=(0, 4))
@@ -438,7 +440,7 @@ class FruEditor(tk.Tk):
         self._port_load_all()
 
         # ---- block 3: PLL ----------------------------------------------
-        pll = ttk.LabelFrame(parent, text="3  Si5345 PLL", padding=(8, 4))
+        pll = ttk.LabelFrame(parent, text="2  Si5345 PLL", padding=(8, 4))
         pll.pack(fill="x", pady=(0, 4))
         prow = ttk.Frame(pll)
         prow.pack(fill="x")
@@ -473,7 +475,7 @@ class FruEditor(tk.Tk):
         self.si_groups = None
 
         # ---- block 4: block diagram ------------------------------------
-        dia = ttk.LabelFrame(parent, text="4  Block diagram", padding=(8, 4))
+        dia = ttk.LabelFrame(parent, text="3  Block diagram", padding=(8, 4))
         dia.pack(fill="x", pady=(0, 4))
         drow = ttk.Frame(dia)
         drow.pack(fill="x")
@@ -503,11 +505,15 @@ class FruEditor(tk.Tk):
             self._clock_log("template %s: clocking file not found" % self.template)
             return
         self.template_label.set("%s — %s" % (self.template, os.path.basename(path)))
-        self._port_load_all()
-        self._clock_log("template %s loaded from %s" % (self.template, path))
-        if doc.get("meta", {}).get("status") == "skeleton":
-            self._clock_log("note: this template is a skeleton — fill tools/clocking/%s-clocking.json"
-                            % self.CLOCKING_TEMPLATES.get(self.template, "u4fcp"))
+        if hasattr(self, "port_vars"):
+            self._port_load_all()
+        if hasattr(self, "clock_out"):
+            self._clock_log("template %s loaded from %s" % (self.template, path))
+            if doc.get("meta", {}).get("status") == "skeleton":
+                self._clock_log("note: this template is a skeleton — fill tools/clocking/%s-clocking.json"
+                                % self.CLOCKING_TEMPLATES.get(self.template, "u4fcp"))
+        if hasattr(self, "tpl_info_var"):
+            self.tpl_info_var.set("board: %s" % self.template)
 
     def _mux_sources(self):
         """All input-capable mux ports from the clocking file: {port: name}."""
@@ -1402,6 +1408,10 @@ class FruEditor(tk.Tk):
                       next_args=["activate"])
 
     def _build_i2c_tab(self, parent):
+        self.tpl_info_var = tk.StringVar(
+            value="board: %s (change it in the header)" % getattr(self, "template", "uFC"))
+        ttk.Label(parent, textvariable=self.tpl_info_var,
+                  style="Hint.TLabel").pack(anchor="w", pady=(0, 4))
         row = ttk.Frame(parent)
         row.pack(fill="x", pady=(0, 8))
         ttk.Label(row, text="Bus", style="FieldLabel.TLabel").pack(side="left")
