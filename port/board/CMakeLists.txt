@@ -24,6 +24,8 @@ elseif(${BOARD} MATCHES "^(afc)$")
 
 elseif(${BOARD} MATCHES "^(u4fcp-v2)$" )
   add_subdirectory(u4fcp-v2)
+elseif(${BOARD} MATCHES "^(u4fcp-v1)$" )
+  add_subdirectory(u4fcp-v1)
 elseif(${BOARD} MATCHES "^(ufc-v2)$" )
   add_subdirectory(ufc-v2)
 

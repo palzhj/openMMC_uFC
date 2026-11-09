@@ -35,23 +35,23 @@ ENTRY(Reset_Handler)
 _estack = 0x20005000;    /* end of 20K RAM */
 
 /* Generate a link error if heap and stack don't fit into RAM */
-_Min_Heap_Size  = 1K;    /* required amount of heap  */
+_Min_Heap_Size  = 0;     /* FreeRTOS heap is in .noinit_RAM2; no C-library heap */
 _Min_Stack_Size = 512;    /* required amount of stack */
 
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx)      : ORIGIN = 0x08004000, LENGTH = 56K
+  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 55K
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
-__BootFlash_start     = 0x08002000;   /* Bootloader start address (vector table) */
-__BootFlash_end       = 0x08003FFF;   /* Bootloader end address (last byte) */
-__AppFlash_start      = 0x08004000;   /* Application start address (vector table) */
-__AppFlash_end        = 0x08011FFF;   /* 56K Application end address (last byte) */
-__FWUpdateFlash_start = 0x08012000;   /* Firmware update region start address */
-__FWUpdateFlash_end   = 0x0801FFFF;   /* 56K Firmware update region end address (last byte) */
-__FWInfo_addr         = __FWUpdateFlash_end - 255; /* Last 256 bytes of flash reserved to the fw_info struct */
+__BootFlash_start     = 0x08000000;   /* newboot (first stage), 8 KB */
+__BootFlash_end       = 0x08001FFF;
+__AppFlash_start      = 0x08002000;   /* Application start address (vector table) */
+__AppFlash_end        = 0x0800FBFF;   /* 55 KB application end address (last byte) */
+__FWUpdateFlash_start = 0x0800FC00;   /* no staging on the 64 KB part */
+__FWUpdateFlash_end   = 0x0800FBFF;   /* empty region: no OTA update on v1 */
+__FWInfo_addr         = 0x0800FC00;   /* 1 KB page, 256 B fw_info record */
 
 /* Define output sections */
 SECTIONS
@@ -136,6 +136,14 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
   } >RAM
 
+  /* FreeRTOS heap lives in .noinit_RAM2: keep it out of the load image */
+  .noinit_RAM2 (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.noinit_RAM2*)
+    . = ALIGN(4);
+  } >RAM
+
   /* Uninitialized data section */
   . = ALIGN(4);
   .bss :
@@ -162,6 +170,7 @@ SECTIONS
     . = . + _Min_Heap_Size;
     . = . + _Min_Stack_Size;
     . = ALIGN(4);
+    __StackLimit = .;   /* bottom of the main/exception stack */
   } >RAM
 
   /* Remove information from the standard libraries */
