@@ -454,12 +454,12 @@ class FruEditor(tk.Tk):
         self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
         fl = ttk.Button(prow, text="Write to flash", command=self.si_write_flash)
         fl.pack(side="left", padx=(6, 0))
-        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
-                       "applied automatically at the next power-on")
+        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store and "
+                       "activate it now (also applied at the next power-on)")
         applyb = ttk.Button(prow, text="Activate stored config", command=self.store_apply)
         applyb.pack(side="left", padx=(8, 0))
-        self._hint(applyb, "Read the stored slot from flash and activate it now "
-                           "(switch matrix + Si5345) without power-cycling")
+        self._hint(applyb, "Re-apply the stored slot without rewriting it "
+                           "(switch matrix + Si5345)")
         srow2 = ttk.Frame(pll)
         srow2.pack(fill="x", pady=(2, 0))
         infob = ttk.Button(srow2, text="Stored config info", command=self.store_status)
@@ -1039,8 +1039,11 @@ class FruEditor(tk.Tk):
             slot_index = {"auto": 0xFF, "A": 0, "B": 1}.get(self.slot_sel.get(), 0xFF)
             r = upload_clock_slot(self._access(), slot, slot_index,
                                   progress=lambda n: self._clock_log("flash: %d bytes" % n))
-            self._clock_log("slot uploaded, finish: %s — applied at the next power-on" % r.hex())
-            self._status("Clock config written to flash", "ok")
+            self._clock_log("slot uploaded, finish: %s" % r.hex())
+            if r and r[0] == 1:
+                act = self._access().raw("0x32", "0x19")
+                self._clock_log("activated now: %s (also applied at the next power-on)" % act.hex())
+            self._status("Clock config written to flash and activated", "ok")
         except Exception as e:
             self._status("Flash write failed", "error")
             self._clock_log("ERROR: %s" % e)
