@@ -39,7 +39,7 @@ cmake -S . -B build-ufc \
 cmake --build build-ufc -j
 
 # 2. flash newboot + application over SWD (J-Link)
-cd firmware/ufc-v2 && ./flash-jlink.sh uart-debug
+cd tools/firmware/ufc-v2 && ./flash-jlink.sh uart-debug
 
 # 3. watch the console
 picocom -b 115200 /dev/ttyUSB0
@@ -164,7 +164,7 @@ ipmitool -I lan -H <mch-ip> -A none -T 0x82 -B 0 -t 0x7e -b 7 \
 
 ### 5.2 newboot / application over SWD (J‑Link)
 
-A ready script ships in `firmware/ufc-v2/flash.jlink`:
+A ready script ships in `tools/firmware/ufc-v2/flash.jlink`:
 
 ```
 device STM32F100CB
@@ -180,7 +180,7 @@ q
 ```
 
 ```sh
-cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
+cd tools/firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
 # or: ./flash-jlink.sh uart-debug
 ```
 
@@ -383,7 +383,7 @@ port/board/ufc-v2/          board port (pins, I2C map, FRU data, payload)
 port/board/ufc-common/      shared uFC code (LED, IPMB address, FRU wiring)
 port/ucontroller/stm32/     STM32F1xx port, linkers, startup
 modules/                    openMMC modules (IPMI, FRU, SDR, EEPROM, …)
-firmware/ufc-v2/            prebuilt images + J‑Link script
+tools/firmware/ufc-v2/            prebuilt images + J‑Link script
 docs/DEBUGGING.md           bring‑up log and root‑cause analysis
 docs/USER_MANUAL.md         this document
 ```

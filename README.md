@@ -151,7 +151,7 @@ clears the flag. Both steps are fully automatic.
 The repository ships a J-Link script that loads newboot and the application:
 
 ```sh
-cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
+cd tools/firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
 ```
 
 It is equivalent to:
