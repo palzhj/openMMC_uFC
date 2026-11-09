@@ -22,7 +22,7 @@ set(TARGET_MODULES
   "UCD90XXX"
   # "MCP23016"
   # "ADC"
-  # "HPM"
+  "HPM"
   # "SYSUTILS"
   # "RTM"
   )
