@@ -341,35 +341,6 @@ class FruEditor(tk.Tk):
         ttk.Button(row, text="Export diagram", command=self.clock_export_dot).pack(side="left", padx=(16, 0))
         ttk.Button(row, text="System diagram", command=self.clock_show_system).pack(side="left", padx=(8, 0))
 
-        row2 = ttk.Frame(parent)
-        row2.pack(fill="x", pady=(0, 4))
-        ttk.Button(row2, text="Load Si5345 file…", command=self.si_load).pack(side="left")
-        dev = ttk.Button(row2, text="Write to device", style="Primary.TButton",
-                         command=self.si_write_device)
-        dev.pack(side="left", padx=(10, 0))
-        self._hint(dev, "Write the loaded table to the Si5345 RAM over I2C - "
-                        "immediate, lost on power-cycle")
-        ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
-        self.slot_sel = tk.StringVar(value="auto")
-        slotsel = ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
-                               width=5, state="readonly")
-        slotsel.pack(side="left")
-        self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
-        fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
-        fl.pack(side="left", padx=(6, 0))
-        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
-                       "applied automatically at the next power-on")
-        applyb = ttk.Button(row2, text="Activate stored config", command=self.store_apply)
-        applyb.pack(side="left", padx=(8, 0))
-        self._hint(applyb, "Read the stored slot from flash and activate it now "
-                           "(switch matrix + Si5345) without power-cycling")
-        infob = ttk.Button(row2, text="Stored config info", command=self.store_status)
-        infob.pack(side="left", padx=(4, 0))
-        self._hint(infob, "Show the active slot, length and CRC of the stored configuration")
-        self.si_label = tk.StringVar(value="no Si5345 file loaded")
-        ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
-        self.si_groups = None
-
         tbl = ttk.Frame(parent)
         tbl.pack(fill="both", expand=True, pady=(0, 6))
         ttk.Label(tbl, text="8V54816A ports — direction, source, 100 Ω termination, polarity",
@@ -433,6 +404,35 @@ class FruEditor(tk.Tk):
         self.switch_var = tk.StringVar(value="")
         ttk.Entry(srow, textvariable=self.switch_var, width=60, state="readonly").pack(side="left", padx=(6, 10))
         self._port_load_all()
+
+        row2 = ttk.Frame(parent)
+        row2.pack(fill="x", pady=(0, 4))
+        ttk.Button(row2, text="Load Si5345 file…", command=self.si_load).pack(side="left")
+        dev = ttk.Button(row2, text="Write to device", style="Primary.TButton",
+                         command=self.si_write_device)
+        dev.pack(side="left", padx=(10, 0))
+        self._hint(dev, "Write the loaded table to the Si5345 RAM over I2C - "
+                        "immediate, lost on power-cycle")
+        ttk.Label(row2, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
+        self.slot_sel = tk.StringVar(value="auto")
+        slotsel = ttk.Combobox(row2, textvariable=self.slot_sel, values=("auto", "A", "B"),
+                               width=5, state="readonly")
+        slotsel.pack(side="left")
+        self._hint(slotsel, "Flash target: auto = inactive slot (atomic), A or B explicit")
+        fl = ttk.Button(row2, text="Write to flash", command=self.si_write_flash)
+        fl.pack(side="left", padx=(6, 0))
+        self._hint(fl, "Store matrix + Si5345 table in the MMC clock store - "
+                       "applied automatically at the next power-on")
+        applyb = ttk.Button(row2, text="Activate stored config", command=self.store_apply)
+        applyb.pack(side="left", padx=(8, 0))
+        self._hint(applyb, "Read the stored slot from flash and activate it now "
+                           "(switch matrix + Si5345) without power-cycling")
+        infob = ttk.Button(row2, text="Stored config info", command=self.store_status)
+        infob.pack(side="left", padx=(4, 0))
+        self._hint(infob, "Show the active slot, length and CRC of the stored configuration")
+        self.si_label = tk.StringVar(value="no Si5345 file loaded")
+        ttk.Label(row2, textvariable=self.si_label, style="Hint.TLabel").pack(side="left", padx=(12, 0))
+        self.si_groups = None
 
         self.clock_out = tk.Text(parent, height=6, font=(MONO_FONT, 9), state="disabled",
                                  bg=PANEL, fg=INK, relief="flat", highlightthickness=1,

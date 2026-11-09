@@ -132,6 +132,12 @@ Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
 
 ## Clock tab
 
+Layout: the 8V54816A switch actions are on top (Read clocks, Write now,
+Program (built-in), Status, Export diagram, System diagram), then the port
+table and the matrix line, and **below them the Si5345/PLL row** (Load
+Si5345 file, Write to device, slot, Write to flash, Activate stored config,
+Stored config info), followed by the log and the hover hint line.
+
 The 8V54816A is configured port by port in a table: **direction** (in/out),
 **source** (CLK0…CLK8 for outputs), **100 Ω termination**, **non-inverted**
 polarity and the resulting **matrix byte** for each of the 16 ports. The
