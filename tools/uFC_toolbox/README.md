@@ -141,7 +141,9 @@ Four blocks:
 2. **8V54816A MUX** — **Read from device** (updates the table), **Write to
    device**, the shared **slot** selector, **Write to flash**, the 16-port
    table (scrolled) and the matrix line.
-3. **Si5345 PLL** — **Read from device** (saves a register dump file),
+3. **Si5345 PLL** — **Read from device** (saves a register dump file; if no
+   file is loaded, the standard 526-register list embedded in the tool is
+   used),
    **Load Si5345 file**, **Write to device**, the same shared **slot**
    selector, **Write to flash**; the second line holds Stored config info and
    the loaded-file name.
