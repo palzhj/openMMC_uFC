@@ -294,9 +294,9 @@ class FruEditor(tk.Tk):
                 "uFC: 128 (24AA025E48 half page); u4FCP: 512 (FRU_MAX_SIZE).\n"
                 "Set automatically by the board template.")
 
-        # path / FRU / EEPROM info: right side of the header row (saves a row)
-        info = ttk.Frame(tpl)
-        info.pack(side="right", padx=(14, 0))
+        # path / FRU / EEPROM info: right side, aligned with the top header line
+        info = ttk.Frame(strip)
+        info.pack(side="right", padx=(14, 0), anchor="n")
         self.path_var = tk.StringVar()
         self.fruinfo_var = tk.StringVar(value="no FRU read yet")
         tk.Label(info, textvariable=self.path_var, bg=BG, fg=MUTED,
