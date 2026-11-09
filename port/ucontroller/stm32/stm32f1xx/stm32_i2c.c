@@ -94,37 +94,31 @@ uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32
 void I2C1_EV_IRQHandler(void)
 {
   static BaseType_t xHigherPriorityTaskWoken;
-  uint32_t event = I2C_GetLastEvent(I2C1); // Get the latest I2C event
+  uint32_t sr1 = I2C1->SR1;
 
-  switch (event)
-  {
-  /* ---------- Slave Transmitter Mode (Sending Data to Master) ---------- */
-  case I2C_EVENT_SLAVE_BYTE_TRANSMITTED:
-  case I2C_EVENT_SLAVE_BYTE_TRANSMITTING:
-    break;
-
-  /* ---------- Slave Receiver Mode (Receiving Data from Master) ---------- */
-  case I2C_EVENT_SLAVE_RECEIVER_ADDRESS_MATCHED:
+  /* Flag-based handling. The I2C_GetLastEvent() switch misses the combined
+   * RXNE+BTF state: the data register stays unread, BTF keeps SCL stretched
+   * and the whole IPMB bus ends up wedged (SR2 BUSY, SR1 RXNE|BTF). */
+  if (sr1 & I2C_SR1_ADDR) {
     recv_bytes = 0;
-    break;
+    (void)I2C1->SR2;                     /* clear ADDR */
+    return;                              /* data bytes come next */
+  }
 
-  case I2C_EVENT_SLAVE_BYTE_RECEIVED:
-    recv_msg[recv_bytes++] = I2C_ReceiveData(I2C1);
-    if (recv_bytes == i2cMAX_MSG_LENGTH) recv_bytes = i2cMAX_MSG_LENGTH-1;
-    break;
+  if (sr1 & I2C_SR1_RXNE) {
+    recv_msg[recv_bytes++] = I2C1->DR;   /* also clears BTF */
+    if (recv_bytes >= i2cMAX_MSG_LENGTH) {
+      recv_bytes = i2cMAX_MSG_LENGTH - 1;
+    }
+  }
 
-  /* ---------- STOP Condition Detected (End of Transmission) ---------- */
-  case I2C_EVENT_SLAVE_STOP_DETECTED:
-    I2C_Cmd(I2C1, ENABLE); // Ensure I2C remains enabled
-
+  if (sr1 & I2C_SR1_STOPF) {
+    /* STOPF needs an SR1+SR2 read (I2C_ClearFlag writes SR1). */
+    (void)I2C1->SR2;
     if (slave_task_id) {
       vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
       portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
     }
-    break;
-
-  default:
-    break;
   }
 }
 

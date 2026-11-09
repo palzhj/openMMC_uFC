@@ -76,6 +76,9 @@ void IPMITask( void * pvParameters )
 
         if( xQueueReceive( ipmi_rxqueue, &req_received , portMAX_DELAY ) == pdFALSE) {
 #ifdef MODULE_UART_DEBUG
+            printf("[IPMI] queue empty\n");
+#endif
+#ifdef MODULE_UART_DEBUG
             printf("[IPMI] queue false\n");
 #endif
             /* Should no return pdFALSE */
@@ -103,11 +106,17 @@ void IPMITask( void * pvParameters )
             req_handler(&req_received, &response);
 
             error_code = ipmb_send_response(&req_received, &response);
-
-            /** In case of error during IPMB response, the MMC may wait for a
-               new command from the MCH. Check this for debugging purposes
-               only. */
-            configASSERT( (error_code == ipmb_error_success) );
+            /** A failed response transmission is not fatal: the MCH times
+             * out and retries, and the MMC answers the retry. configASSERT
+             * here called vAssertCalled() (interrupts off, infinite loop)
+             * whenever the MCH was momentarily not listening (hotswap /
+             * power-management transitions), which is exactly the boot
+             * scenario - the MMC froze and the MCH power-cycled the slot. */
+            if (error_code != ipmb_error_success) {
+#ifdef MODULE_UART_DEBUG
+                printf("[IPMI] response send failed (%d)\n", error_code);
+#endif
+            }
 
         } else {
             /** If there is no function handler, use data from received
@@ -117,8 +126,11 @@ void IPMITask( void * pvParameters )
             response.completion_code = IPMI_CC_INV_CMD;
             response.data_len = 0;
             error_code = ipmb_send_response(&req_received, &response);
-
-            configASSERT((error_code == ipmb_error_success));
+            if (error_code != ipmb_error_success) {
+#ifdef MODULE_UART_DEBUG
+                printf("[IPMI] response send failed (%d)\n", error_code);
+#endif
+            }
         }
     }
 }
