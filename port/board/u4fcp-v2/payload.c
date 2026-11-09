@@ -45,6 +45,10 @@
 #ifdef MODULE_ADN4604
 #include "adn4604.h"
 #include "clock_config.h"
+#ifdef MODULE_CLOCK_STORE
+#include "clock_store.h"
+#include "clock_program.h"
+#endif
 #include "default_0-Registers.h"
 #include "default_1-Registers.h"
 #endif
@@ -917,5 +921,31 @@ uint8_t payload_hpm_activate_firmware(void)
   gpio_set_pin_state(PIN_PORT(GPIO_FPGA_PROGRAM_B), PIN_NUMBER(GPIO_FPGA_PROGRAM_B), GPIO_LEVEL_HIGH);
 
   return IPMI_CC_OK;
+}
+#endif
+
+#if defined(MODULE_CLOCK_STORE)
+/* Clock-store board hooks: the 16-byte switch record uses the ADN4604
+ * configuration format (bit 7 = output enable, bits 3:0 = input select),
+ * and the FRU device-header address selects the PLL (0x68 = PLL0,
+ * 0x69 = PLL1). */
+int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
+{
+    if (addr != 0x48) {
+        return 0;   /* ADN4604 */
+    }
+    return clock_configuration(matrix) == MMC_OK;
+}
+
+int clock_store_apply_si5345(uint8_t addr, uint16_t reg, uint8_t val)
+{
+    if (addr == 0x68) {
+        clock_program_select_chip(CHIP_ID_SI5345_0);
+    } else if (addr == 0x69) {
+        clock_program_select_chip(CHIP_ID_SI5345_1);
+    } else {
+        return 0;
+    }
+    return clock_program_write_entry(reg, val);
 }
 #endif

@@ -21,6 +21,7 @@
 
 /* FreeRTOS includes */
 #include "FreeRTOS.h"
+#include "task.h"
 
 /* Project Includes */
 #include "port.h"
@@ -68,6 +69,26 @@ uint8_t clock_switch_read_single_channel(uint8_t channel, uint8_t *data)
     if (clock_switch_read_reg(all_regs)){
         *data = all_regs[channel];
         return 1;
+    }
+    return 0;
+}
+
+/* Clock-store integration: write the 16-byte port matrix with retries
+ * (the mux NACKs the first transaction after a power-up). */
+int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
+{
+    uint8_t chip_addr, iface;
+    (void)addr;
+    for (int attempt = 0; attempt < 10; attempt++) {
+        if (i2c_take_by_chipid(CHIP_ID_8V54816, &chip_addr, &iface, pdMS_TO_TICKS(200))) {
+            uint8_t n = xI2CMasterWrite(iface, chip_addr, (uint8_t *)matrix, 16);
+            i2c_give(iface);
+            if (n == 16) {
+                return 1;
+            }
+            vI2CBusRecover(iface);
+        }
+        vTaskDelay(pdMS_TO_TICKS(2));
     }
     return 0;
 }

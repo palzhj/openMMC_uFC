@@ -27,6 +27,23 @@ set(TARGET_MODULES
   # "RTM"
   )
 
+option(EEPROM_ACCESS "Enable raw EEPROM access over IPMI" ON)
+if (EEPROM_ACCESS)
+  list(APPEND TARGET_MODULES "EEPROM_ACCESS")
+endif()
+option(CLOCK_PROGRAM "Program the Si5345 clock generator over IPMI" ON)
+if (CLOCK_PROGRAM)
+  list(APPEND TARGET_MODULES "CLOCK_PROGRAM")
+endif()
+option(CLOCK_STORE "Clock configuration store in flash (FRU slots) over IPMI" ON)
+if (CLOCK_STORE)
+  list(APPEND TARGET_MODULES "CLOCK_STORE")
+endif()
+option(I2C_ACCESS "Enable generic I2C transfers over IPMI" ON)
+if (I2C_ACCESS)
+  list(APPEND TARGET_MODULES "I2C_ACCESS")
+endif()
+
 if (NOT DISABLE_WATCHDOG)
   list(APPEND TARGET_MODULES "WATCHDOG")
 endif()
@@ -59,9 +76,11 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
 endif()
 
 #Extra definitions
+# The application is close to the 50 KB region: optimise for size.
+set(CMAKE_C_FLAGS_RELEASE "-Os" PARENT_SCOPE)
 # 20 KB SRAM: 12 KB FreeRTOS heap leaves a ~6 KB main/exception stack
 # (RENODE_SIM is a generic top-level option)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DconfigTOTAL_HEAP_SIZE=12288 -DUSE_RAM_DIAG" PARENT_SCOPE)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DconfigTOTAL_HEAP_SIZE=12288 -DUSE_RAM_DIAG -DFRU_MAX_SIZE=512" PARENT_SCOPE)
 if (FRU_WRITE_EEPROM)
   message(STATUS "FRU EEPROM will be written if no valid data is found!")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DFRU_WRITE_EEPROM")

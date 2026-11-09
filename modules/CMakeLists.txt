@@ -48,7 +48,7 @@ if (";${TARGET_MODULES};" MATCHES ";CLOCK_PROGRAM;")
 endif()
 
 if (";${TARGET_MODULES};" MATCHES ";CLOCK_STORE;")
-  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/clock_store.c ${MODULE_PATH}/idt_8v54816.c )
+  set(PROJ_SRCS ${PROJ_SRCS} ${MODULE_PATH}/clock_store.c )
   set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_CLOCK_STORE")
 endif()
 

@@ -191,22 +191,24 @@ static int slot_load(uint8_t slot, clock_slot_hdr_t *hdr, const uint8_t **fru)
     return 1;
 }
 
-/* Write the 16-byte switch matrix (retries the mux NACK like the PLL). */
-static int switch_write(const uint8_t *matrix)
+/* Board hook: apply the 16-byte switch record. The default writes it raw to
+ * the 8V54816A; boards with a different crosspoint override this. */
+__attribute__((weak)) int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
 {
-    uint8_t addr, iface;
-    for (int attempt = 0; attempt < 10; attempt++) {
-        if (i2c_take_by_chipid(CHIP_ID_8V54816, &addr, &iface, pdMS_TO_TICKS(200))) {
-            uint8_t n = xI2CMasterWrite(iface, addr, (uint8_t *)matrix, 16);
-            i2c_give(iface);
-            if (n == 16) {
-                return 1;
-            }
-            vI2CBusRecover(iface);
-        }
-        vTaskDelay(pdMS_TO_TICKS(2));
-    }
+    /* No switch driver linked for this board: boards with a crosspoint
+     * provide a strong implementation (idt_8v54816.c / payload.c). */
+    (void)matrix;
+    (void)addr;
     return 0;
+}
+
+/* Board hook: write one Si5345 table entry. addr is the I2C address from the
+ * FRU record's device header (0x69 on the uFC), so boards with two PLLs can
+ * pick the right chip. */
+__attribute__((weak)) int clock_store_apply_si5345(uint8_t addr, uint16_t reg, uint8_t val)
+{
+    (void)addr;
+    return clock_program_write_entry(reg, val);
 }
 
 /* FRU multirecord parsing: returns 1 on success. */
@@ -237,14 +239,15 @@ static int apply_fru(const uint8_t *fru, uint32_t len)
         if (plen >= 8u) {
             const uint8_t *p = payload + 8;
             uint8_t dlen = (uint8_t)(plen - 8u);
+            uint8_t dev_addr = payload[4];   /* FRU device header: bus/addr */
             if (recid == 0x40 && dlen == 16u) {
-                if (!switch_write(p)) {
+                if (!clock_store_apply_switch(p, dev_addr)) {
                     return 0;
                 }
             } else if ((recid & 0xF0) == 0x30 && dlen >= 3u) {
                 for (uint8_t i = 0; i + 2u < dlen; i += 3u) {
                     uint16_t addr = ((uint16_t)p[i] << 8) | p[i + 1];
-                    if (!clock_program_write_entry(addr, p[i + 2])) {
+                    if (!clock_store_apply_si5345(dev_addr, addr, p[i + 2])) {
                         return 0;
                     }
                     if (++si_count == 3u) {

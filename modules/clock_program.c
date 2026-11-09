@@ -36,7 +36,9 @@
 #include "i2c_mapping.h"
 #include "port.h"
 #include "clock_program.h"
-#include "si5345_regs.h"
+#if defined(SI5345_HAVE_REGS_H)
+#include "si5345_regs.h"   /* board-generated built-in table (optional) */
+#endif
 
 #define CLOCK_PROG_CHIP     CHIP_ID_SI5345_0
 #define CLOCK_PROG_TIMEOUT  pdMS_TO_TICKS(200)
@@ -45,6 +47,7 @@ static volatile uint8_t clock_prog_status = CLOCK_PROG_IDLE;
 static volatile uint16_t clock_prog_fail;
 
 static uint8_t si5345_current_page = 0xFF;
+static uint8_t si5345_chip = CLOCK_PROG_CHIP;
 
 /* The Si5345 uses 8-bit register addresses with a page register at 0x01:
  * the 16-bit ClockBuilder address is (page << 8) | register. */
@@ -56,7 +59,7 @@ static uint8_t si5345_write8(uint8_t reg, uint8_t data)
     /* The first transaction after the mux selects channel 2 can NACK
      * (TCA9548A power-up behaviour), so retry like the EEPROM driver. */
     for (uint8_t attempt = 0; attempt < 10; attempt++) {
-        if (i2c_take_by_chipid(CLOCK_PROG_CHIP, &i2c_addr, &iface, CLOCK_PROG_TIMEOUT)) {
+        if (i2c_take_by_chipid(si5345_chip, &i2c_addr, &iface, CLOCK_PROG_TIMEOUT)) {
             uint8_t written = xI2CMasterWrite(iface, i2c_addr, buf, 2);
             i2c_give(iface);
             if (written == 2) {
@@ -75,7 +78,7 @@ static uint8_t si5345_read8(uint8_t reg, uint8_t *data)
     uint8_t rx = 0;
 
     for (uint8_t attempt = 0; attempt < 10; attempt++) {
-        if (i2c_take_by_chipid(CLOCK_PROG_CHIP, &i2c_addr, &iface, CLOCK_PROG_TIMEOUT)) {
+        if (i2c_take_by_chipid(si5345_chip, &i2c_addr, &iface, CLOCK_PROG_TIMEOUT)) {
             rx = xI2CMasterWriteRead(iface, i2c_addr, &reg, 1, data, 1);
             i2c_give(iface);
             if (rx == 1) {
@@ -102,11 +105,20 @@ static uint8_t si5345_write(uint16_t addr, uint8_t data)
     return si5345_write8(reg, data);
 }
 
+void clock_program_select_chip(uint8_t chip_id)
+{
+    if (chip_id != si5345_chip) {
+        si5345_current_page = 0xFF;
+        si5345_chip = chip_id;
+    }
+}
+
 uint8_t clock_program_write_entry(uint16_t addr, uint8_t data)
 {
     return si5345_write(addr, data);
 }
 
+#if defined(SI5345_HAVE_REGS_H)
 static uint8_t si5345_write_table(const si5345_reg_t *regs, uint16_t count)
 {
     for (uint16_t i = 0; i < count; i++) {
@@ -117,9 +129,11 @@ static uint8_t si5345_write_table(const si5345_reg_t *regs, uint16_t count)
     }
     return 1;
 }
+#endif
 
 static uint8_t clock_program_run(void)
 {
+#ifdef SI5345_HAVE_REGS_H
     clock_prog_status = CLOCK_PROG_RUNNING;
     clock_prog_fail = 0;
 
@@ -139,6 +153,11 @@ static uint8_t clock_program_run(void)
 
     clock_prog_status = CLOCK_PROG_OK;
     return 1;
+#else
+    /* no compiled-in table on this board: use the file-based write */
+    clock_prog_status = CLOCK_PROG_ERROR;
+    return 0;
+#endif
 }
 
 IPMI_HANDLER(ipmi_clock_program_start, NETFN_CUSTOM, IPMI_CUSTOM_CMD_CLOCK_PROGRAM, ipmi_msg *req, ipmi_msg *rsp)

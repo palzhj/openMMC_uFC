@@ -52,7 +52,12 @@ set(CMAKE_ERROR_FLAGS "-Wall -Wextra -Wpointer-arith -Wno-packed-bitfield-compat
 # Build specific flags
 set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} ${CMAKE_ERROR_FLAGS}")
 set(CMAKE_C_FLAGS_DEBUG     "-Og -g3 -DDEBUG")
-set(CMAKE_C_FLAGS_RELEASE   "-O3")
+option(OPTIMIZE_SIZE "Compile with -Os instead of -O3 (small flash parts)" OFF)
+if (OPTIMIZE_SIZE)
+  set(CMAKE_C_FLAGS_RELEASE   "-Os")
+else()
+  set(CMAKE_C_FLAGS_RELEASE   "-O3")
+endif()
 
 # When we break up long strings in CMake we get semicolon
 # separated lists, undo this here...
