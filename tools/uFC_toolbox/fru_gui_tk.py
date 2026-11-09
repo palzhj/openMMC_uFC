@@ -274,20 +274,20 @@ class FruEditor(tk.Tk):
         tk.Label(tpl, textvariable=self.template_label, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(side="left", padx=(12, 0))
 
-        # FRU storage (per board: filled by the board template)
-        fstrip = ttk.Frame(self, padding=(16, 2, 16, 4))
-        fstrip.pack(fill="x")
+        # FRU storage, same row as the board selector (filled by the template)
         self.i2c_var, self.i2c_w = self._labeled(
-            fstrip, "EEPROM I\u00b2C", "0x50", 6,
+            tpl, "EEPROM I\u00b2C", "0x50", 6,
             tip="7-bit I2C address of the FRU EEPROM.\n"
                 "uFC: 0x50 (24AA025E48); u4FCP: 0x54 (CAT24C512/AT24CM01).\n"
                 "Set automatically by the board template.")
+        self.i2c_w.master.pack_configure(padx=(0, 14))
         self.size_var, self.size_w = self._labeled(
-            fstrip, "EEPROM size (B)", str(eeprom_size), 7,
+            tpl, "EEPROM size (B)", str(eeprom_size), 7,
             tip="Bytes read from the EEPROM for the FRU image.\n"
                 "Set automatically by the board template.")
+        self.size_w.master.pack_configure(padx=(0, 14))
         self.limit_var, self.limit_w = self._labeled(
-            fstrip, "FRU writable (B)", str(fru_limit), 7,
+            tpl, "FRU writable (B)", str(fru_limit), 7,
             tip="Bytes of the FRU image that are written.\n"
                 "uFC: 128 (24AA025E48 half page); u4FCP: 512 (FRU_MAX_SIZE).\n"
                 "Set automatically by the board template.")
@@ -570,7 +570,7 @@ class FruEditor(tk.Tk):
                 self.template, self.CLOCKING_TEMPLATES.get(self.template, "ufc")))
             self._clock_log("template %s: clocking file not found" % self.template)
             return
-        self.template_label.set("%s — %s" % (self.template, os.path.basename(path)))
+        self.template_label.set(self.template)
         self.clock_cfg = doc.get("clock", {}) or {}
         fru = doc.get("fru") or {}
         if fru and hasattr(self, "i2c_var"):
