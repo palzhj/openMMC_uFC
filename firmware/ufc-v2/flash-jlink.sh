@@ -1,6 +1,6 @@
 #!/bin/sh
 # Program newboot (first stage) + application over J-Link/SWD.
-# OpenBLT is no longer used: newboot is linked at 0x08000000.
+# newboot is linked at 0x08000000.
 #
 # usage: ./flash-jlink.sh [image-dir]      (default: uart-debug)
 set -eu

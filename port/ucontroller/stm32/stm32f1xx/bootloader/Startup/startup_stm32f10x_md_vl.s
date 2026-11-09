@@ -239,10 +239,8 @@ g_pfnVectors:
 	.word	0
 	.word	0
 	.word	0
-	.word	0                  /* @0x01CC: BootRAM slot, part of the OpenBLT checksum region */
-	.word	0x55AA11EE         /* @0x01D0: reserved for the OpenBLT vector-table checksum.
-	                              The bootloader overwrites this word after each update;
-	                              offset 0x1D0 must match BOOT_FLASH_VECTOR_TABLE_CS_OFFSET. */
+	.word	0                  /* @0x01CC: BootRAM slot */
+	.word	0                  /* @0x01D0: reserved */
 
 /*******************************************************************************
 *

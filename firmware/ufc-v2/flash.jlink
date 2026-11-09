@@ -2,7 +2,7 @@
 //
 // Run from firmware/ufc-v2/ :  JLinkExe -CommanderScript flash.jlink
 //
-// OpenBLT is no longer used: newboot sits at the reset vector (0x08000000)
+// newboot sits at the reset vector (0x08000000)
 // and jumps to the application at 0x08002000.  The staging area
 // (0x0800E800-0x0801AFFF) and the fw_info record (0x0801FC00) are left untouched.
 device STM32F100CB

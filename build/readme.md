@@ -210,7 +210,7 @@ From `port/ucontroller/stm32/stm32f1xx/linker/STM32F100CBT6_*.ld`:
 
 | Region | Start | End | Size | Contents |
 |---|---|---|---|---|
-| **OpenBLT** (first stage) | `0x08000000` | `0x08001FFF` | 8 KB | do not erase/program |
+| **newboot** (first stage) | `0x08000000` | `0x08001FFF` | 8 KB | do not erase/program |
 | Bootloader (`newboot`) | `0x08002000` | `0x08003FFF` | 8 KB | VTOR `0x08002000` |
 | Application (`openMMC`) | `0x08002000` | `0x0800E7FF` | 50 KB | VTOR `0x08002000` |
 | FW update staging | `0x0800E800` | `0x0801AFFF` | 50 KB | new image |
@@ -241,11 +241,10 @@ newboot : .data 0x20000000-0x20000003  .bss 0x20000004-0x20000023
 
 Flash pages are 1 KB (`FLASH_PAGE_SIZE 0x400` on MD_VL).
 
-⚠️ **The first 8 KB is OpenBLT** ([feaser/openblt](https://github.com/feaser/openblt))
-and is not built here. Never erase or program `0x08000000–0x08001FFF`: the
-STM32F1 resets through OpenBLT there, which then starts `newboot` at
-`0x08002000`. Only program `newboot` (`0x08002000`) and `openMMC`
-(`0x08002000`).
+⚠️ **The first 8 KB is newboot** (built from this tree). Never erase or
+program `0x08000000–0x08001FFF` unless you are updating newboot: the STM32F1
+resets through newboot there, which then starts the application at
+`0x08002000`.
 
 ---
 
@@ -273,7 +272,7 @@ q
 ```
 
 - `loadfile` erases only the sectors it writes; `0x08000000–0x08001FFF`
-  (OpenBLT) is untouched.
+  (newboot) is untouched.
 - If the probe reports `Target voltage too low`, set `VTREF 3300` (or wire the
   J-Link VTref pin to the board's 3.3 V + GND) and **power-cycle the J-Link** —
   the fixed VTref applies only after a probe power cycle.
@@ -297,10 +296,8 @@ openocd -f interface/stlink.cfg -f target/stm32f1x.cfg \
 knows `lpc17xx` and aborts configuration for STM32, so the
 `program_boot` / `program_app` / `program_all` targets are unavailable.
 
-> ⚠️ Keep `0x08000000–0x08001FFF` (OpenBLT) intact. Do not run a full-chip
-> erase (`flash erase_sector 0 0 last`), and do not use `make full_binary`:
-> it pads `newboot` to 8 KB and concatenates, producing an image intended to
-> start at `0x08000000`, which would overwrite OpenBLT.
+> ⚠️ Keep `0x08000000–0x08001FFF` (newboot) intact unless updating it. Do not
+> run a full-chip erase (`flash erase_sector 0 0 last`).
 
 ---
 
@@ -399,6 +396,4 @@ TCA9548 @0x70 (A2=A1=A0=0)
 - The new `uRTM‑v2` board directory is not wired into `BOARD_RTM` selection and
   its `CMakeLists.txt` appends the wrong module variable
   (`RTM_8SFP_MODULES`).
-- The `newboot` application is built here; the first‑8 KB stage (see §6) is
-  **OpenBLT**, an external project, and must not be modified or erased from
-  this tree.
+- The `newboot` application is built here and occupies the first 8 KB (see §6).

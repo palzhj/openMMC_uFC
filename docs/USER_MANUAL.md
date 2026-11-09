@@ -125,7 +125,7 @@ time and embedded in the image.
 | clock config | `0x0801B000` | 19 KB | pointer 1 KB + slot A 9 KB + slot B 9 KB |
 | `fw_info` | `0x0801FC00` | 1 KB | pending‑update flag used by newboot |
 
-OpenBLT has been dropped; the CPU starts newboot directly from `0x08000000`.
+The CPU starts newboot directly from `0x08000000`.
 
 Boot sequence:
 
@@ -186,7 +186,7 @@ cd firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
 
 `VTREF 3300` only takes effect after a J‑Link power cycle, or with the J‑Link
 VTref pin wired to the board’s 3.3 V. newboot is linked at `0x08000000`;
-no OpenBLT checksum fix‑up is needed.
+no vector‑table checksum fix‑up is needed.
 
 ## 6. FRU information
 

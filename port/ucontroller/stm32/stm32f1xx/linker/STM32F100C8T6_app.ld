@@ -45,7 +45,7 @@ MEMORY
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 8K
 }
 
-/* 0x08000000 - 0x08001FFF is reserved for OpenBLT (first-stage bootloader).
+/* 0x08000000 - 0x08001FFF is reserved for the first-stage bootloader (newboot).
  * Never erase or program this region from openMMC. */
 __BootFlash_start     = 0x08002000;   /* Bootloader start address (vector table) */
 __BootFlash_end       = 0x08003FFF;   /* Bootloader end address (last byte) */

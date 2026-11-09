@@ -45,7 +45,7 @@ slot at power‑on (switch matrix + Si5345 table) and the toolbox can upload a
 new slot over IPMI (`0x1A/0x1B/0x1C`, status `0x18`, apply `0x19`). See
 [docs/CLOCK_CONFIG_FORMAT.md](docs/CLOCK_CONFIG_FORMAT.md).
 
-OpenBLT has been dropped: the CPU starts **newboot** directly from `0x08000000`
+The CPU starts **newboot** directly from `0x08000000`
 and no vector‑table checksum is involved.
 
 ## Installation
@@ -233,5 +233,4 @@ modifications made in 2026 for scientific use. Modifications are tracked in the
 git history and noted where they are not obvious.
 
 Bundled third‑party components (FreeRTOS, STM32 StdPeriph, CMSIS) keep their own
-licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). OpenBLT is no
-longer used: the first‑stage bootloader (newboot) is part of this repository.
+licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The first‑stage bootloader (newboot) is part of this repository.
