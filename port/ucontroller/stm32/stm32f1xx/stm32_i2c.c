@@ -64,11 +64,23 @@ static TaskHandle_t slave_task_id;
 uint8_t recv_msg[i2cMAX_MSG_LENGTH];
 // uint8_t recv_msg_dummy[i2cMAX_MSG_LENGTH];
 uint8_t recv_bytes;
+static volatile uint8_t slave_msg_pending = 0;  /* a message arrived before the
+                                                   RX task armed the reception */
 
 uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32_t timeout)
 {
   uint8_t bytes_to_copy = 0;
   slave_task_id = xTaskGetCurrentTaskHandle();
+
+  /* The slave is enabled early in main so the MCH sees its address ACKed
+   * from the first milliseconds; a message may therefore be buffered before
+   * this task arms the reception. Hand it out instead of waiting. */
+  if (slave_msg_pending) {
+    slave_msg_pending = 0;
+    bytes_to_copy = (recv_bytes > buff_len) ? buff_len : recv_bytes;
+    memcpy(rx_buff, &recv_msg[0], bytes_to_copy);
+    return bytes_to_copy;
+  }
 
   if (ulTaskNotifyTake(pdTRUE, timeout) == pdTRUE)
   {
@@ -121,8 +133,11 @@ void I2C1_EV_IRQHandler(void)
     // STOP condition detected, indicating the end of a transaction
     I2C_Cmd(I2C1, ENABLE); // Ensure I2C remains enabled
 
-    vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    slave_msg_pending = 1;
+    if (slave_task_id) {
+      vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
+      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
     break;
 
   default:

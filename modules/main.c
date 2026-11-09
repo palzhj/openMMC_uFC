@@ -159,26 +159,48 @@ int main( void )
     LED_init();
 
     i2c_init();
-
+#ifdef MODULE_UART_DEBUG
+    printf("[BOOT] i2c_init\n");
+#endif
 
     ipmb_addr = get_ipmb_addr( );
+
+    /* Answer the MCH from the first milliseconds: the IPMB slave address is
+     * enabled before the slow module init, so a booting MMC is not NACKing
+     * the MCH (which would log bus errors / flash the red LED). The RX task
+     * hands out any buffered request once the scheduler starts. */
+    if (ipmb_addr != IPMB_ADDR_DISCONNECTED) {
+        ipmb_slave_enable();
+    }
 
     ram_report("start");
 #ifdef MODULE_FRU
     fru_init(FRU_AMC);
+#endif
+#ifdef MODULE_UART_DEBUG
+    printf("[BOOT] fru_init\n");
 #endif
     ram_report("fru");
 
 #ifdef MODULE_SDR
     sdr_init();
 #endif
+#ifdef MODULE_UART_DEBUG
+    printf("[BOOT] sdr_init\n");
+#endif
     ram_report("sdr");
 #ifdef MODULE_SENSORS
     sensor_init();
 #endif
+#ifdef MODULE_UART_DEBUG
+    printf("[BOOT] sensor_init\n");
+#endif
     ram_report("sensors");
 #ifdef MODULE_PAYLOAD
     payload_init();
+#endif
+#ifdef MODULE_UART_DEBUG
+    printf("[BOOT] payload_init\n");
 #endif
     ram_report("payload");
 #ifdef MODULE_SCANSTA1101
@@ -194,6 +216,9 @@ int main( void )
     /* NOTE: ipmb_init() is called inside this function */
     ipmi_init();
     ram_report("ipmi");
+#ifdef MODULE_UART_DEBUG
+    printf("[BOOT] ipmi_init\n");
+#endif
 
 #ifdef MODULE_BOARD_CONFIG
     board_config();

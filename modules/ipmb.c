@@ -242,12 +242,17 @@ void IPMB_RXTask ( void *pvParameters )
     }
 }
 
-void ipmb_init ( void )
+void ipmb_slave_enable ( void )
 {
     vI2CConfig( IPMB_I2C, IPMB_I2C_FREQ );
 
     /* vI2CSlaveSetup expects i2c addr < 0x80, ipmb_addr is in format XXXX XXX0 */
     vI2CSlaveSetup( IPMB_I2C, ipmb_addr >> 1);
+}
+
+void ipmb_init ( void )
+{
+    ipmb_slave_enable();
 
     ipmb_txqueue = xQueueCreate( IPMB_TXQUEUE_LEN, sizeof(ipmi_msg_cfg *) );
     vQueueAddToRegistry( ipmb_txqueue, "IPMB_TX_QUEUE");
