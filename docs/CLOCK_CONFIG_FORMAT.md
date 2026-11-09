@@ -125,6 +125,18 @@ A 9 KB slot leaves ~7 KB for additional devices: two Si5345 tables
 The toolbox uses this with **Write Si5345 → flash**, plus **Apply store** and
 **Store status**.
 
+## Slot selection and boot behaviour
+
+- The toolbox sends `0x1A begin` with **slot = 0 (A), 1 (B) or 0xFF (auto)**;
+  `auto` picks the slot that is **not** the active one, so the old image is
+  always kept until the new one is complete (atomic update).
+- The pointer record names the active slot; the slot header carries its own
+  length and CRC, so the MMC can validate a slot without the pointer.
+- At boot the MMC applies **the slot named by the pointer first** and, if its
+  header/CRC is invalid, **falls back to the other slot**. If neither is
+  valid, nothing is applied and the compiled Si5345 table can still be used
+  with `Program (built-in)` (`0x16`).
+
 ## Update flow (atomic)
 
 1. write the inactive slot (header + blocks), CRC over the payload;

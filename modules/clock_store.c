@@ -174,9 +174,9 @@ static int flash_write(uint32_t addr, const uint8_t *data, uint16_t len)
 
 /* ---- slot validation / apply ------------------------------------------- */
 
-static int slot_load(const clock_ptr_t *ptr, clock_slot_hdr_t *hdr, const uint8_t **fru)
+static int slot_load(uint8_t slot, clock_slot_hdr_t *hdr, const uint8_t **fru)
 {
-    const uint8_t *base = (const uint8_t *)slot_base(ptr->slot);
+    const uint8_t *base = (const uint8_t *)slot_base(slot);
     memcpy(hdr, base, sizeof(*hdr));
     if (hdr->magic != CLOCK_SLOT_MAGIC || hdr->hdr_len != sizeof(*hdr)) {
         return 0;
@@ -267,14 +267,25 @@ int clock_store_apply(void)
     clock_slot_hdr_t hdr;
     const uint8_t *fru;
     int found;
+    uint8_t order[2];
+    int n = 0;
 
-    if (!ptr_load(&ptr, &found)) {
-        return 0;
+    /* Prefer the pointer's slot, fall back to the other one if its
+     * header/CRC is invalid (the A/B slots are self-describing). */
+    found = ptr_load(&ptr, &found);
+    if (found) {
+        order[n++] = ptr.slot;
+        order[n++] = ptr.slot ? 0 : 1;
+    } else {
+        order[n++] = 0;
+        order[n++] = 1;
     }
-    if (!slot_load(&ptr, &hdr, &fru)) {
-        return 0;
+    for (int i = 0; i < n; i++) {
+        if (slot_load(order[i], &hdr, &fru) && apply_fru(fru, hdr.payload_len)) {
+            return 1;
+        }
     }
-    return apply_fru(fru, hdr.payload_len);
+    return 0;
 }
 
 int clock_store_init(void)
@@ -293,7 +304,7 @@ int clock_store_status(uint8_t *valid, uint8_t *slot, uint16_t *len, uint32_t *c
     if (!ptr_load(&ptr, &found)) {
         return 0;
     }
-    if (!slot_load(&ptr, &hdr, &fru)) {
+    if (!slot_load(ptr.slot, &hdr, &fru)) {
         return 0;
     }
     *valid = 1;
