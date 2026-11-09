@@ -4,9 +4,9 @@ Same board as u4FCP-v2 (ADN4604 + 2× Si5345) but with the
 **STM32F103C8T6** (64 KB flash, 20 KB SRAM, 1 KB pages) and an **AT24CM01**
 EEPROM (1 Mbit = 128 KB, 256-byte pages).
 
-The board sources are shared with the v2 port: `BOARD_PATH` points to
-`../u4fcp-v2` (i2c/pin mapping, SDR, FRU image, payload). Only the
-controller and the flash layout differ.
+The board sources are an **independent copy** of the v2 port (i2c/pin
+mapping, SDR, FRU image, payload, OEM commands) so this port can diverge;
+only the controller, the EEPROM part and the flash layout differ today.
 
 ## Flash layout (64 KB)
 
