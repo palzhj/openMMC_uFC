@@ -119,6 +119,17 @@ void hpm_init( void )
     memcpy(hpm_components[HPM_PAYLOAD_COMPONENT_ID].description, "Payload", sizeof("Payload"));
 }
 
+/* HPM.1 requests carry the PICMG IANA (5A 31 00) before the command data;
+ * some openMMC tools instead send a single group-extension byte. Return the
+ * offset where the command arguments start for either form. */
+static uint8_t hpm_arg_base(const ipmi_msg *req)
+{
+    if (req->data_len >= 3 && req->data[0] == 0x5A && req->data[1] == 0x31 && req->data[2] == 0x00) {
+        return 3;
+    }
+    return 1;
+}
+
 IPMI_HANDLER(ipmi_picmg_get_upgrade_capabilities, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_GET_UPGRADE_CAPABILITIES, ipmi_msg *req, ipmi_msg* rsp)
 {
     uint8_t len = rsp->data_len = 0;
@@ -142,8 +153,9 @@ IPMI_HANDLER(ipmi_picmg_get_component_properties, NETFN_GRPEXT, IPMI_PICMG_CMD_H
 {
     uint8_t len = rsp->data_len = 0;
 
-    uint8_t comp_id = req->data[1];
-    uint8_t comp_properties_selector = req->data[2];
+    uint8_t base = hpm_arg_base(req);
+    uint8_t comp_id = req->data[base];
+    uint8_t comp_properties_selector = req->data[base + 1];
 
     rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
 
@@ -220,9 +232,10 @@ IPMI_HANDLER(ipmi_picmg_initiate_upgrade_action, NETFN_GRPEXT, IPMI_PICMG_CMD_HP
     /* Set the component that'll be upgraded */
     /*
      * As specified in the Hardware Platform Management IPM Controller Firmware Upgrade Specification, Table 3-4,
-     * treat the component selection (req->data[1]) as a bit field.
+     * treat the component selection as a bit field.
      */
-    switch (req->data[1]) {
+    uint8_t base = hpm_arg_base(req);
+    switch (req->data[base]) {
     case 0x01:
         comp_id = 0;
         break;
@@ -241,7 +254,7 @@ IPMI_HANDLER(ipmi_picmg_initiate_upgrade_action, NETFN_GRPEXT, IPMI_PICMG_CMD_HP
         return;
     }
 
-    uint8_t upgrade_action = req->data[2];
+    uint8_t upgrade_action = req->data[base + 1];
     expected_block_n = 0x00;
     rsp->completion_code = IPMI_CC_UNSPECIFIED_ERROR;
     active_component = &hpm_components[comp_id];
@@ -293,6 +306,34 @@ IPMI_HANDLER(ipmi_picmg_get_upgrade_status, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_GET
     /* This is not a long-duration command, so we don't need to update neither cmd_in_progress nor last_cmd_cc variables */
 }
 
+IPMI_HANDLER(ipmi_picmg_query_self_results, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_QUERY_SELF_RESULTS,
+             ipmi_msg *req, ipmi_msg *rsp)
+{
+    uint8_t len = rsp->data_len = 0;
+    (void)req;
+
+    /* The MMC has no self-test phase: report success (0x55) so HPM clients
+     * that poll the result after activating accept the new image. */
+    rsp->data[len++] = IPMI_PICMG_GRP_EXT;
+    rsp->data[len++] = 0x55;    /* self-test passed */
+    rsp->data[len++] = 0x00;
+    rsp->data_len = len;
+    rsp->completion_code = IPMI_CC_OK;
+}
+
+IPMI_HANDLER(ipmi_picmg_query_rollback_status, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_QUERY_ROLLBACK_STATUS,
+             ipmi_msg *req, ipmi_msg *rsp)
+{
+    uint8_t len = rsp->data_len = 0;
+    (void)req;
+
+    /* No rollback support: report "no component needs a rollback". */
+    rsp->data[len++] = IPMI_PICMG_GRP_EXT;
+    rsp->data[len++] = 0x00;
+    rsp->data_len = len;
+    rsp->completion_code = IPMI_CC_OK;
+}
+
 IPMI_HANDLER(ipmi_picmg_abort_firmware_upgrade, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_ABORT_FIRMWARE_UPGRADE, ipmi_msg *req, ipmi_msg* rsp)
 {
     uint8_t len = rsp->data_len = 0;
@@ -308,7 +349,8 @@ IPMI_HANDLER(ipmi_picmg_upload_firmware_block, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_
 {
     uint8_t len = rsp->data_len = 0;
     uint8_t block_data[HPM_BLOCK_SIZE];
-    uint8_t block_sz = req->data_len-2;
+    uint8_t base = hpm_arg_base(req);
+    uint8_t block_sz = req->data_len - base - 1;
 
     if(block_sz > HPM_BLOCK_SIZE){
        rsp->data_len = len;
@@ -325,14 +367,14 @@ IPMI_HANDLER(ipmi_picmg_upload_firmware_block, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_
         return;
     }
 
-    memcpy(&block_data[0], &req->data[2], block_sz);
+    memcpy(&block_data[0], &req->data[base + 1], block_sz);
 
     /* TODO: perform checksum of the block */
 
     if (active_component->hpm_upload_block_f) {
         /* WARNING: This function can't block! */
-        /* req->data[1] holds the block number */
-        if(req->data[1] == expected_block_n) {
+        /* data[base] holds the block number */
+        if(req->data[base] == expected_block_n) {
                uint8_t cc = active_component->hpm_upload_block_f(&block_data[0], block_sz);
                rsp->completion_code = cc;
                /* Only advance on success: a failed block (flash program
@@ -360,7 +402,10 @@ IPMI_HANDLER(ipmi_picmg_finish_firmware_upload, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM
 {
     uint8_t len = rsp->data_len = 0;
 
-    uint32_t image_len = (req->data[5] << 24) | (req->data[4] << 16) | (req->data[3] << 8) | (req->data[2]);
+    uint8_t base = hpm_arg_base(req);
+    /* component ID at data[base], image length at data[base+1 .. base+4] */
+    uint32_t image_len = (req->data[base + 4] << 24) | (req->data[base + 3] << 16) |
+                         (req->data[base + 2] << 8) | (req->data[base + 1]);
 
     /* TODO: implement HPM.1 REQ3.59 */
 

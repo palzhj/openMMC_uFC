@@ -1,0 +1,20 @@
+diff --git a/lib/ipmi_hpmfwupg.c b/lib/ipmi_hpmfwupg.c
+index ea9072e..db9fd1f 100644
+--- a/lib/ipmi_hpmfwupg.c
++++ b/lib/ipmi_hpmfwupg.c
+@@ -1150,6 +1150,15 @@ HpmFwupgActionUploadFirmware(struct HpmfwupgComponentBitMask components,
+ 	}
+ 
+ 	bufLength = max_rq_size - sizeof(struct HpmfwupgUploadFirmwareBlockReq);
++	/* Bridged request (e.g. LAN -> MCH -> IPMB): the inner request travels
++	 * in an IPMB frame of 32 bytes, so the block payload must be small.
++	 * Start with 20 bytes instead of waiting for a "length" error that the
++	 * bridge itself may swallow (the message never reaches the target). */
++	if ((intf->target_addr != intf->my_addr && intf->target_addr != 0) ||
++	    (intf->transit_addr != intf->my_addr && intf->transit_addr != 0)) {
++		if (bufLength > 20)
++			bufLength = 20;
++	}
+ 
+ 	/* Get firmware length */
+ 	firmwareLength =  pFwImage->length[0];
