@@ -148,10 +148,13 @@ clears the flag. Both steps are fully automatic.
 
 ### newboot / application over SWD (J-Link)
 
-The repository ships a J-Link script that loads newboot and the application:
+The repository ships a J-Link script per board that loads newboot and the
+application (same addresses, only the `device` line differs):
 
 ```sh
-cd tools/firmware/ufc-v2 && JLinkExe -CommanderScript flash.jlink
+cd tools/firmware/ufc-v2    && JLinkExe -CommanderScript flash.jlink   # STM32F100CB
+cd tools/firmware/u4fcp-v1  && JLinkExe -CommanderScript flash.jlink   # STM32F103C8 (64 KB)
+cd tools/firmware/u4fcp-v2  && JLinkExe -CommanderScript flash.jlink   # STM32F103CB
 ```
 
 It is equivalent to:

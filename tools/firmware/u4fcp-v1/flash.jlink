@@ -1,0 +1,17 @@
+// u4FCP-v1 J-Link programming (SWD) — newboot (first stage) + application.
+//
+// Run from tools/firmware/u4fcp-v1/ :  JLinkExe -CommanderScript flash.jlink
+//
+// 64 KB layout: newboot 0x08000000..0x08001FFF (8 KB),
+// application 0x08002000..0x0800FBFF (55 KB), fw_info 0x0800FC00.
+// No flash staging (the update staging is designed for the AT24CM01 EEPROM).
+device STM32F103C8
+si SWD
+speed 1000
+VTREF 3300
+connect
+loadfile uart-debug/newboot.bin 0x08000000
+loadfile uart-debug/openMMC.bin 0x08002000
+r
+g
+q
