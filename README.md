@@ -46,8 +46,8 @@ frees the flash clock region:
 | board | flash map | clock store in |
 |---|---|---|
 | uFC‑v2 (F100CBT6) | 8 / 50 / 50 / **19** / 1 KB | flash `0x0801B000` |
-| u4FCP‑v2 (F103CBT6) | 8 / **59.5** / **59.5** / 1 KB | CAT24C512 EEPROM (0x200 pointer, slots 0x300/0x1B00, 6 KB each) |
 | u4FCP‑v1 (F103C8T6, 64 KB) | 8 / 55 / — / 1 KB | AT24CM01 EEPROM (same offsets); staging in the EEPROM upper 64 KB |
+| u4FCP‑v2 (F103CBT6) | 8 / **59.5** / **59.5** / 1 KB | CAT24C512 EEPROM (0x200 pointer, slots 0x300/0x1B00, 6 KB each) |
 
 Build the u4FCP boards with `-DBOARD=u4fcp-v2` / `-DBOARD=u4fcp-v1`
 (STM32F103CBT6 / STM32F103C8T6).
