@@ -1,8 +1,14 @@
 # u4FCP-v1
 
-Same board as u4FCP-v2 (ADN4604 + 2× Si5345) but with the
-**STM32F103C8T6** (64 KB flash, 20 KB SRAM, 1 KB pages) and an **AT24CM01**
-EEPROM (1 Mbit = 128 KB, 256-byte pages).
+The **first-generation u4FCP**: **8V54816A** clock switch (`0x58`) + one
+**Si5345A** PLL + three ZL40216 fan-outs (the v2 replaced the switch with an
+ADN4604 and added a second Si5345). The controller is the **STM32F103C8T6**
+(64 KB flash, 20 KB SRAM, 1 KB pages) and the EEPROM an **AT24CM01**
+(1 Mbit = 128 KB, 256-byte pages).
+
+> The port sources are a copy of the v2 port; the clock section still refers
+> to the ADN4604 (driver, address 0x48, two PLL tables) and **must be aligned
+> with the v1 hardware** before the clocking is used on this board.
 
 The board sources are an **independent copy** of the v2 port (i2c/pin
 mapping, SDR, FRU image, payload, OEM commands) so this port can diverge;

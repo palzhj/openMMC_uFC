@@ -18,10 +18,18 @@ git history and noted where they are not obvious.
 | **u4FCP‑v2** | STM32F103CBT6 | 128 KB / 20 KB | CAT24C512, 64 KB @0x54 | EEPROM | 8 / 59.5 / 59.5 / 1 | `-DBOARD=u4fcp-v2` |
 
 Common to all boards: debug UART on USART1 (PA9/PA10, 115200 8N1), the
-clock/FRU I²C bus behind a TCA9548A mux, SWD on PA13/PA14. The u4FCP
-adds an ADN4604 crosspoint + up to two Si5345 PLLs and keeps both the FRU
-and the clock configuration in the EEPROM; the uFC uses an 8V54816A
-switch + one Si5345 and stores the clock configuration in flash.
+clock/FRU I²C bus behind a TCA9548A mux, SWD on PA13/PA14. The clock hardware
+differs per board:
+
+| board | clock switch | PLL | clock store |
+|---|---|---|---|
+| uFC-v2 | 8V54816A @0x58 | 1 × Si5345 @0x69 | flash |
+| u4FCP-v1 | **8V54816A** @0x58 | 1 × Si5345 | EEPROM |
+| u4FCP-v2 | **ADN4604** @0x48 | 2 × Si5345 @0x68/0x69 | EEPROM |
+
+The u4FCP-v2 keeps the FRU and the clock configuration in the EEPROM; the
+u4FCP-v1 keeps them in its (larger) EEPROM with the same layout; the uFC
+stores the clock configuration in flash.
 
 ## Table of Contents
 - [openMMC — AMC MMC firmware](#openmmc--amc-mmc-firmware-ufcv2--u4fcpv1--u4fcpv2)

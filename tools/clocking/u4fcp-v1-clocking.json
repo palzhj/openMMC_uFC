@@ -5,13 +5,13 @@
   "board": "u4FCP v1",
   "status": "skeleton",
   "sources": [
-   "u4FCPv2/readme/clock.png (block diagram)",
-   "u4FCPv2/template/u4FCPv2 (CLK scripts, KUP XDC)"
+   "u4FCPv1/readme/clk_u4fcp.png (block diagram)",
+   "u4FCPv1/template/u4FCPv1/CLK/Si5345-RevD-Registers.txt"
   ],
   "notes": [
-   "Points/links/pins still have to be extracted from the u4FCPv2 schematic and the",
-   "u4FCPv2 KUP/K7 constraint files; until then this template only provides the",
-   "board name and the device boxes (the toolbox falls back to the built-in drawing)."
+   "First-generation u4FCP: 8V54816A (0x58) + one Si5345A + three ZL40216",
+   "fan-outs. Port names/directions and the Si5345 table still have to be",
+   "transcribed from the v1 schematic and the ClockBuilder export."
   ]
  },
  "boards": {
@@ -193,21 +193,24 @@
  "routing": {},
  "clock": {
   "switch": {
-   "part": "ADN4604",
-   "addr": 72,
-   "format": "adn4604"
+   "part": "8V54816A",
+   "addr": 88,
+   "format": "8v54816a"
   },
   "plls": [
    {
-    "addr": 104,
-    "part": "Si5345"
-   },
-   {
     "addr": 105,
-    "part": "Si5345"
+    "part": "Si5345A"
    }
   ],
-  "store": "eeprom"
+  "store": "eeprom",
+  "store_layout": {
+   "fru": "0x0000-0x01FF",
+   "ptr": "0x0200 (copy 0x0280)",
+   "slot_a": "0x0300-0x1AFF",
+   "slot_b": "0x1B00-0x32FF",
+   "staging": "0x10000-0x1FFFF (A16 via slave 0x55)"
+  }
  },
  "fru": {
   "eeprom_addr": "0x54",

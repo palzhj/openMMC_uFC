@@ -141,11 +141,16 @@ schematic-era names such as `FMC0_CLK_M2C_P`).
 
 ---
 
-# u4FCP clock switch (ADN4604) — port map and register usage
+# u4FCP-v2 clock switch (ADN4604) — port map and register usage
 
-The u4FCP boards replace the 8V54816A with an **ADI ADN4604** (16 × 16,
+The **u4FCP-v2** replaces the 8V54816A with an **ADI ADN4604** (16 × 16,
 nonblocking, 4.25 Gbps, I²C 0x48 on the clock bus `mux 0x70 ch2`). It is a
 register-indexed device, driver `modules/adn4604.c`.
+
+The **u4FCP-v1** keeps the 8V54816A (U67, `0x58`), one Si5345A and the three
+ZL40216 fan-outs, as in the uFC — see `u4FCPv1/readme/clk_u4fcp.png`. Its
+clock-store matrix therefore uses the 8V54816A byte format described at the
+top of this document, not the ADN4604 register sequence below.
 
 ## Registers used by the firmware
 
