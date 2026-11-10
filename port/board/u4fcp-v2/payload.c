@@ -282,15 +282,13 @@ mmc_err clock_configuration(const uint8_t clk_cfg[16]);
 #define ADN4604_OUTPUT_EN 0x80
 
 /* Default ADN4604 crosspoint configuration, used when the EEPROM holds no
- * clock configuration. Bit 7 = output enable, bits 3:0 = input select. */
+ * clock configuration. Bit 7 = output enable, bits 3:0 = input select.
+ * Default: every output routed from input 8 (PLL1 out) but DISABLED. */
 static const uint8_t clock_config_default[16] = {
-  ADN4604_IN_PLL1_OUT,
-  ADN4604_IN_PLL1_OUT | ADN4604_OUTPUT_EN,
-  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
-  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
-  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
-  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
-  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
 };
 
 /* Print the lock status of both Si5345s.
