@@ -446,7 +446,9 @@ def build_clock_slot(matrix, si_groups=None, seq=1, switch_addr=0x58, si_addr=0x
             continue
         table = b"".join(bytes([a >> 8, a & 0xFF, d])
                          for a, d in t_groups["pre"] + t_groups["body"] + t_groups["post"])
-        chunk_max = 255 - 6 - 8             # record_len = 6 + payload, 8-byte dev header
+        # record_len = 6 + payload, 8-byte device header; the chunk must be a
+        # multiple of 3 so every register triplet stays inside one record
+        chunk_max = (255 - 6 - 8) // 3 * 3  # 240
         chunks = [table[i:i + chunk_max] for i in range(0, len(table), chunk_max)]
         for idx, part in enumerate(chunks):
             devhdr = bytes([1, idx, len(chunks), 1, t_addr, 1, 0x70, 2])
