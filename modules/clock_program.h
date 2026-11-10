@@ -18,7 +18,7 @@
 
 /** Write one 16-bit-addressed register (page-aware). 1 on success. */
 uint8_t clock_program_write_entry(uint16_t addr, uint8_t data);
-int clock_program_batch_begin(void);
+int clock_program_batch_begin(uint8_t chip_id);
 void clock_program_batch_end(void);
 void clock_program_select_chip(uint8_t chip_id);
 

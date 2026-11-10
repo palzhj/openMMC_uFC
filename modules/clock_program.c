@@ -57,15 +57,17 @@ static uint8_t batch_addr, batch_iface;
 /* Hold the clock I2C bus for a whole register table: the per-register
  * take/give is what makes a 526-register table slow when the sensor task
  * polls the same interface. */
-int clock_program_batch_begin(void)
+int clock_program_batch_begin(uint8_t chip_id)
 {
     if (batch_on) {
         return 1;
     }
+    /* the batch must address the chip of THIS record */
+    si5345_chip = chip_id;
+    si5345_current_page = 0xFF;
     if (!i2c_take_by_chipid(si5345_chip, &batch_addr, &batch_iface, CLOCK_PROG_TIMEOUT)) {
         return 0;
     }
-    si5345_current_page = 0xFF;
     batch_on = 1;
     return 1;
 }

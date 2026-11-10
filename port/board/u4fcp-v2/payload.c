@@ -858,9 +858,15 @@ int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
 
 /* the store calls these around one PLL record: hold the clock bus while the
  * chunk of registers is written (the EEPROM reads between records need it) */
-int clock_store_apply_begin(void)
+int clock_store_apply_begin(uint8_t addr)
 {
-    return clock_program_batch_begin();
+    if (addr == 0x68) {
+        return clock_program_batch_begin(CHIP_ID_SI5345_0);
+    }
+    if (addr == 0x69) {
+        return clock_program_batch_begin(CHIP_ID_SI5345_1);
+    }
+    return 0;
 }
 
 void clock_store_apply_end(void)

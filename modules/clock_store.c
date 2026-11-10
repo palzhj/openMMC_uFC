@@ -282,8 +282,9 @@ __attribute__((weak)) int clock_store_apply_si5345(uint8_t addr, uint16_t reg, u
 
 /* Board hooks: called around one PLL register record, so that the bus can be
  * held for the whole chunk instead of taken for every register. */
-__attribute__((weak)) int clock_store_apply_begin(void)
+__attribute__((weak)) int clock_store_apply_begin(uint8_t addr)
 {
+    (void)addr;
     return 1;
 }
 
@@ -297,6 +298,8 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
     uint8_t fru[8];
     uint8_t rec[4 + 255];
     uint16_t si_count = 0;
+    uint16_t rec_count = 0;
+    TickType_t t_apply0 = xTaskGetTickCount();
 
     if (len < 8 || !store_read(region, fru_off, fru, 8) || fru[0] != 0x01) {
         return 0;
@@ -315,7 +318,9 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
             return 0;
         }
         uint8_t chk = 0;
-        for (uint8_t i = 0; i < 4u + rlen; i++) {
+        /* the counter must hold 4 + rlen (up to 259): a uint8_t wraps and
+         * hangs the apply on records of 252 bytes or more */
+        for (uint16_t i = 0; i < 4u + rlen; i++) {
             chk += rec[i];
         }
         if (chk != 0) {
@@ -323,6 +328,7 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         }
         const uint8_t *data = rec + 4;
         uint8_t recid = data[3];
+        rec_count++;
 #ifdef MODULE_UART_DEBUG
         printf("[CLKS] rec off=%u rlen=%u chk=%s recid=0x%02x\n",
                (unsigned)off, rlen, (chk == 0) ? "ok" : "bad", recid);
@@ -347,7 +353,7 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
                 printf("[CLKS] switch apply OK\n");
 #endif
             } else if ((recid & 0xF0) == 0x30 && dlen >= 3u) {
-                if (!clock_store_apply_begin()) {
+                if (!clock_store_apply_begin(dev_addr)) {
                     return 0;
                 }
                 for (uint8_t i = 0; i + 2u < dlen; i += 3u) {
@@ -368,6 +374,11 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         }
         off += 4u + rlen;
     }
+#ifdef MODULE_UART_DEBUG
+    printf("[CLKS] apply done: %u records, %u registers, %u ms\n",
+           (unsigned)rec_count, (unsigned)si_count,
+           (unsigned)((xTaskGetTickCount() - t_apply0) * portTICK_PERIOD_MS));
+#endif
     return 1;
 }
 
