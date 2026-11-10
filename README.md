@@ -60,11 +60,15 @@ frees the flash clock region:
 Build any board with `-DBOARD=<ufc-v2|u4fcp-v1|u4fcp-v2>` and the matching
 `-DTARGET_CONTROLLER` (F100CBT6 / F103C8T6 / F103CBT6).
 
-The clock region is used by the **clock configuration store** (`-DCLOCK_STORE=ON`):
-a 1 KB pointer page plus 9 KB A/B FRU-format slots; the MMC applies the valid
-slot at power‑on (switch matrix + Si5345 table) and the toolbox can upload a
-new slot over IPMI (`0x1A/0x1B/0x1C`, status `0x18`, apply `0x19`). See
-[docs/CLOCK_CONFIG_FORMAT.md](docs/CLOCK_CONFIG_FORMAT.md).
+The **clock configuration store** (`-DCLOCK_STORE=ON`) keeps a pointer page
+plus two FRU‑format A/B slots — in the uFC's flash (1 KB + 9 KB + 9 KB) or in
+the u4FCP's EEPROM (`0x0200` pointer page with copies at `0x0200`/`0x0280`,
+slot A `0x0300`, slot B `0x1B00`, 6 KB each). The **payload task applies the
+valid slot on every power‑up** (ADN4604/8V54816 matrix + Si5345 tables;
+compiled defaults when the store is blank) and the toolbox uploads a new slot
+over IPMI (`0x1A/0x1B/0x1C`, status `0x18`, apply `0x19`). See
+[docs/CLOCK_CONFIG_FORMAT.md](docs/CLOCK_CONFIG_FORMAT.md) and
+[docs/CLOCK_SWITCH.md](docs/CLOCK_SWITCH.md).
 
 The CPU starts **newboot** directly from `0x08000000`
 and no vector‑table checksum is involved.

@@ -87,11 +87,16 @@ What each step does:
    The MMC serves the FRU from the EEPROM (`FRU_USE_COMPILED` OFF); after the
    write **reboot the MMC** (power cycle the slot or a J-Link reset) so the
    boot reads the new image — the log then shows `FRU info is healthy!`.
-3. **clk_program.sh** — writes the clock store preset (pointer page + slot A,
-   `clk-preset.bin`) and optionally applies it (`0x32 0x19`). Without
-   `--apply` the stored configuration is programmed at the next boot, in the
-   payload's clock step, i.e. **after the main power is up** (the ADN4604 and
-   Si5345 are powered from it).
+3. **clk_program.sh** — writes the clock store preset (pointer page + slot,
+   `clk-preset.bin`) and optionally applies it (`0x32 0x19`). The payload
+   applies the store in `PAYLOAD_STATE_CLK_SETUP` on **every** power-up (the
+   ADN4604/Si5345 are on the 12 V rail and lose their configuration when it is
+   cycled); a blank store falls back to the compiled defaults in flash. The
+   shipped preset has **all ADN4604 outputs disabled** (input 8 selected) and
+   the two ClockBuilder Si5345 tables — rebuild it from the compiled clocking
+   with
+   `python3 build_clk_preset.py --upload --capture ../../clocking/u4fcp-v2-clk-preset.bin`
+   after changing `clock_config_default[]` or the register headers.
 4. **vadj_program.sh** — trims the FMC0/FMC1 VADJ regulators through the
    TPL0102‑100PWR at `0x56` (mux ch7). `--persist` writes the non‑volatile
    register, so the value survives power cycles; 1.8 V is DAC 0 (factory
@@ -104,6 +109,22 @@ ipmitool … -t 0x88 -b 0 fru print          # serials, mfg date
 ipmitool … -t 0x88 -b 0 raw 0x32 0x18      # clock store valid + CRC
 # MCH: show_fru (state M4), show_sensorinfo 16 (FMC0/FMC1 VADJ ≈ 1.8 V)
 ```
+
+On the UART (115200 8N1) a power-up now logs, in a dmesg-like format:
+
+```
+[   0.046] vadj : FMC0 1800 mV, FMC1 1800 mV
+[   0.058] pwr  : main power on
+[   1.058] pwr  : FMC0 power on
+[   2.063] pwr  : FMC1 power on
+[   3.066] jtag : AMC=1 RTM=0 FMC0=0 FMC1=0
+[   4.645] clk  : apply from EEPROM preset: 15 records, 1052 registers (1106 ms)
+[   4.756] clk  : PLL0 locked, PLL1 locked
+[   4.760] boot : payload power-up done
+```
+
+A payload-only power cycle (MCH `shutdown`/`fru_start`) keeps the MMC running
+and starts with `pwr : payload restart (MMC uptime N s, no MMC reset)`.
 
 ### Common pitfalls
 

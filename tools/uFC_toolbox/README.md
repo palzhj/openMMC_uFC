@@ -126,9 +126,26 @@ A generic I²C transaction over IPMI (firmware `-DI2C_ACCESS=ON`, command
   when the data count and Write len disagree. Write len 0 → **read only**,
   Read len 0 → **write only**.
 
-Presets: **EEPROM FRU** (0x70 ch0, 0x50, read 8), **UCD PMBus** (0x70 ch0,
-0x11, `8B` → READ_VOUT), **Clock 8V54816** (0x70 ch2, 0x58) and **Si5345**
-(0x70 ch2, 0x69).
+Presets: **EEPROM FRU** (0x70 ch0, 0x50), **UCD PMBus** (0x70 ch0, 0x11,
+`8B` → READ_VOUT), **Clock switch** (0x70 ch2, 0x58 for the uFC /
+0x70 ch2, 0x48 for the u4FCP) and **Si5345** (0x70 ch2, 0x68/0x69).
+
+### FMC VADJ (u4FCP)
+
+Two fields (FMC0/FMC1, volts) with **Read** and **Set (persist)**: the TPL0102
+digital pot at `0x56` on the power bus (`0x70` ch7) trims the two VADJ
+regulators; **Set** writes the non-volatile register (survives power cycles)
+and reads the value back. Conversion matches the firmware:
+`DAC = (60.4/(V/0.6-1) - 30.2)*256/100`, `V = 0.6*(60.4/(30.2+DAC*100/256)+1)`,
+range 0.9…1.8 V, 1.8 V = DAC 0.
+
+### JTAG target (u4FCP)
+
+Four check boxes (AMC / RTM / FMC0 / FMC1) with **Read JTAG** and
+**Apply JTAG**: the TCA9554 at `0x39` on the FPGA bus (`0x70` ch4), output
+register `0x01` — `[7]` RTM_EN_B, `[6]` FMC1_EN_B, `[5]` FMC0_EN_B, `[4]`
+AMC_EN (AMC active-high, the others active-low), config register `0x03 =
+0x0F`. **Apply** writes the config then the output and reads back.
 
 ## Board template
 
@@ -142,18 +159,28 @@ board-specific presets can be added there).
 
 ## Clock tab
 
-Three blocks (the **Board template** selector moved to the top bar, shared by
-every tab):
+Three blocks, in a vertically scrolling tab (the UI keeps the connection
+fields in the top right so the tabs start higher). The **mux table depends on
+the loaded template**:
 
-1. **8V54816A MUX** — **Read from device** (updates the table), **Write to
-   device**, the shared **slot** selector, **Write to flash**, the 16-port
+1. **8V54816A MUX** (uFC) — **Read from device** (updates the table), **Write
+   to device**, the shared **slot** selector, **Write to flash**, the 16-port
    table (scrolled) and the matrix line.
+   **ADN4604 MUX** (u4FCP) — a bordered **inputs** group (name + `INV` =
+   the per-input P/N inversion `SIGN[n]`, registers 0x12/0x13) and a bordered
+   **outputs** group (name + `source (input)` + `TX enable`), the four
+   termination quadrants (`0xF0`, *ticked = OFF*), **Read ADN4604** /
+   **Write ADN4604** (map 0 → TX enables → SIGN → UPDATE → termination) and
+   **Write to flash** in the firmware's matrix format (bit7 = enable,
+   [3:0] = input).
 3. **Si5345 PLL** — **Read from device** (saves a register dump file; if no
    file is loaded, the standard 526-register list embedded in the tool is
    used),
    **Load Si5345 file**, **Write to device**, the same shared **slot**
    selector, **Write to flash**; the second line holds Stored config info and
    the loaded-file name.
+   **Update lock status** reads the Si534x status registers of both PLLs
+   (`0x0C00` live / `0x0C01` sticky) and shows `PLL0: locked … PLL1: locked …`.
    The slot selector is one variable shown in both blocks; Write to flash
    always stores matrix + loaded table and activates it.
 4. **Block diagram** — Export diagram (DOT) and System diagram (canvas

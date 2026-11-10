@@ -8,6 +8,15 @@ checks it, and the routing converts to the 16-byte switch matrix.
 File: [tools/clocking/ufc-clocking.json](../tools/clocking/ufc-clocking.json)
 Loader/validator: [tools/clocking/clocking.py](../tools/clocking/clocking.py)
 
+The u4FCP boards carry their own files: `u4fcp-v2-clocking.json` (ADN4604,
+Si5345 @0x68/0x69, clock store in the EEPROM) and `u4fcp-v1-clocking.json`.
+The v2 file is **partial**: it defines the switch/PLL/store blocks and the 16
+ADN4604 ports with their directions (from `u4FCPv2/readme/clock.png` and the
+firmware `ADN4604_IN_*` defines), but the package pins and the net links are
+still to be transcribed from the ADN4604 schematic page. The toolbox uses the
+points for the mux table names/directions; the drawing falls back to the
+built-in template without links.
+
 ## Structure
 
 ```json

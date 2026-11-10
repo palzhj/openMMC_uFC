@@ -248,8 +248,8 @@ I2C2 (PB10/PB11, 100 kHz)
 |---|---|---|---|
 | TCA9548A | `0x70` | — | 8‑channel I²C switch |
 | 24AA025E48 | `0x50` | 0 | FRU EEPROM (128 B writable) |
-| 8V54816 | `0x58` | 2 | clock device (not configured by this firmware) |
-| SI5345A | `0x69` | 2 | clock device (not configured by this firmware) |
+| 8V54816 | `0x58` | 2 | clock switch (matrix configured by the clock store / flash default) |
+| SI5345A | `0x69` | 2 | PLL (526-register table from the clock store / flash default) |
 
 The mux may NACK its first transactions right after reset; the driver retries
 automatically.

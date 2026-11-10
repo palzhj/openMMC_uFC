@@ -20,8 +20,11 @@ reflashing, with a built-in fallback in `.text`.
 The payload is a **FRU multirecord file** (standard TLV + checksums), generated
 by `tools/gen_clock_fru.py`; the wrapper adds atomic A/B updates.
 
-Measured: Si5345 table (1 578 B) → **7 records** (record payload ≤ 249 B),
-switch matrix → 1 record → **FRU file 1 746 B**, slot 3 072 B.
+Measured (current u4FCP preset): two Si5345 tables (2 × 1 578 B, three-byte
+address/value triplets) + the switch matrix → 15 records → **FRU file 3 450 B**,
+slot 3 482 B. The payload chunk is 240 B so that every 3-byte register triplet
+stays inside one record (a 241-byte chunk used to drop one register per chunk
+and misalign the rest).
 
 Record IDs: `0x30 + chunk` for the Si5345 table, `0x40` for the switch matrix.
 Each record data field is `mfr(3) 5A 31 00`, `rec_id`, `fmt_ver 0`, then
@@ -116,9 +119,9 @@ A 9 KB slot leaves ~7 KB for additional devices: two Si5345 tables
 
 | Item | Value |
 |---|---|
-| pointer record | 24 B at `0x0801B000` and `+512`: magic `UFCP`, seq, slot, flags (bit0 valid), len, CRC32 of the slot payload, header CRC over the first 16 B |
+| pointer record | 20 B at the pointer base and at `+0x80` (copy #2, same page): magic `UFCP`, seq, slot, flags (bit0 valid), len, CRC32 of the slot payload, header CRC over the first 16 B |
 | slot | `UFCC` wrapper (32 B) + FRU multirecord file; record `0x30+` = Si5345 table chunks (3-byte entries), `0x40` = 16-byte switch matrix |
-| boot | `clock_store_init()` runs at the start of the IPMI task (after the scheduler starts, so the I²C semaphores work) and applies the valid slot — switch matrix with retries, Si5345 entries with the 300 ms calibration pause |
+| boot | the **payload task** applies the store in `PAYLOAD_STATE_CLK_SETUP` on **every payload power-up** (`CLOCK_STORE_APPLY_IN_PAYLOAD`): the ADN4604/Si5345 are powered from the payload 12 V and lose their configuration when it is cycled. A valid stored slot wins; otherwise the compiled defaults (`clock_config_default[]` + the ClockBuilder tables) are programmed. `clock_store_init()` in the IPMI task is compiled out in that build. |
 | 0x18 status | `[valid, slot, len_lo, len_hi, crc0..3]` |
 | 0x19 apply | re-apply the active slot |
 | 0x1A begin | `[slot, len_lo, len_hi, crc0..3]` — erases the target slot |
@@ -135,10 +138,11 @@ The toolbox uses this with **Write Si5345 → flash**, plus **Apply store** and
   always kept until the new one is complete (atomic update).
 - The pointer record names the active slot; the slot header carries its own
   length and CRC, so the MMC can validate a slot without the pointer.
-- At boot the MMC applies **the slot named by the pointer first** and, if its
-  header/CRC is invalid, **falls back to the other slot**. If neither is
-  valid, nothing is applied and the compiled Si5345 table can still be used
-  with `Program (built-in)` (`0x16`).
+- On every payload power-up the MMC applies **the slot named by the pointer
+  first** and, if its header/CRC is invalid, **falls back to the other slot**.
+  If neither is valid, the compiled defaults in flash are programmed instead
+  (u4FCP: `clock_config_default[]` = all ADN4604 outputs disabled on input 8,
+  plus the two ClockBuilder Si5345 tables).
 
 ## Update flow (atomic)
 

@@ -138,3 +138,63 @@ schematics; `ufc-clocking.json` uses the corrected names:
 So each FMC has `GBTCLK0_M2C`, `GBTCLK1_M2C`, `CLK1_M2C`, `CLK2_BIDIR` and
 `CLK3_BIDIR` clock points (the FPGA constraint files still use the
 schematic-era names such as `FMC0_CLK_M2C_P`).
+
+---
+
+# u4FCP clock switch (ADN4604) — port map and register usage
+
+The u4FCP boards replace the 8V54816A with an **ADI ADN4604** (16 × 16,
+nonblocking, 4.25 Gbps, I²C 0x48 on the clock bus `mux 0x70 ch2`). It is a
+register-indexed device, driver `modules/adn4604.c`.
+
+## Registers used by the firmware
+
+| Register | Purpose |
+|---|---|
+| `0x00` | software reset (write 1) |
+| `0x20 + n` | TX basic control per output *n*: `[6]` CTL select, **`[5:4]` TX EN** (00 disabled, 01 standby, 10 squelched, 11 enabled), `[2:0]` PE |
+| `0x80` | XPT update (write 1 → apply the first-rank map) |
+| `0x81` | map table select (0 = map 0, 1 = map 1) |
+| `0x82` | XPT broadcast |
+| `0x90–0x97` | map 0: two outputs per byte, `[3:0]` = input number of `OUT2n`, `[7:4]` = `OUT2n+1` |
+| `0x98–0x9F` | map 1, same layout |
+| `0xB0–0xB7` | status: current connectivity of the active map (read only) |
+| `0xF0` | termination: `[3]` out 15:8, `[2]` out 7:0, `[1]` in 15:8, `[0]` in 7:0 — **1 = disabled** |
+| `0x10/0x11`, `0x12/0x13` | per-input equalizer (0/12 dB) and P/N inversion (`SIGN`), not programmed by the MMC |
+
+Reset defaults: map 0 = `EF CD AB 89 67 45 23 01` (reversed), map 1 =
+`10 32 54 76 98 BA DC FE` (straight).
+
+## Configuration model
+
+The clock store's switch record (and the compiled `clock_config_default[]`)
+uses the same compact byte model as before: **bit7 = output enable, bits 3:0 =
+input select**. `clock_configuration()` translates it into:
+
+1. `0xF0 = 0x0F` — all terminations off (only correct if the far end
+   terminates; see `docs/USER_MANUAL.md`, Clock tab);
+2. the map bytes into `0x90–0x97` (map 0);
+3. `0x20+n = (enabled ? 3 : 0) << 4` for every output;
+4. `0x81 = 0` (map 0 active) and `0x80 = 1` (update).
+
+**u4FCP default: all 16 outputs disabled**, all routed from input 8
+(`PLL1_OUT`) — `clock_config_default[] = 0x08 ×16`. Enable the outputs that the
+FPGA/fan-out actually consumes (the Clock tab's ADN4604 table or the stored
+preset).
+
+## Port names (firmware `ADN4604_IN_*`)
+
+| # | signal | # | signal |
+|---|---|---|---|
+| 0 | `AMC_TX_P17` | 8 | `PLL1_OUT` |
+| 1 | `AMC_RX_P17` | 9 | `PLL0_OUT` |
+| 2 | `TCLKD` | 10 | `FMC1_CLK_M2C` |
+| 3 | `TCLCK` | 11 | `FMC1_CLK_BIDIR` |
+| 4 | `TCLKA` | 12 | `FMC0_CLK_M2C` |
+| 5 | `TCLKB` | 13 | `FMC0_CLK_BIDIR` |
+| 6 | `FCLKA` | 14 | `LEMO_CLK` |
+| 7 | `FPGA_CLK_OUT` | 15 | `RTM2AMC_CLK` |
+
+Source: `u4FCPv2/readme/clock.png` (clock block diagram) and the firmware
+port defines; the pin-level schematic page for the ADN4604 has not been
+transcribed into the clocking JSON yet (only names/directions).
