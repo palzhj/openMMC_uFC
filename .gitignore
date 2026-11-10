@@ -38,3 +38,6 @@ cmake_install.cmake
 tools/uFC_toolbox/dist/
 tools/uFC_toolbox/build/
 tools/uFC_toolbox/__pycache__/
+
+# clock configuration preset (small binary, part of the production data)
+!tools/clocking/*-clk-preset.bin

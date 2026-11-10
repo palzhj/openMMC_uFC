@@ -77,10 +77,14 @@ What the steps do:
 Preparation for a batch:
 
 ```bash
-# once, from a known-good board: capture the clock configuration
-python3 program_clock.py --dump clock-slot.bin --slot 12
+# the preset lives in the repository:
+#   tools/clocking/u4fcp-v2-clk-preset.bin
+# capture/refresh it from a known-good board:
+python3 program_clock.py --dump tools/clocking/u4fcp-v2-clk-preset.bin --slot 12
 # per board:
-./program.sh U4FCP2-0001 --clock-store clock-slot.bin
+./clk_program.sh tools/clocking/u4fcp-v2-clk-preset.bin --apply --slot 2
+# or together with the FRU:
+./program.sh U4FCP2-0001 --clock-store tools/clocking/u4fcp-v2-clk-preset.bin
 ```
 
 `fru_config.json` holds the FRU field values (manufacturer, names, part
