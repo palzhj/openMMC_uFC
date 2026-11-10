@@ -30,7 +30,9 @@
 
 #define CLOCK_PTR_MAGIC   0x50434655u   /* "UFCP" */
 #define CLOCK_SLOT_MAGIC  0x43434655u   /* 'UFCC' */
-#define CLOCK_PTR_COPY2   512u
+/* the second pointer copy must stay inside the pointer page (0x200..0x2FF):
+ * copy #1 at 0x0200, copy #2 at 0x0280, slot A starts at 0x0300 */
+#define CLOCK_PTR_COPY2   128u
 
 #if defined(CLOCK_STORE_EEPROM)
 #define CLOCK_SLOT_SIZE   6144u
