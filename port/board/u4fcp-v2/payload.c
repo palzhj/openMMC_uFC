@@ -326,7 +326,9 @@ static int payload_clock_log_status(void)
  * (clock_config[] + the ClockBuilder register tables) are programmed. */
 static mmc_err payload_clock_configure(void)
 {
-  if (clock_store_apply_boot())
+  /* Fresh apply on every payload power-up: the Si5345/ADN4604 are powered
+   * from the main power, so they lose their configuration at every cycle. */
+  if (clock_store_apply())
   {
     log_printk("clk", "config from EEPROM preset");
     vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
