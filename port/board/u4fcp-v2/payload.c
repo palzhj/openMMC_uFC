@@ -148,9 +148,7 @@ mmc_err config_jtag(void)
   if (JTAG_FMC1_ENABLE) tx_data[1] &= ~JTAG_FMC1_EN_B;
   if(!standalone_mode) tx_data[1] |= JTAG_AMC_EN;
   if(!ucd_get_gpio(&ucd_data[0], UCD_GPI_RTM_PS_B_ID))  tx_data[1] &= ~JTAG_RTM_EN_B;
-  printf("JTAG Setup:\n");
-  printf("\tAMC\tRTM\tFMC0\tFMC1\n");
-  printf("\t%d\t%d\t%d\t%d\n",
+  printf("JTAG: AMC=%d RTM=%d FMC0=%d FMC1=%d\n",
     ((tx_data[1] & JTAG_AMC_EN)?1:0),
     ((tx_data[1] & JTAG_RTM_EN_B)?0:1),
     ((tx_data[1] & JTAG_FMC0_EN_B)?0:1),
@@ -305,20 +303,13 @@ static void payload_clock_log_status(void)
 
   for (uint8_t i = 0; i < 2; i++)
   {
-    uint8_t live = 0xFF, sticky = 0xFF;
-    if (!clock_program_pll_status(chips[i], &live, &sticky))
+    uint8_t live = 0xFF;
+    if (!clock_program_pll_status(chips[i], &live, NULL))
     {
-      printf("[CLK] %s: status read FAILED\n", names[i]);
+      printf("[CLK] %s: status read error\n", names[i]);
       continue;
     }
-    printf("[CLK] %s: %s  live=0x%02X sticky=0x%02X  "
-           "(SYSINCAL=%u LOSXAXB=%u LOL=%u LOS=%u OOF=%u HOLD=%u)\n",
-           names[i],
-           (live & (1u << 2)) ? "NOT LOCKED" : "locked",
-           live, sticky,
-           (unsigned)((live >> 0) & 1u), (unsigned)((live >> 1) & 1u),
-           (unsigned)((live >> 2) & 1u), (unsigned)((live >> 3) & 1u),
-           (unsigned)((live >> 4) & 1u), (unsigned)((live >> 5) & 1u));
+    printf("[CLK] %s: %s\n", names[i], (live & (1u << 2)) ? "not locked" : "locked");
   }
 }
 
@@ -331,13 +322,13 @@ static mmc_err payload_clock_configure(void)
 {
   if (clock_store_apply_boot())
   {
-    printf("clock config taken from the EEPROM\n");
+    printf("[CLK] config: EEPROM preset\n");
     vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
     payload_clock_log_status();
     return MMC_OK;
   }
 
-  printf("no clock config in EEPROM, using the default one\n");
+  printf("[CLK] config: default (EEPROM blank)\n");
   if (adn4604_reset() != MMC_OK)
   {
     printf("ADN4604 reset ERROR\n");
