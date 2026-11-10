@@ -69,7 +69,7 @@ extern ucd_data_t ucd_data[SDR_CH_COUNT];
  *       Hotswap backend power failure and shutdown status clear
  *
  *   2 - FPGA setup
- *       One-time configurations (clock switch - ADN4604)
+ *       One-time configurations (clock switch - 8V54816A)
  *
  *   3 - FPGA on
  *
