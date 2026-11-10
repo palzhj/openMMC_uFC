@@ -68,6 +68,10 @@ frees the flash clock region:
 Build any board with `-DBOARD=<ufc-v2|u4fcp-v1|u4fcp-v2>` and the matching
 `-DTARGET_CONTROLLER` (F100CBT6 / F103C8T6 / F103CBT6).
 
+The **watchdog is enabled by default** (STM32F1 IWDG, 2 s timeout, fed every
+666 ms); pass `-DDISABLE_WATCHDOG=ON` for a debugging build without it (the
+IWDG cannot be stopped once started).
+
 The **clock configuration store** (`-DCLOCK_STORE=ON`) keeps a pointer page
 plus two FRU‑format A/B slots — in the uFC's flash (1 KB + 9 KB + 9 KB) or in
 the u4FCP's EEPROM (`0x0200` pointer page with copies at `0x0200`/`0x0280`,

@@ -1,7 +1,7 @@
 # Define minimal required version of CMake.
 cmake_minimum_required(VERSION 3.10)
 
-option(DISABLE_WATCHDOG "Disable watchdog module to aid debugging" ON)
+option(DISABLE_WATCHDOG "Disable watchdog module (debugging only)" OFF)
 option(RENODE_SIM "Skip hardware init that Renode cannot model (RCC, FRU EEPROM read)" OFF)
 
 #Include text color definitions

@@ -5,15 +5,14 @@ The images are **build outputs**, not committed files (`.gitignore` excludes
 
 ```bash
 cmake -S . -B .hw2/u4fcp -DBOARD=u4fcp-v2 \
-      -DTARGET_CONTROLLER=STM32F103CBT6 \
-      -DDISABLE_WATCHDOG=OFF -DCMAKE_BUILD_TYPE=Release
+      -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release
 make -C .hw2/u4fcp openMMC -j
 # -> .hw2/u4fcp/out/newboot.bin  (~4.5 KB)
 # -> .hw2/u4fcp/out/openMMC.bin  (~54 KB)
 ```
 
-> `DISABLE_WATCHDOG` is **ON by default** (project-wide, for debugging). The
-> production image enables the IWDG (`-DDISABLE_WATCHDOG=OFF`): the STM32F1
+> The watchdog is **enabled by default** (`-DDISABLE_WATCHDOG=ON` disables it
+> for debugging). The image enables the IWDG: the STM32F1
 > IWDG runs from the LSI with prescaler 64 (625 Hz), the reload is 1250 ticks
 > = **2 s timeout** (`WATCHDOG_TIMEOUT`), and the WatchdogTask feeds every
 > 666 ms (one third of the timeout). Verified: without feeds the board resets
