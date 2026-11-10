@@ -148,8 +148,21 @@ clears the flag. Both steps are fully automatic.
 
 ### newboot / application over SWD (J-Link)
 
-The repository ships a J-Link script per board that loads newboot and the
-application (same addresses, only the `device` line differs):
+Each board has a set of programming helpers under `tools/firmware/<board>/`.
+For the u4FCP‑v2 the production flow is four scripts (details and pitfalls in
+[`tools/firmware/u4fcp-v2/README.md`](tools/firmware/u4fcp-v2/README.md)):
+
+```sh
+cd tools/firmware/u4fcp-v2
+./jlink_program.sh                       # newboot + app over SWD, fw_info cleared
+./fru_program.sh U4FCP2-0001 --slot 12    # FRU with the unit serial (IPMI over MCH)
+./clk_program.sh --apply --slot 12        # clock configuration preset
+./vadj_program.sh --fmc0 1.8 --fmc1 1.8 --persist --slot 12   # FMC VADJ
+# or all of it:  ./program.sh U4FCP2-0001 --slot 12 --clock-store clk-preset.bin
+```
+
+The simple per-board J‑Link scripts still work (they only load the two
+images):
 
 ```sh
 cd tools/firmware/ufc-v2    && JLinkExe -CommanderScript flash.jlink   # STM32F100CB
