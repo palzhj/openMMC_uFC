@@ -441,12 +441,30 @@ class FruEditor(tk.Tk):
         widget.bind("<Enter>", lambda _e: self.clock_hint.set(text), add="+")
         widget.bind("<Leave>", lambda _e: self.clock_hint.set(""), add="+")
 
-    def _build_clock_tab(self, parent):
+
+    def _mux_part(self):
+        doc = self._load_clocking()
+        if not doc:
+            return ""
+        return str((doc.get("clock") or {}).get("switch", {}).get("part", ""))
+
+    def _mux_rebuild(self):
+        """Build the mux table matching the loaded template's switch."""
+        if not hasattr(self, "mux_body"):
+            return
+        for child in self.mux_body.winfo_children():
+            child.destroy()
+        part = self._mux_part()
+        self.mux_frame.configure(text="1  %s MUX" % (part or "8V54816A"))
+        if part.startswith("ADN4604"):
+            self._build_mux_adn(self.mux_body)
+        else:
+            self._build_mux_legacy(self.mux_body)
+
+    def _build_mux_legacy(self, parent):
+        """8V54816A table: 16 ports, dir + source + termination + polarity."""
         # ---- block 2: MUX ----------------------------------------------
-        mux = ttk.LabelFrame(parent, text="1  8V54816A MUX", padding=(8, 4))
-        self.mux_frame = mux
-        mux.pack(fill="both", expand=True, pady=(0, 4))
-        mrow = ttk.Frame(mux)
+        mrow = ttk.Frame(parent)
         mrow.pack(fill="x", pady=(0, 4))
         readb = ttk.Button(mrow, text="Read from device",
                            command=self.clock_switch_read)
@@ -456,10 +474,6 @@ class FruEditor(tk.Tk):
         writeb.pack(side="left", padx=(8, 0))
         self._hint(writeb, "Write the 16 port bytes to the switch (volatile)")
         ttk.Label(mrow, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
-        self.clock_cfg = {}
-        self.si_tables = {}
-        self.si_pll = tk.StringVar(value="PLL0")
-        self.slot_sel = tk.StringVar(value="auto")
         mslot = ttk.Combobox(mrow, textvariable=self.slot_sel, values=("auto", "A", "B"),
                              width=5, state="readonly")
         mslot.pack(side="left")
@@ -469,7 +483,7 @@ class FruEditor(tk.Tk):
         self._hint(mfl, "Store matrix + loaded Si5345 table in the clock store - "
                         "applied at the next power-on")
 
-        tblwrap = ttk.Frame(mux)
+        tblwrap = ttk.Frame(parent)
         tblwrap.pack(fill="both", expand=True, pady=(0, 4))
         tcv = tk.Canvas(tblwrap, height=330, bg=BG, highlightthickness=0)
         vsb = ttk.Scrollbar(tblwrap, orient="vertical", command=tcv.yview)
@@ -537,6 +551,184 @@ class FruEditor(tk.Tk):
         ttk.Entry(mrow, textvariable=self.switch_var, width=52,
                   state="readonly").pack(side="left")
         self._port_load_all()
+
+    # ---- ADN4604 (u4FCP) mux table --------------------------------------
+    ADN_DEV = 0x48
+    ADN_MUX = [(0x70, 2)]
+    ADN_TX_MODES = ("disabled", "standby", "squelched", "enabled")
+    ADN_TERMS = (("RXW", 0, "input 7:0 (West) termination"),
+                 ("RXE", 1, "input 15:8 (East) termination"),
+                 ("TXS", 2, "output 7:0 (South) termination"),
+                 ("TXN", 3, "output 15:8 (North) termination"))
+
+    def _adn_rw(self, wdata=None, rlen=0):
+        acc = self._access()
+        if wdata is None:
+            return acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x90]), rlen)
+        return acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes(wdata), 0)
+
+    def _adn_read_block(self, reg, n):
+        acc = self._access()
+        return acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([reg]), n)
+
+    def _adn_write_reg(self, reg, val):
+        acc = self._access()
+        acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([reg, val]), 0)
+
+    def _build_mux_adn(self, parent):
+        row = ttk.Frame(parent)
+        row.pack(fill="x", pady=(0, 4))
+        rb = ttk.Button(row, text="Read ADN4604", command=self.adn_read)
+        rb.pack(side="left")
+        self._hint(rb, "Read map 0/1, TX enables, input inversion and termination")
+        wb = ttk.Button(row, text="Write ADN4604", command=self.adn_write)
+        wb.pack(side="left", padx=(8, 0))
+        self._hint(wb, "Write map 0 + TX enables + termination, then UPDATE")
+        mfl = ttk.Button(row, text="Write to flash", command=self.si_write_flash)
+        mfl.pack(side="left", padx=(8, 0))
+        self._hint(mfl, "Store the matrix (bit7 = output enable, [3:0] = input) in the clock store")
+        ttk.Label(row, text="slot", style="FieldLabel.TLabel").pack(side="left", padx=(10, 4))
+        ttk.Combobox(row, textvariable=self.slot_sel, values=("auto", "A", "B"),
+                     width=5, state="readonly").pack(side="left")
+
+        grid = ttk.Frame(parent)
+        grid.pack(fill="both", expand=True, pady=(0, 4))
+        ttk.Label(grid, text="output", style="Hint.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(grid, text="source (input)", style="Hint.TLabel").grid(row=0, column=1, sticky="w", padx=(8, 8))
+        ttk.Label(grid, text="TX enable", style="Hint.TLabel").grid(row=0, column=2, sticky="w", padx=(8, 8))
+        self.adn_out = []
+        src_names = self._mux_sources()
+        values = ["IN%d %s" % (i, src_names[i].split(" ", 1)[1]) if i in src_names else "IN%d" % i
+                  for i in range(16)]
+        for i in range(16):
+            out_name = self._mux_port_labels().get(i, "CLK%d" % i)
+            ttk.Label(grid, text=out_name, width=22, anchor="w",
+                      font=(UI_FONT, 9)).grid(row=i + 1, column=0, sticky="w", padx=(4, 8))
+            src = tk.StringVar(value=values[i] if i < len(values) else "IN%d" % i)
+            sb = ttk.Combobox(grid, textvariable=src, values=values, width=22, state="readonly")
+            sb.grid(row=i + 1, column=1, sticky="w", padx=(4, 8))
+            self._hint(sb, "input routed to this output (map byte [3:0])")
+            en = tk.StringVar(value="disabled")
+            eb = ttk.Combobox(grid, textvariable=en, values=self.ADN_TX_MODES, width=10,
+                              state="readonly")
+            eb.grid(row=i + 1, column=2, sticky="w", padx=(4, 8))
+            self._hint(eb, "TX basic control [5:4]: 00 disabled, 11 enabled")
+            self.adn_out.append({"src": src, "en": en})
+
+        inv = ttk.Frame(parent)
+        inv.pack(fill="x", pady=(2, 2))
+        ttk.Label(inv, text="input inversion", style="FieldLabel.TLabel").pack(side="left", padx=(0, 6))
+        self.adn_inv = []
+        for i in range(16):
+            v = tk.BooleanVar(value=False)
+            cb = ttk.Checkbutton(inv, text="IN%d" % i, variable=v)
+            cb.pack(side="left", padx=(0, 6))
+            self._hint(cb, "SIGN[%d]: 1 = invert the input P/N pair" % i)
+            self.adn_inv.append(v)
+
+        term = ttk.Frame(parent)
+        term.pack(fill="x", pady=(2, 2))
+        ttk.Label(term, text="termination", style="FieldLabel.TLabel").pack(side="left", padx=(0, 6))
+        self.adn_term = {}
+        for name, bit, tip in self.ADN_TERMS:
+            v = tk.BooleanVar(value=False)
+            cb = ttk.Checkbutton(term, text=name, variable=v)
+            cb.pack(side="left", padx=(0, 8))
+            self._hint(cb, tip + " (ticked = disabled)")
+            self.adn_term[name] = v
+        self.adn_info = tk.StringVar(value="")
+        tk.Label(term, textvariable=self.adn_info, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(side="left", padx=(12, 0))
+
+    @staticmethod
+    def _adn_src_index(text, default=0):
+        try:
+            return int(str(text).split()[0].replace("IN", "")) & 0x0F
+        except Exception:
+            return default
+
+    def adn_read(self):
+        try:
+            map0 = self._adn_read_block(0x90, 8)
+            tx = self._adn_read_block(0x20, 16)
+            sign = self._adn_read_block(0x12, 2)
+            term = self._adn_read_block(0xF0, 1)[0]
+            status = self._adn_read_block(0xB0, 8)
+            for i in range(16):
+                nib = (map0[i // 2] >> (4 * (i % 2))) & 0x0F
+                self.adn_out[i]["src"].set("IN%d" % nib)
+                self.adn_out[i]["en"].set(self.ADN_TX_MODES[(tx[i] >> 4) & 0x3])
+            for i in range(16):
+                self.adn_inv[i].set(bool((sign[i // 8] >> (i % 8)) & 1))
+            for name, bit, _tip in self.ADN_TERMS:
+                self.adn_term[name].set(bool((term >> bit) & 1))
+            self.adn_info.set("TX=0x%02X.. term=0x%02X sign=0x%02X%02X status=%s"
+                              % (tx[0], term, sign[1], sign[0],
+                                 " ".join("%02X" % b for b in status)))
+            self._adn_sync_matrix()
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "ADN4604 read failed:\n%s" % e)
+
+    def _adn_sync_matrix(self):
+        for i in range(16):
+            by = self._adn_src_index(self.adn_out[i]["src"].get())
+            if self.adn_out[i]["en"].get() != "disabled":
+                by |= 0x80
+            self.clock_matrix[i] = by
+        self.clock_loading = True
+        try:
+            self.switch_var.set(" ".join("%02x" % b for b in self.clock_matrix))
+        except Exception:
+            pass
+        self.clock_loading = False
+
+    def adn_write(self):
+        try:
+            mapbytes = bytearray(8)
+            tx = bytearray(16)
+            for i in range(16):
+                src = self._adn_src_index(self.adn_out[i]["src"].get())
+                mapbytes[i // 2] |= (src & 0x0F) << (4 * (i % 2))
+                mode = self.ADN_TX_MODES.index(self.adn_out[i]["en"].get()) if \
+                    self.adn_out[i]["en"].get() in self.ADN_TX_MODES else 0
+                tx[i] = (mode & 0x3) << 4
+            sign = [0, 0]
+            for i in range(16):
+                if self.adn_inv[i].get():
+                    sign[i // 8] |= 1 << (i % 8)
+            term = 0
+            for name, bit, _tip in self.ADN_TERMS:
+                if self.adn_term[name].get():
+                    term |= 1 << bit
+            acc = self._access()
+            for i in range(16):
+                acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x20 + i, tx[i]]), 0)
+            for i, b in enumerate(mapbytes):
+                acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x90 + i, b]), 0)
+            acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x12, sign[0]]), 0)
+            acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x13, sign[1]]), 0)
+            acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x81, 0x00]), 0)   # map 0
+            acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0x80, 0x01]), 0)   # UPDATE
+            acc.xfer(1, self.ADN_MUX, self.ADN_DEV, bytes([0xF0, term]), 0)
+            self.adn_read()
+            self.adn_info.set("written, read back: " + self.adn_info.get())
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "ADN4604 write failed:\n%s" % e)
+
+    def _build_clock_tab(self, parent):
+        self.clock_cfg = {}
+        self.si_tables = {}
+        self.si_pll = tk.StringVar(value="PLL0")
+        self.slot_sel = tk.StringVar(value="auto")
+        self.clock_matrix = bytearray(16)
+        self.clock_loading = False
+        # ---- block 2: MUX (template dependent) ------------------------
+        mux = ttk.LabelFrame(parent, text="1  MUX", padding=(8, 4))
+        self.mux_frame = mux
+        mux.pack(fill="both", expand=True, pady=(0, 4))
+        self.mux_body = ttk.Frame(mux)
+        self.mux_body.pack(fill="both", expand=True)
+        self._mux_rebuild()
 
         # ---- block 3: PLL ----------------------------------------------
         pll = ttk.LabelFrame(parent, text="2  Si5345 PLL", padding=(8, 4))
@@ -637,11 +829,8 @@ class FruEditor(tk.Tk):
             self.si_pll.set("PLL0")
             self.si_tables = {}
             self._mux_format = str((self.clock_cfg.get("switch") or {}).get("format", ""))
-        if hasattr(self, "mux_frame"):
-            sw = (self.clock_cfg.get("switch") or {})
-            self.mux_frame.configure(text="1  %s MUX" % sw.get("part", "8V54816A"))
-        if hasattr(self, "port_vars"):
-            self._port_load_all()
+        if hasattr(self, "mux_body"):
+            self._mux_rebuild()
         if hasattr(self, "clock_out"):
             self._clock_log("template %s loaded from %s" % (self.template, path))
             if doc.get("meta", {}).get("status") == "skeleton":
