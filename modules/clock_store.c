@@ -35,11 +35,20 @@
 #define CLOCK_PTR_COPY2   128u
 
 #if defined(CLOCK_STORE_EEPROM)
+/* ---- CAT24C512 (64 KB) layout ------------------------------------------
+ *   0x0000 .. 0x01FF   FRU image (512 B, FRU_MAX_SIZE)
+ *   0x0200 .. 0x02FF   clock pointer page (256 B)
+ *                        copy #1 at 0x0200, copy #2 at 0x0280
+ *   0x0300 .. 0x1AFF   clock slot A (6 KB)
+ *   0x1B00 .. 0x32FF   clock slot B (6 KB)
+ *   0x3300 .. 0xFFFF   free (future use)
+ * ---------------------------------------------------------------------- */
 #define CLOCK_SLOT_SIZE   6144u
 #define CLOCK_PAGE_SIZE   128u
 #define CLOCK_PTR_OFF     0x0200u
 #define CLOCK_SLOT_A_OFF  0x0300u
 #define CLOCK_SLOT_B_OFF  0x1B00u
+
 #else
 #define CLOCK_SLOT_SIZE   (9u * 1024u)
 #define CLOCK_PAGE_SIZE   1024u
@@ -71,6 +80,17 @@ typedef struct __attribute__((packed)) {
     uint32_t config_id;
     uint32_t reserved2;
 } clock_slot_hdr_t;
+
+#if defined(CLOCK_STORE_EEPROM)
+/* compile-time guard against the overlap that made slot CRCs fail: the
+ * pointer copies must stay inside their page, before slot A */
+_Static_assert(CLOCK_PTR_OFF + CLOCK_PTR_COPY2 + sizeof(clock_ptr_t) <= CLOCK_SLOT_A_OFF,
+               "clock pointer copies overlap slot A");
+_Static_assert(CLOCK_SLOT_A_OFF + CLOCK_SLOT_SIZE <= CLOCK_SLOT_B_OFF,
+               "clock slot A overlaps slot B");
+_Static_assert(CLOCK_SLOT_B_OFF + CLOCK_SLOT_SIZE <= 65536u,
+               "clock slot B exceeds the EEPROM");
+#endif
 
 static struct {
     uint8_t active;
