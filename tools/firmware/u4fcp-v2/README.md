@@ -17,80 +17,108 @@ make -C .hw2/u4fcp openMMC -j
 the script and otherwise falls back to the local build tree
 (`.hw2/u4fcp/out`); `--bin-dir DIR` overrides it.
 
-Flash with J-Link from this directory:
+Quick flash with J-Link from this directory:
 
 ```bash
-./flash-jlink.sh uart-debug     # writes newboot and the application
-# or, with a fixed image:
-JLinkExe -CommanderScript flash.jlink
+./jlink_program.sh               # recommended (finds the images, clears fw_info)
+./flash-jlink.sh uart-debug     # legacy: newboot + application only
+JLinkExe -CommanderScript flash.jlink   # fixed images
 ```
 
 ## Programming a brand-new board (production flow)
 
-The bring-up is split in two steps, plus a convenience wrapper:
+Prerequisites:
+
+- one **J-Link** on the board's SWD header, with **VTref** wired to the
+  board's 3.3 V and GND (without it the probe reports
+  `Target voltage too low` — see the note at the end);
+- the board reachable through the MCH's IPMB bridge for the IPMI steps:
+  target address `0x70 + 2*slot` (AMC12 -> `0x88`), transit `0x82`,
+  bus `0` — `ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x88 -b 0 …`;
+- the images built (see above).
+
+The bring-up is four steps; `program.sh` runs them in one go.
 
 | script | does |
 |---|---|
 | `jlink_program.sh` | newboot + application over SWD, `fw_info` cleared |
-| `fru_program.sh <serial>` | FRU with the unique serial (+ optional clock store) |
+| `fru_program.sh <serial>` | FRU with the unique serial |
 | `clk_program.sh` | write/capture the clock configuration preset |
 | `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
-| `program.sh <serial>` | flash + FRU + VADJ (+ clock) in one go |
+| `program.sh <serial>` | flash + FRU + VADJ (+ clock preset) |
 
 ```bash
-# 1. flash a blank board (SWD)
-./jlink_program.sh --bin-dir uart-debug
+# 1. flash (bench or crate, single J-Link!)
+./jlink_program.sh
 
-# 2. in the crate (MCH at 192.168.1.41, board in AMC12): FRU with the serial
-./fru_program.sh U4FCP2-0001
-./fru_program.sh U4FCP2-0001 --slot 7 --mch 192.168.1.41
+# 2. insert the board in the crate, handle latched; write the FRU
+./fru_program.sh U4FCP2-0001                     # AMC12 by default
+./fru_program.sh U4FCP2-0001 --slot 2 --mch 192.168.1.41
 
 # 3. clock configuration preset (clk-preset.bin next to this script)
-./clk_program.sh --apply                       # write the preset, apply now
-./clk_program.sh --dump clk-preset.bin         # capture a new preset from a working board
+./clk_program.sh --apply --slot 2                # write + apply now
 
-# 4. FMC VADJ (TPL0102-100PWR, factory default 1.8 V, persistent)
-./vadj_program.sh --read                       # print the current values
-./vadj_program.sh --fmc0 1.8 --fmc1 1.8 --persist
+# 4. FMC VADJ (factory default 1.8 V, stored in the TPL0102 EEPROM)
+./vadj_program.sh --read --slot 2
+./vadj_program.sh --fmc0 1.8 --fmc1 1.8 --persist --slot 2
 
-# or everything in one command:
-./program.sh U4FCP2-0001 --clock-store clk-preset.bin
-
-# or both, when the J-Link and the crate are connected at the same time
-./program.sh U4FCP2-0001
+# everything at once
+./program.sh U4FCP2-0001 --slot 2 --clock-store clk-preset.bin
 ```
 
-What the steps do:
+> The MMC is reachable only when the board is powered and inserted (MCH state
+> `M4`). A blank‑EEPROM board boots fine and serves the compiled factory FRU
+> (`user_amc_fru.h`), so Steps 1‑2 can be separated by the bench/crate move.
+
+What each step does:
 
 1. **jlink_program.sh** — `newboot.bin` at `0x08000000`, `openMMC.bin` at
    `0x08002000`, and `fw_info` (`0x0801FC00`, 8 bytes) cleared to `0xFFFFFFFF`
-   so the bootloader boots the application instead of a stale staging image.
+   so the bootloader boots the application instead of a stale staging image;
+   the board resets and runs immediately.
 2. **fru_program.sh** — waits for the MMC at `0x70 + 2*slot` through the MCH
-   bridge, then writes the FRU. The MMC serves its FRU from the CAT24C512
-   (`FRU_USE_COMPILED` is OFF; `user_amc_fru.h` is only the factory fallback
-   used when the EEPROM holds no valid FRU, so the board still boots in the
-   crate with a blank EEPROM and reports the factory values).
-   `program_fru.py` builds the image from `fru_template.bin`
-   (header + board/product areas + the 100‑byte multi‑record area with the
-   point‑to‑point/clock/module‑current records), sets the board and product
-   serials to the argument and the manufacturing time to now, writes the
-   512‑byte image into the CAT24C512 at `0x54`, then reads it back and
-   verifies the serials and checksums.
-4. **Clock store** (optional) — `program_clock.py --upload` writes a clock
-   store image captured from a programmed board.
+   bridge, builds the FRU from `fru_template.bin` + `fru_config.json`
+   (header, board/product areas, 100‑byte multi‑record area with the
+   point‑to‑point/clock/module‑current records), sets the board **and**
+   product serial to the argument, the manufacturing time to now and the
+   module current to `module_current_ma/100` (8 A), writes the 512‑byte image
+   into the CAT24C512 at `0x54`, then reads it back and verifies the serials
+   and checksums.
+   The MMC serves the FRU from the EEPROM (`FRU_USE_COMPILED` OFF); after the
+   write **reboot the MMC** (power cycle the slot or a J-Link reset) so the
+   boot reads the new image — the log then shows `FRU info is healthy!`.
+3. **clk_program.sh** — writes the clock store preset (pointer page + slot A,
+   `clk-preset.bin`) and optionally applies it (`0x32 0x19`). Without
+   `--apply` the stored configuration is programmed at the next boot, in the
+   payload's clock step, i.e. **after the main power is up** (the ADN4604 and
+   Si5345 are powered from it).
+4. **vadj_program.sh** — trims the FMC0/FMC1 VADJ regulators through the
+   TPL0102‑100PWR at `0x56` (mux ch7). `--persist` writes the non‑volatile
+   register, so the value survives power cycles; 1.8 V is DAC 0 (factory
+   default).
 
-Preparation for a batch:
+Verify afterwards:
 
 ```bash
-# the preset lives in the repository:
-#   tools/clocking/u4fcp-v2-clk-preset.bin
-# capture/refresh it from a known-good board:
-python3 program_clock.py --dump tools/clocking/u4fcp-v2-clk-preset.bin --slot 12
-# per board:
-./clk_program.sh tools/clocking/u4fcp-v2-clk-preset.bin --apply --slot 2
-# or together with the FRU:
-./program.sh U4FCP2-0001 --clock-store tools/clocking/u4fcp-v2-clk-preset.bin
+ipmitool … -t 0x88 -b 0 fru print          # serials, mfg date
+ipmitool … -t 0x88 -b 0 raw 0x32 0x18      # clock store valid + CRC
+# MCH: show_fru (state M4), show_sensorinfo 16 (FMC0/FMC1 VADJ ≈ 1.8 V)
 ```
+
+### Common pitfalls
+
+- `Target voltage too low` — the J‑Link's **VTref** is not connected to the
+  board (or the board is unpowered); wire VTref + GND, power‑cycle the J‑Link
+  USB and retry. Two J‑Links attached at once is the classic trap: the probe
+  may talk to the wrong one.
+- FRU written but the MCH still shows the factory values — the MMC reads the
+  FRU **once at boot**; reboot it after `fru_program.sh`.
+- MCH power warning `requested power … exceeds backplane limit` — the FRU's
+  module‑current record is wrong (must be 100 mA units, e.g. `8000 mA -> 80`).
+- Clock preset written but not applied — either `--apply` or reboot (the
+  configuration is applied in `PAYLOAD_STATE_CLK_SETUP`).
+- MCH current/voltage display off by a factor — the MCH caches the SDR
+  records; re‑read them by re‑inserting the module (or restarting the MCH).
 
 `fru_config.json` holds the FRU field values (manufacturer, names, part
 numbers, version, asset tag, module current); edit it once for the product.
