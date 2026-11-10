@@ -599,38 +599,44 @@ class FruEditor(tk.Tk):
 
         grid = ttk.Frame(parent)
         grid.pack(fill="both", expand=True, pady=(0, 4))
-        ttk.Label(grid, text="output", style="Hint.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(grid, text="source (input)", style="Hint.TLabel").grid(row=0, column=1, sticky="w", padx=(8, 8))
-        ttk.Label(grid, text="TX enable", style="Hint.TLabel").grid(row=0, column=2, sticky="w", padx=(8, 8))
-        self.adn_out = []
+        labels = self._mux_port_labels()
         src_names = self._mux_sources()
         values = ["IN%d %s" % (i, src_names[i].split(" ", 1)[1]) if i in src_names else "IN%d" % i
                   for i in range(16)]
+        # headers: inputs (name + inversion) | gap | outputs (name + source + TX enable)
+        heads = (("input", 0), ("inv", 1), ("", 2), ("output", 3),
+                 ("source (input)", 4), ("TX enable", 5))
+        for text, col in heads:
+            ttk.Label(grid, text=text, style="Hint.TLabel").grid(
+                row=0, column=col, sticky="w", padx=(4, 8) if col != 2 else (0, 0))
+        ttk.Label(grid, text="", width=4).grid(row=0, column=2)
+        self.adn_out = []
+        self.adn_inv = []
         for i in range(16):
-            out_name = self._mux_port_labels().get(i, "CLK%d" % i)
-            ttk.Label(grid, text=out_name, width=22, anchor="w",
+            name = labels.get(i, "CLK%d" % i)
+            # left: input name + inversion
+            ttk.Label(grid, text=name, width=22, anchor="w",
                       font=(UI_FONT, 9)).grid(row=i + 1, column=0, sticky="w", padx=(4, 8))
+            inv = tk.BooleanVar(value=False)
+            cb = ttk.Checkbutton(grid, text="INV", variable=inv)
+            cb.grid(row=i + 1, column=1, sticky="w", padx=(4, 8))
+            self._hint(cb, "SIGN[%d]: 1 = invert the P/N pair of input IN%d" % (i, i))
+            self.adn_inv.append(inv)
+            # gap column
+            ttk.Label(grid, text="", width=14).grid(row=i + 1, column=2)
+            # right: output row
+            ttk.Label(grid, text=name, width=22, anchor="w",
+                      font=(UI_FONT, 9)).grid(row=i + 1, column=3, sticky="w", padx=(4, 8))
             src = tk.StringVar(value=values[i] if i < len(values) else "IN%d" % i)
             sb = ttk.Combobox(grid, textvariable=src, values=values, width=22, state="readonly")
-            sb.grid(row=i + 1, column=1, sticky="w", padx=(4, 8))
+            sb.grid(row=i + 1, column=4, sticky="w", padx=(4, 8))
             self._hint(sb, "input routed to this output (map byte [3:0])")
             en = tk.StringVar(value="disabled")
             eb = ttk.Combobox(grid, textvariable=en, values=self.ADN_TX_MODES, width=10,
                               state="readonly")
-            eb.grid(row=i + 1, column=2, sticky="w", padx=(4, 8))
+            eb.grid(row=i + 1, column=5, sticky="w", padx=(4, 8))
             self._hint(eb, "TX basic control [5:4]: 00 disabled, 11 enabled")
             self.adn_out.append({"src": src, "en": en})
-
-        inv = ttk.Frame(parent)
-        inv.pack(fill="x", pady=(2, 2))
-        ttk.Label(inv, text="input inversion", style="FieldLabel.TLabel").pack(side="left", padx=(0, 6))
-        self.adn_inv = []
-        for i in range(16):
-            v = tk.BooleanVar(value=False)
-            cb = ttk.Checkbutton(inv, text="IN%d" % i, variable=v)
-            cb.pack(side="left", padx=(0, 6))
-            self._hint(cb, "SIGN[%d]: 1 = invert the input P/N pair" % i)
-            self.adn_inv.append(v)
 
         term = ttk.Frame(parent)
         term.pack(fill="x", pady=(2, 2))
