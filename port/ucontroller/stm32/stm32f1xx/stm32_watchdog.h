@@ -32,25 +32,38 @@
 
 #include "port.h"
 
+/* The STM32F1 independent watchdog (IWDG) runs from the ~40 kHz LSI.
+ * With the prescaler 64 the counter ticks at 625 Hz, so the load value is
+ * 625 ticks per second and 0..4095 covers 0..6.55 s.
+ * wdt_set_timeout() receives the count computed by modules/watchdog.c:
+ *   timeout = (WATCHDOG_TIMEOUT / 1000) * WATCHDOG_CLK_FREQ
+ * with WATCHDOG_CLK_FREQ = 8 000 000, i.e. 12800 counts per IWDG tick. */
+#define WDT_IWDG_TICKS_PER_S   625u
+#define WDT_CLK_COUNTS_PER_TICK (8000000u / WDT_IWDG_TICKS_PER_S)
+
 /**
  * @brief       Initialize the Watchdog timer
  * @return      None
  */
-#define wdt_init()
-// #define wdt_init()                  Chip_WWDT_Init(LPC_WWDT)
+#define wdt_init()                                             \
+    do {                                                        \
+        RCC_LSICmd(ENABLE);                                     \
+        while (RCC_GetFlagStatus(RCC_FLAG_LSIRDY) == RESET) { } \
+        IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);           \
+        IWDG_SetPrescaler(IWDG_Prescaler_64);                   \
+        IWDG_ReloadCounter();                                   \
+    } while (0)
 
 /**
  * @brief       Start the Watchdog timer
  * @return      None
  */
-#define wdt_start()
-// #define wdt_start()                 Chip_WWDT_Start(LPC_WWDT)
+#define wdt_start()     do { IWDG_Enable(); } while (0)
 
 /**
  * @brief       Config the Watchdog timer to reset upon count end
  * @return      None
  */
-// #define wdt_config()                Chip_WWDT_SetOption(LPC_WWDT, WWDT_WDMOD_WDRESET)
 #define wdt_config()
 /**
  * @brief       Set Watchdog Timer max count
@@ -60,12 +73,18 @@
  * @param [in]  timeout Max count for Watchdog timer
  * @return      None
  */
-// #define wdt_set_timeout( timeout )  Chip_WWDT_SetTimeOut(LPC_WWDT, timeout)
-#define wdt_set_timeout( timeout )
+#define wdt_set_timeout( timeout )                              \
+    do {                                                        \
+        uint32_t _reload = (uint32_t)(timeout) / WDT_CLK_COUNTS_PER_TICK; \
+        if (_reload == 0u) { _reload = 1u; }                    \
+        if (_reload > 0xFFFu) { _reload = 0xFFFu; }             \
+        IWDG_WriteAccessCmd(IWDG_WriteAccess_Enable);           \
+        IWDG_SetReload((uint16_t)_reload);                      \
+        IWDG_ReloadCounter();                                   \
+    } while (0)
 
 /**
  * @brief       Reload the watchdog counter
  * @return      None
  */
-// #define wdt_feed()                  Chip_WWDT_Feed(LPC_WWDT)
-#define wdt_feed()
+#define wdt_feed()      do { IWDG_ReloadCounter(); } while (0)

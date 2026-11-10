@@ -13,10 +13,12 @@ make -C .hw2/u4fcp openMMC -j
 ```
 
 > `DISABLE_WATCHDOG` is **ON by default** (project-wide, for debugging). The
-> production image enables the IWDG (`-DDISABLE_WATCHDOG=OFF`): 1 s timeout
-> (`WATCHDOG_TIMEOUT`), fed every 666 ms by the WatchdogTask. The 1.2 s clock
-> store apply does not trip it — the feed task runs independently; verified
-> with the watchdog enabled and a full power-up (clock apply + PLL lock).
+> production image enables the IWDG (`-DDISABLE_WATCHDOG=OFF`): the STM32F1
+> IWDG runs from the LSI with prescaler 64 (625 Hz), the reload is 1250 ticks
+> = **2 s timeout** (`WATCHDOG_TIMEOUT`), and the WatchdogTask feeds every
+> 666 ms (one third of the timeout). Verified: without feeds the board resets
+> every ~2 s (5 boots in 10 s); with feeds it stays up through the 1.2 s clock
+> store apply and the PLL lock.
 
 `uart-debug/` (if present) is the same image with `-DUART_DEBUG=ON`
 (`printf` on USART1 PA9/PA10, 115200); `normal/` is the production build.

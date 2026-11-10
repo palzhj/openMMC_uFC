@@ -39,14 +39,15 @@
  * @brief Watchdog timer timeout (in ms)
  */
 #define WATCHDOG_TASK_STACK 48
-#define WATCHDOG_TIMEOUT        1000    /* in milisseconds */
+#define WATCHDOG_TIMEOUT        2000    /* in milisseconds (IWDG, LSI/64) */
 
 /**
  * @brief Watchdog timer feed delay
  *
- * We reload the watchdog timer at 2/3 of the max count
+ * Feed at one third of the timeout: two consecutive feeds may be late before
+ * the IWDG resets the MCU.
  */
-#define WATCHDOG_FEED_DELAY     (WATCHDOG_TIMEOUT/3)*2
+#define WATCHDOG_FEED_DELAY     (WATCHDOG_TIMEOUT/3)
 
 
 /**
