@@ -574,6 +574,16 @@ class FruEditor(tk.Tk):
                   style="Hint.TLabel").pack(side="left", padx=(12, 0))
         self.si_groups = None
 
+        lockrow = ttk.Frame(pll)
+        lockrow.pack(fill="x", pady=(4, 0))
+        lk = ttk.Button(lockrow, text="Update lock status", command=self.pll_lock_status)
+        lk.pack(side="left")
+        self._hint(lk, "Read the Si534x status registers (0x0C00 live, 0x0C01 sticky) "
+                       "and show whether each PLL is locked")
+        self.lock_var = tk.StringVar(value="PLL0: ?    PLL1: ?")
+        ttk.Label(lockrow, textvariable=self.lock_var,
+                  style="Hint.TLabel").pack(side="left", padx=(12, 0))
+
         # ---- block 4: block diagram ------------------------------------
         dia = ttk.LabelFrame(parent, text="3  Block diagram", padding=(8, 4))
         dia.pack(fill="x", pady=(0, 4))
@@ -1177,6 +1187,30 @@ class FruEditor(tk.Tk):
         except Exception as e:
             self._status("Si5345 write failed", "error")
             self._clock_log("ERROR: %s" % e)
+
+    def pll_lock_status(self):
+        """Read 0x0C00 (live) / 0x0C01 (sticky) of both Si5345s and show the lock state.
+
+        Bits: [0] SYSINCAL, [1] LOSXAXB, [2] LOL, [3] LOS, [4] OOF, [5] HOLD.
+        """
+        try:
+            acc = self._access()
+            mux = [(0x70, 2)]
+            out = []
+            for dev, name in ((0x68, "PLL0"), (0x69, "PLL1")):
+                try:
+                    acc.xfer(1, mux, dev, bytes([0x01, 0x0C]), 0)   # page 0x0C
+                    live = acc.xfer(1, mux, dev, bytes([0x00]), 1)[0]
+                    acc.xfer(1, mux, dev, bytes([0x01, 0x0C]), 0)
+                    sticky = acc.xfer(1, mux, dev, bytes([0x01]), 1)[0]
+                    ok = (live & (1 << 2)) == 0
+                    out.append("%s: %s (live=0x%02X sticky=0x%02X)"
+                               % (name, "locked" if ok else "NOT locked", live, sticky))
+                except Exception:
+                    out.append("%s: read error" % name)
+            self.lock_var.set("    ".join(out))
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "PLL status read failed:\n%s" % e)
 
     def si_read_device(self):
         """Read the loaded register list from the Si5345 and save it as a script."""
