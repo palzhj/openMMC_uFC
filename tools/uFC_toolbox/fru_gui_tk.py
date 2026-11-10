@@ -228,11 +228,11 @@ class FruEditor(tk.Tk):
         ttk.Label(title, text="FRU  ·  I\u00b2C  ·  PMBus  over IPMI",
                   style="Sub.TLabel").pack(anchor="w")
 
-        ttk.Separator(self).pack(fill="x", padx=16)
+        # connection strip: top right of the header line (saves a whole row)
+        strip = ttk.Frame(header)
+        strip.pack(side="right", anchor="ne", padx=(24, 0))
 
-        # connection / size strip
-        strip = ttk.Frame(self, padding=(16, 10, 16, 6))
-        strip.pack(fill="x")
+        ttk.Separator(self).pack(fill="x", padx=16)
         self.mch_var, self.mch_w = self._labeled(
             strip, "MCH / BMC", mch, 14,
             tip="IPMI-over-LAN address of the first controller\n(the crate manager or a BMC).")
@@ -325,8 +325,8 @@ class FruEditor(tk.Tk):
                 "uFC: 128 (24AA025E48 half page); u4FCP: 512 (FRU_MAX_SIZE).\n"
                 "Set automatically by the board template.")
 
-        # path / FRU / EEPROM info: right side, aligned with the top header line
-        info = ttk.Frame(strip)
+        # path / FRU / EEPROM info: right side of the template row
+        info = ttk.Frame(tpl)
         info.pack(side="right", padx=(14, 0), anchor="n")
         self.path_var = tk.StringVar()
         self.fruinfo_var = tk.StringVar(value="no FRU read yet")
