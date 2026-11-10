@@ -3,15 +3,15 @@
  "version": 1,
  "meta": {
   "board": "u4FCP v2",
-  "status": "skeleton",
+  "status": "partial",
   "sources": [
    "u4FCPv2/readme/clock.png (block diagram)",
    "u4FCPv2/template/u4FCPv2 (CLK scripts, KUP XDC)"
   ],
   "notes": [
-   "Points/links/pins still have to be extracted from the u4FCPv2 schematic and the",
-   "u4FCPv2 KUP/K7 constraint files; until then this template only provides the",
-   "board name and the device boxes (the toolbox falls back to the built-in drawing)."
+   "MUX ports from the u4FCPv2 clock block diagram (u4FCPv2/readme/clock.png) and",
+   "the firmware's ADN4604_IN_* port defines (port N = CLK<N>); the pin-level",
+   "schematic page for the ADN4604 has not been transcribed yet, so 'pin' is empty."
   ]
  },
  "boards": {
@@ -188,7 +188,248 @@
    ]
   }
  },
- "points": [],
+ "points": [
+  {
+   "id": "MUX.CLK0",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK0",
+   "signal": "AMC_TX_P17",
+   "note": "AMC WR part 17 transmit pair",
+   "dir": "inout",
+   "capability": {
+    "in": true,
+    "out": true,
+    "tristate": true,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK1",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK1",
+   "signal": "AMC_RX_P17",
+   "note": "AMC WR part 17 receive pair",
+   "dir": "inout",
+   "capability": {
+    "in": true,
+    "out": true,
+    "tristate": true,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK2",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK2",
+   "signal": "TCLKD",
+   "note": "AMC TCLKD",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK3",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK3",
+   "signal": "TCLKC",
+   "note": "AMC TCLCK",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK4",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK4",
+   "signal": "TCLKA",
+   "note": "AMC TCLKA",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK5",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK5",
+   "signal": "TCLKB",
+   "note": "AMC TCLKB",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK6",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK6",
+   "signal": "FCLKA",
+   "note": "AMC FCLKA",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK7",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK7",
+   "signal": "FPGA_CLK_OUT",
+   "note": "FPGA KUP clock output",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK8",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK8",
+   "signal": "PLL1_OUT",
+   "note": "PLL1 output (into the mux)",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK9",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK9",
+   "signal": "PLL0_OUT",
+   "note": "PLL0 output (into the mux)",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK10",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK10",
+   "signal": "FMC1_CLK_M2C",
+   "note": "FMC1 CLK0/CLK1 M2C",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": false,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.CLK11",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK11",
+   "signal": "FMC1_CLK_BIDIR",
+   "note": "FMC1 CLK2/CLK3 bidirectional",
+   "dir": "inout",
+   "capability": {
+    "in": true,
+    "out": true,
+    "tristate": true,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK12",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK12",
+   "signal": "FMC0_CLK_M2C",
+   "note": "FMC0 CLK0/CLK1 M2C",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": false,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.CLK13",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK13",
+   "signal": "FMC0_CLK_BIDIR",
+   "note": "FMC0 CLK2/CLK3 bidirectional",
+   "dir": "inout",
+   "capability": {
+    "in": true,
+    "out": true,
+    "tristate": true,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK14",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK14",
+   "signal": "LEMO_CLK",
+   "note": "front panel LEMO clock",
+   "dir": "inout",
+   "capability": {
+    "in": true,
+    "out": true,
+    "tristate": true,
+    "default": "in"
+   }
+  },
+  {
+   "id": "MUX.CLK15",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "CLK15",
+   "signal": "RTM2AMC_CLK",
+   "note": "RTM to AMC clock",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  }
+ ],
  "links": [],
  "routing": {},
  "clock": {
@@ -200,14 +441,20 @@
   "plls": [
    {
     "addr": 104,
-    "part": "Si5345"
+    "part": "Si5345A"
    },
    {
     "addr": 105,
-    "part": "Si5345"
+    "part": "Si5345A"
    }
   ],
-  "store": "eeprom"
+  "store": "eeprom",
+  "store_layout": {
+   "fru": "0x0000-0x01FF",
+   "ptr": "0x0200 (copy 0x0280)",
+   "slot_a": "0x0300-0x1AFF",
+   "slot_b": "0x1B00-0x32FF"
+  }
  },
  "fru": {
   "eeprom_addr": "0x54",

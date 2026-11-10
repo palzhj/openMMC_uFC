@@ -494,13 +494,16 @@ class FruEditor(tk.Tk):
         self.clock_matrix = bytearray(16)
         self.clock_loading = False
         self.port_vars = []
+        self.port_labels = []
         for i in range(16):
             port, name = (self.CLOCK_INPUTS + self.CLOCK_OUTPUTS)[i]
             allowed = self._mux_allowed().get(
                 i, ("out",) if i in (9, 10, 11) else ("in",) if i in (7, 8) else ("in", "out"))
             row = i + 1
-            ttk.Label(tbl, text="%s %s" % (port, name), width=22, anchor="w",
-                      font=(UI_FONT, 9)).grid(row=row, column=0, sticky="w", padx=(4, 8))
+            lbl = ttk.Label(tbl, text="%s %s" % (port, name), width=22, anchor="w",
+                            font=(UI_FONT, 9))
+            lbl.grid(row=row, column=0, sticky="w", padx=(4, 8))
+            self.port_labels.append(lbl)
             d = tk.StringVar(value="in")
             dirbox = ttk.Combobox(tbl, textvariable=d, values=("in", "out"), width=4,
                                   state="readonly")
@@ -649,6 +652,27 @@ class FruEditor(tk.Tk):
         if hasattr(self, "mch_var"):
             self._save_settings()
 
+    def _mux_port_labels(self):
+        """All 16 mux ports from the clocking file: {index: 'CLKn signal'}."""
+        doc = self._load_clocking()
+        res = {}
+        if doc:
+            devices = doc.get("devices", {})
+            for p in doc.get("points", []):
+                parent = p.get("parent", "")
+                dev = devices.get(parent, {})
+                if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith(("8V54816A", "ADN4604")):
+                    continue
+                try:
+                    idx = int(str(p.get("name", "")).upper().replace("CLK", ""))
+                except ValueError:
+                    continue
+                label = p.get("name") or ("CLK%d" % idx)
+                if p.get("signal"):
+                    label += " " + p["signal"]
+                res[idx] = label
+        return res
+
     def _mux_sources(self):
         """All input-capable mux ports from the clocking file: {port: name}."""
         doc = self._load_clocking()
@@ -684,7 +708,7 @@ class FruEditor(tk.Tk):
         for pt in doc.get("points", []):
             parent = pt.get("parent", "")
             dev = devices.get(parent, {})
-            if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith("8V54816A"):
+            if parent.upper() != "MUX" and not str(dev.get("part", "")).startswith(("8V54816A", "ADN4604")):
                 continue
             cap = pt.get("capability") or {}
             ways = tuple(k for k in ("in", "out") if cap.get(k))
@@ -695,12 +719,27 @@ class FruEditor(tk.Tk):
                     pass
         return res
 
+    def _port_refresh_names(self):
+        """Apply the template's port names/directions to the mux table."""
+        labels = self._mux_port_labels()
+        fallback = self.CLOCK_INPUTS + self.CLOCK_OUTPUTS
+        for i in range(16):
+            if hasattr(self, "port_labels") and i < len(self.port_labels):
+                self.port_labels[i].configure(text=labels.get(i, "%s %s" % fallback[i]))
+            if i < len(self.port_vars):
+                allowed = self._mux_allowed().get(i)
+                if allowed:
+                    self.port_vars[i]["allowed"] = allowed
+
     def _port_load_all(self):
+        self._port_refresh_names()
         self.clock_loading = True
         for i in range(16):
             cfg = self.clock_matrix[i]
             d = self.port_vars[i]
             d["dir"].set("out" if (cfg & 0x80) else "in")
+            if d["dir"].get() not in d["allowed"]:
+                d["dir"].set(d["allowed"][0])
             d["term"].set(bool(cfg & 0x40))
             d["pol"].set(bool(cfg & 0x20))
             d["byte"].set("0x%02x" % cfg)
