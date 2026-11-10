@@ -277,6 +277,66 @@ float tpl0102_get_amc_voltage(uint8_t chn)
 #endif
 
 #ifdef MODULE_ADN4604
+mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_revd_registers_ptr);
+mmc_err clock_configuration(const uint8_t clk_cfg[16]);
+
+#define ADN4604_IN_PLL1_OUT 8
+#define ADN4604_OUTPUT_EN 0x80
+
+/* Default ADN4604 crosspoint configuration, used when the EEPROM holds no
+ * clock configuration. Bit 7 = output enable, bits 3:0 = input select. */
+static const uint8_t clock_config_default[16] = {
+  ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT | ADN4604_OUTPUT_EN,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+  ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
+};
+
+/* Configure the clock switch and both PLLs.
+ *
+ * The clock configuration stored in the EEPROM wins when a valid slot is
+ * present; when the EEPROM holds no clock configuration the compiled defaults
+ * (clock_config[] + the ClockBuilder register tables) are programmed. */
+static mmc_err payload_clock_configure(void)
+{
+  if (clock_store_apply_boot())
+  {
+    printf("clock config taken from the EEPROM\n");
+    return MMC_OK;
+  }
+
+  printf("no clock config in EEPROM, using the default one\n");
+  if (adn4604_reset() != MMC_OK)
+  {
+    printf("ADN4604 reset ERROR\n");
+    return MMC_TIMEOUT_ERR;
+  }
+  if (clock_configuration(clock_config_default) != MMC_OK)
+  {
+    printf("ADN4604 config ERROR\n");
+    return MMC_IO_ERR;
+  }
+  printf("ADN4604 config OK\n");
+  if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) != MMC_OK)
+  {
+    printf("PLL0 config ERROR\n");
+    return MMC_IO_ERR;
+  }
+  printf("PLL0 config OK\n");
+  if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) != MMC_OK)
+  {
+    printf("PLL1 config ERROR\n");
+    return MMC_IO_ERR;
+  }
+  printf("PLL1 config OK\n");
+  return MMC_OK;
+}
+#endif
+
+#ifdef MODULE_ADN4604
 
 mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_revd_registers_ptr)
 {
@@ -351,7 +411,6 @@ mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_
 #define ADN4604_IN_TCLKB 5
 #define ADN4604_IN_FCLKA 6
 #define ADN4604_IN_FPGA_CLK_OUT 7
-#define ADN4604_IN_PLL1_OUT 8
 #define ADN4604_IN_PLL0_OUT 9
 #define ADN4604_IN_FMC1_CLK_M2C 10
 #define ADN4604_IN_FMC1_CLK_BIDIR 11
@@ -360,7 +419,6 @@ mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_
 #define ADN4604_IN_LEMO_CLK 14
 #define ADN4604_IN_RTM2AMC_CLK 15
 
-#define ADN4604_OUTPUT_EN 0x80
 
 mmc_err clock_configuration(const uint8_t clk_cfg[16])
 {
@@ -501,23 +559,6 @@ void vTaskPayload(void *pvParameters)
 
 #endif
 
-  uint8_t clock_config[16];
-  clock_config[0] = ADN4604_IN_PLL1_OUT;
-  clock_config[1] = ADN4604_IN_PLL1_OUT | ADN4604_OUTPUT_EN;
-  clock_config[2] = ADN4604_IN_PLL1_OUT;
-  clock_config[3] = ADN4604_IN_PLL1_OUT;
-  clock_config[4] = ADN4604_IN_PLL1_OUT;
-  clock_config[5] = ADN4604_IN_PLL1_OUT;
-  clock_config[6] = ADN4604_IN_PLL1_OUT;
-  clock_config[7] = ADN4604_IN_PLL1_OUT;
-  clock_config[8] = ADN4604_IN_PLL1_OUT;
-  clock_config[9] = ADN4604_IN_PLL1_OUT;
-  clock_config[10] = ADN4604_IN_PLL1_OUT;
-  clock_config[11] = ADN4604_IN_PLL1_OUT;
-  clock_config[12] = ADN4604_IN_PLL1_OUT;
-  clock_config[13] = ADN4604_IN_PLL1_OUT;
-  clock_config[14] = ADN4604_IN_PLL1_OUT;
-  clock_config[15] = ADN4604_IN_PLL1_OUT;
 
   uint8_t state = PAYLOAD_NO_POWER;
   /* Use arbitrary state value to force the first state update */
@@ -567,25 +608,11 @@ void vTaskPayload(void *pvParameters)
     if (current_evt & PAYLOAD_MESSAGE_CLOCK_CONFIG)
     {
 #ifdef MODULE_ADN4604
-      // eeprom_24xx02_write(CHIP_ID_RTC_EEPROM, 0x0, clock_config, 16, 10);
+      /* re-apply the clocking: EEPROM configuration when present, compiled
+       * defaults otherwise */
       if (PAYLOAD_FPGA_ON)
       {
-        if (adn4604_reset() == MMC_OK)
-          printf("ADN4604 reset OK\n");
-        else
-          printf("ADN4604 reset ERROR\n");
-        if (clock_configuration(clock_config) == MMC_OK)
-          printf("ADN4604 config OK\n");
-        else
-          printf("ADN4604 config ERROR\n");
-        if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) == MMC_OK)
-          printf("PLL0 config OK\n");
-        else
-          printf("PLL0 config ERROR\n");
-        if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) == MMC_OK)
-          printf("PLL1 config OK\n");
-        else
-          printf("PLL1 config ERROR\n");
+        (void) payload_clock_configure();
       }
 #endif
       xEventGroupClearBits(amc_payload_evt, PAYLOAD_MESSAGE_CLOCK_CONFIG);
@@ -688,40 +715,13 @@ void vTaskPayload(void *pvParameters)
       if (QUIESCED_req || (PP_good == 0)) new_state = PAYLOAD_SWITCHING_OFF;
 #ifdef MODULE_ADN4604
       /* The switch and PLLs are powered from the main power, which is up now.
-       * Prefer the configuration stored in the EEPROM; use the compiled
-       * defaults only when the store holds no valid slot. */
-      if (clock_store_apply_boot())
+       * EEPROM configuration when present, compiled defaults otherwise. */
+      if (payload_clock_configure() == MMC_OK)
       {
-        printf("clock config taken from the EEPROM\n");
+        // Only change the state if the clock configuration succeeds
         FPGA_prom_timer = 0;
         new_state = PAYLOAD_STATE_FPGA_SETUP;
       }
-      else if (adn4604_reset() == MMC_OK)
-      {
-        if (clock_configuration(clock_config) == MMC_OK)
-        {
-          printf("ADN4604 config OK\n");
-          if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) == MMC_OK)
-          {
-            printf("PLL0 config OK\n");
-            if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) == MMC_OK)
-            {
-              printf("PLL1 config OK\n");
-              // Only change the state if the clock configuration succeeds
-              FPGA_prom_timer = 0;
-              new_state = PAYLOAD_STATE_FPGA_SETUP;
-            }
-            else
-              printf("PLL1 config ERROR\n");
-          }
-          else
-            printf("PLL0 config ERROR\n");
-        }
-        else
-          printf("ADN4604 config ERROR\n");
-      }
-      else
-        printf("ADN4604 reset ERROR\n");
 #else
       new_state = PAYLOAD_STATE_FPGA_SETUP;
 #endif
