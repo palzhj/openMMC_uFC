@@ -8,8 +8,10 @@
 # power is up).
 #
 # usage:
-#   ./clk_program.sh <preset.bin> [options]      write the preset to the EEPROM
+#   ./clk_program.sh [preset.bin] [options]      write a preset to the EEPROM
 #   ./clk_program.sh --dump <preset.bin> [options]  capture the current setup
+#
+# With no file, the preset next to this script (clk-preset.bin) is used.
 #
 #   --apply             apply the configuration immediately (0x32 0x19)
 #   --slot N            AMC slot of the board (target = 0x70+2*N)   default 12
@@ -41,7 +43,10 @@ while [ $# -gt 0 ]; do
         *)         FILE=$1; shift ;;
     esac
 done
-[ -n "$FILE" ] || { echo "usage: $0 <preset.bin> | --dump <preset.bin> [options]" >&2; exit 1; }
+if [ -z "$FILE" ] && [ "$DUMP" = 0 ]; then
+    FILE="$HERE/clk-preset.bin"
+fi
+[ -n "$FILE" ] || { echo "usage: $0 [preset.bin] | --dump <preset.bin> [options]" >&2; exit 1; }
 
 TARGET=$(printf '0x%02x' $((0x70 + 2 * SLOT)))
 if [ "$WAIT" = 1 ]; then

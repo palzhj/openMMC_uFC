@@ -44,9 +44,9 @@ The bring-up is split in two steps, plus a convenience wrapper:
 ./fru_program.sh U4FCP2-0001
 ./fru_program.sh U4FCP2-0001 --slot 7 --mch 192.168.1.41
 
-# 3. clock configuration preset (capture once from a programmed board)
-./clk_program.sh --dump clk-preset.bin         # from a working board
-./clk_program.sh clk-preset.bin --apply        # write it, apply now
+# 3. clock configuration preset (clk-preset.bin next to this script)
+./clk_program.sh --apply                       # write the preset, apply now
+./clk_program.sh --dump clk-preset.bin         # capture a new preset from a working board
 
 # or everything in one command:
 ./program.sh U4FCP2-0001 --clock-store clk-preset.bin
