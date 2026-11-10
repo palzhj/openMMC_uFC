@@ -1710,6 +1710,31 @@ class FruEditor(tk.Tk):
         tk.Label(parent, textvariable=self.i2c_preset_hint, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(anchor="w")
 
+        # FMC VADJ: TPL0102-100PWR digital pot (0x56, power bus mux ch7)
+        vadj = ttk.Frame(parent)
+        vadj.pack(fill="x", pady=(6, 4))
+        ttk.Label(vadj, text="FMC VADJ", style="FieldLabel.TLabel").pack(side="left", padx=(0, 8))
+        ttk.Label(vadj, text="FMC0 (V)", style="Hint.TLabel").pack(side="left")
+        self.vadj0_var = tk.StringVar(value="1.8")
+        e0 = ttk.Entry(vadj, textvariable=self.vadj0_var, width=6)
+        e0.pack(side="left", padx=(4, 12))
+        ttk.Label(vadj, text="FMC1 (V)", style="Hint.TLabel").pack(side="left")
+        self.vadj1_var = tk.StringVar(value="1.8")
+        e1 = ttk.Entry(vadj, textvariable=self.vadj1_var, width=6)
+        e1.pack(side="left", padx=(4, 12))
+        br = ttk.Button(vadj, text="Read", command=self._vadj_read)
+        br.pack(side="left", padx=(0, 8))
+        bs = ttk.Button(vadj, text="Set (persist)", command=self._vadj_set)
+        bs.pack(side="left")
+        tip = ("FMC0/FMC1 VADJ, trimmed by the TPL0102-100PWR (I2C 0x56 on the\n"
+               "power bus, mux 0x70 channel 7). Range 0.9-1.8 V; the value is\n"
+               "stored in the TPL0102 non-volatile register and survives power cycles.")
+        for w in (br, bs, e0, e1):
+            Tooltip(w, tip)
+        self.i2c_vadj_hint = tk.StringVar(value="")
+        tk.Label(parent, textvariable=self.i2c_vadj_hint, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(anchor="w")
+
         out = ttk.Frame(parent)
         out.pack(fill="both", expand=True)
         ttk.Label(out, text="Result", style="Hint.TLabel").pack(anchor="w")
@@ -1830,6 +1855,51 @@ class FruEditor(tk.Tk):
     def _preset_si5345(self):
         self._preset(1, [(0x70, 2)], self.clock_pll_addr(), 0x00, 1,
                      "Si5345 register")
+
+    # ---- FMC VADJ (TPL0102) -------------------------------------------------
+    @staticmethod
+    def _vadj_dac(volts):
+        volts = max(0.9, min(1.8, float(volts)))
+        return max(0, min(255, int((60.4 / (volts / 0.6 - 1.0) - 30.2) * 256 / 100)))
+
+    @staticmethod
+    def _vadj_volts(dac):
+        return 0.6 * (60.4 / (30.2 + dac * 100.0 / 256.0) + 1.0)
+
+    def _vadj_reg(self, access, reg, val=None):
+        mux = [(0x70, 7)]
+        if val is None:
+            return access.xfer(1, mux, 0x56, bytes([reg]), 1)[0]
+        access.xfer(1, mux, 0x56, bytes([reg, val]), 0)
+        return None
+
+    def _vadj_read(self):
+        try:
+            access = self._access()
+            out = []
+            for chn, var, name in ((0, self.vadj0_var, "FMC0"),
+                                   (1, self.vadj1_var, "FMC1")):
+                self._vadj_reg(access, 0x10, 0xC0)       # volatile (WR) access
+                dac = self._vadj_reg(access, chn)
+                var.set("%.3f" % self._vadj_volts(dac))
+                out.append("%s %d = %.3f V" % (name, dac, self._vadj_volts(dac)))
+            self.i2c_vadj_hint.set("read: " + "   ".join(out))
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "VADJ read failed:\n%s" % e)
+
+    def _vadj_set(self):
+        try:
+            access = self._access()
+            for chn, var in ((0, self.vadj0_var), (1, self.vadj1_var)):
+                dac = self._vadj_dac(float(var.get()))
+                self._vadj_reg(access, 0x10, 0x40)       # non-volatile (IVR) access
+                self._vadj_reg(access, chn, dac)
+                self._vadj_reg(access, 0x10, 0xC0)       # back to the WR access
+            self._vadj_read()
+            self.i2c_vadj_hint.set("written to the TPL0102 non-volatile register: "
+                                   + self.i2c_vadj_hint.get())
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "VADJ write failed:\n%s" % e)
 
     def _labeled(self, parent, text, value, width, tip=None):
         box = ttk.Frame(parent)
