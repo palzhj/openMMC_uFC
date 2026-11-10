@@ -194,9 +194,6 @@ void IPMB_RXTask ( void *pvParameters )
     for ( ;; ) {
         /* Checks if there's any incoming messages (the task remains blocked here) */
         rx_len = xI2CSlaveReceive( IPMB_I2C, &ipmb_buffer_rx[1], IPMI_MSG_MAX_LENGTH - 1, portMAX_DELAY );
-#ifdef MODULE_UART_DEBUG
-        printf("[IPMB] rx_len=%d tick=%lu\n", rx_len, (unsigned long)xTaskGetTickCount());
-#endif
         if ( rx_len > 0 ) {
 
             ipmb_buffer_rx[0] = ipmb_addr;

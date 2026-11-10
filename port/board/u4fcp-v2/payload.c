@@ -606,12 +606,11 @@ void vTaskPayload(void *pvParameters)
 		tpl0102_set_amc_voltage(0, WRITE_VADJ_VAL, true);
 		tpl0102_set_amc_voltage(1, WRITE_VADJ_VAL, true);
 #endif
-  float voltage;
-	// print vadj setting
-	voltage = tpl0102_get_amc_voltage(0);
-  printf("FMC0 Vadj = %d mV\n", (int)(1000*voltage));
-  tpl0102_get_amc_voltage(1);
-  printf("FMC1 Vadj = %d mV\n", (int)(1000*voltage));
+#ifdef MODULE_UART_DEBUG
+  /* debug only: the FMC VADJ values read back from the digital pots */
+  printf("FMC0 Vadj = %d mV\n", (int)(1000 * tpl0102_get_amc_voltage(0)));
+  printf("FMC1 Vadj = %d mV\n", (int)(1000 * tpl0102_get_amc_voltage(1)));
+#endif
 
 #endif
 
