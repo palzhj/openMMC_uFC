@@ -442,6 +442,14 @@ class FruEditor(tk.Tk):
         widget.bind("<Leave>", lambda _e: self.clock_hint.set(""), add="+")
 
 
+    def _bind_scroll_wheel(self, widget, canvas):
+        """Scroll the clock tab with the mouse wheel over any of its widgets."""
+        widget.bind("<Button-4>", lambda e: canvas.yview_scroll(-3, "units"))
+        widget.bind("<Button-5>", lambda e: canvas.yview_scroll(3, "units"))
+        widget.bind("<MouseWheel>", lambda e: canvas.yview_scroll(int(-e.delta / 120) or -1, "units"))
+        for child in widget.winfo_children():
+            self._bind_scroll_wheel(child, canvas)
+
     def _mux_part(self):
         doc = self._load_clocking()
         if not doc:
@@ -627,7 +635,7 @@ class FruEditor(tk.Tk):
             # right: output row
             ttk.Label(grid, text=name, width=22, anchor="w",
                       font=(UI_FONT, 9)).grid(row=i + 1, column=3, sticky="w", padx=(4, 8))
-            src = tk.StringVar(value=values[i] if i < len(values) else "IN%d" % i)
+            src = tk.StringVar(value=values[0] if values else "IN0")
             sb = ttk.Combobox(grid, textvariable=src, values=values, width=22, state="readonly")
             sb.grid(row=i + 1, column=4, sticky="w", padx=(4, 8))
             self._hint(sb, "input routed to this output (map byte [3:0])")
@@ -745,6 +753,19 @@ class FruEditor(tk.Tk):
         self.slot_sel = tk.StringVar(value="auto")
         self.clock_matrix = bytearray(16)
         self.clock_loading = False
+
+        # the tab is taller than the window: put everything in a scrolling canvas
+        scroll = tk.Canvas(parent, bg=BG, highlightthickness=0)
+        vsb = ttk.Scrollbar(parent, orient="vertical", command=scroll.yview)
+        scroll.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        scroll.pack(side="left", fill="both", expand=True)
+        inner = ttk.Frame(scroll)
+        window = scroll.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda e: scroll.configure(scrollregion=scroll.bbox("all")))
+        scroll.bind("<Configure>", lambda e: scroll.itemconfigure(window, width=e.width))
+        self.clock_scroll = scroll
+        parent = inner
         # ---- block 2: MUX (template dependent) ------------------------
         mux = ttk.LabelFrame(parent, text="1  MUX", padding=(8, 4))
         self.mux_frame = mux
@@ -822,6 +843,7 @@ class FruEditor(tk.Tk):
         self.clock_hint = tk.StringVar(value="")
         ttk.Label(parent, textvariable=self.clock_hint, style="Hint.TLabel").pack(
             fill="x", pady=(4, 0))
+        self._bind_scroll_wheel(inner, scroll)
 
     def template_load(self):
         self.template = self.template_var.get()
