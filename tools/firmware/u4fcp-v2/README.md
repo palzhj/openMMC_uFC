@@ -5,11 +5,18 @@ The images are **build outputs**, not committed files (`.gitignore` excludes
 
 ```bash
 cmake -S . -B .hw2/u4fcp -DBOARD=u4fcp-v2 \
-      -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release
+      -DTARGET_CONTROLLER=STM32F103CBT6 \
+      -DDISABLE_WATCHDOG=OFF -DCMAKE_BUILD_TYPE=Release
 make -C .hw2/u4fcp openMMC -j
 # -> .hw2/u4fcp/out/newboot.bin  (~4.5 KB)
 # -> .hw2/u4fcp/out/openMMC.bin  (~54 KB)
 ```
+
+> `DISABLE_WATCHDOG` is **ON by default** (project-wide, for debugging). The
+> production image enables the IWDG (`-DDISABLE_WATCHDOG=OFF`): 1 s timeout
+> (`WATCHDOG_TIMEOUT`), fed every 666 ms by the WatchdogTask. The 1.2 s clock
+> store apply does not trip it — the feed task runs independently; verified
+> with the watchdog enabled and a full power-up (clock apply + PLL lock).
 
 `uart-debug/` (if present) is the same image with `-DUART_DEBUG=ON`
 (`printf` on USART1 PA9/PA10, 115200); `normal/` is the production build.
