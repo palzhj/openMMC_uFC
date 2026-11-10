@@ -699,7 +699,10 @@ void vTaskPayload(void *pvParameters)
       if (state == PAYLOAD_QUIESCED)
         QUIESCED_req = 0;
       else
+      {
         QUIESCED_req = 1;
+        payload_sensors_scan(false);   /* power is about to be removed */
+      }
 #ifdef DEBUG
       printf("QUIESCED received\n");
 #endif
@@ -815,6 +818,9 @@ void vTaskPayload(void *pvParameters)
       break;
 
     case PAYLOAD_SWITCHING_OFF:
+      /* rails are going down: stop scanning them before they fall out of
+       * range, otherwise every sensor sends a lower-non-recoverable event */
+      payload_sensors_scan(false);
       ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 0);
       // ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
 
@@ -850,6 +856,7 @@ void vTaskPayload(void *pvParameters)
 
     case PAYLOAD_RESET:
       /*Reset DCDC converters*/
+      payload_sensors_scan(false);
       setDC_DC_ConvertersON(false);
       new_state = PAYLOAD_NO_POWER;
       break;
