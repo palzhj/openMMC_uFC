@@ -37,6 +37,35 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
 - [ ] **[opt]** Review the SDR list against the final UCD90320 rail map
       (the FMC VADJ sensors and the module current are verified).
 
+## RTM (rear transition module) management
+
+The u4FCP-v2 supports an RTM (`URTM_V2_3.pdf` in `downloads/schematics`).
+The generic RTM module and the board signals are present, but the RTM path
+is **switched off** in the u4FCP-v2 build:
+
+- `port/board/u4fcp-v2/CMakeLists.txt` has `# "RTM"` commented out, so
+  `MODULE_RTM` is not set and `modules/rtm.c` (rtm_manage_init,
+  rtm_check_presence, rtm_enable/disable_payload_power) is never compiled;
+- the port has **no `rtm.c`** (the afc-v3 port has the reference board file);
+- the RTM presence path is stubbed: `RTM_PS_B` / `RTM_RES` / `RTM_INT_B`
+  reads are commented in `board_config.c`, the RTM management-power enable
+  (`UCD_GPO_RTM_MP_EN_ID`) is commented in `payload.c`, and the boot log
+  prints `pwr : no RTM`;
+- the JTAG side is wired (`JTAG_RTM_EN_B`, `UCD_GPI_RTM_PS_B_ID`) and the
+  RTM EEPROM bus exists (`I2C_BUS_RTM_ID` = I2C2 ch5).
+
+- [ ] **[next]** Decide the RTM management model: the RTM has its own MMC/
+      FRU (the URTM_V2_3 sheet) — the AMC MMC can either manage the RTM
+      directly (the afc-v3 rtm.c model) or just provide the power/JTAG and
+      let the RTM's own MMC report.
+- [ ] **[next]** Port a `port/board/u4fcp-v2/rtm.c` (payload power on/off,
+      presence via `UCD_GPI_RTM_PS_B_ID`, reset/interrupt lines) and enable
+      `"RTM"` in TARGET_MODULES.
+- [ ] Add the RTM rails/sensors to the SDR if the AMC MMC reports them
+      (`12V0_RTM`, `RTM_PS#`, the RTM temperatures).
+- [ ] Verify the RTM FRU read over I2C2 ch5 and the RTM JTAG (`RTM_EN_B`)
+      with the RTM plugged (currently untested — no RTM in the crate).
+
 ## Toolbox
 
 - [x] ADN4604 mux table (inputs | inversion | gap | outputs, termination),
