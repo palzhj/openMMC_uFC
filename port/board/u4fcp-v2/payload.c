@@ -605,11 +605,6 @@ void vTaskPayload(void *pvParameters)
 		tpl0102_set_amc_voltage(0, WRITE_VADJ_VAL, true);
 		tpl0102_set_amc_voltage(1, WRITE_VADJ_VAL, true);
 #endif
-#ifdef MODULE_UART_DEBUG
-  /* debug only: the FMC VADJ values read back from the digital pots */
-  log_printk("vadj", "FMC0 %d mV", (int)(1000 * tpl0102_get_amc_voltage(0)));
-  log_printk("vadj", "FMC1 %d mV", (int)(1000 * tpl0102_get_amc_voltage(1)));
-#endif
 
 #endif
 
@@ -756,6 +751,13 @@ void vTaskPayload(void *pvParameters)
         ucd_set_power(&ucd_data[0], UCD_FMC1_VADJ_ID, 1);
         // ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC1_PG_C2M_ID, 1);
         vTaskDelay(1000/portTICK_PERIOD_MS);
+
+#ifdef MODULE_VIO_TPL0102
+        /* report the FMC VADJ actually programmed on every power-up */
+        log_printk("vadj", "FMC0 %d mV, FMC1 %d mV",
+                   (int)(1000 * tpl0102_get_amc_voltage(0)),
+                   (int)(1000 * tpl0102_get_amc_voltage(1)));
+#endif
 
         // Check RTM
         // ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 1);
