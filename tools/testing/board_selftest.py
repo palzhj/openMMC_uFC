@@ -125,6 +125,56 @@ def run(acc, mch, slot, soak):
     except Exception as e:
         record("3", "I2C zero-length write", False, str(e)[-50:])
 
+    # ---------------- phase 5: boundaries ---------------------------------
+    for name, args in (
+            ("EEPROM 0x01F0 (FRU end)", (1, [(0x70, 7)], 0x54, bytes([0x01, 0xF0]), 16)),
+            ("EEPROM 0x0200 (pointer)", (1, [(0x70, 7)], 0x54, bytes([0x02, 0x00]), 8)),
+            ("EEPROM 0x0280 (pointer copy 2)", (1, [(0x70, 7)], 0x54, bytes([0x02, 0x80]), 8)),
+            ("EEPROM 0x0300 (slot A)", (1, [(0x70, 7)], 0x54, bytes([0x03, 0x00]), 8)),
+            ("EEPROM 0x1AFF (slot A end)", (1, [(0x70, 7)], 0x54, bytes([0x1A, 0xFF]), 4)),
+            ("EEPROM 0x1B00 (slot B)", (1, [(0x70, 7)], 0x54, bytes([0x1B, 0x00]), 8)),
+            ("EEPROM 0x32FF (slot B end)", (1, [(0x70, 7)], 0x54, bytes([0x32, 0xFF]), 4)),
+            ("EEPROM 0xFFFC (end of part)", (1, [(0x70, 7)], 0x54, bytes([0xFF, 0xFC]), 4))):
+        try:
+            v = acc.xfer(*args)
+            record("5", name, len(v) > 0, v.hex())
+        except Exception as e:
+            record("5", name, False, str(e)[-50:])
+    # FRU size
+    try:
+        v = acc.read(0, 512)
+        record("5", "FRU 512 B read", len(v) == 512, "%d B" % len(v))
+    except Exception as e:
+        record("5", "FRU 512 B read", False, str(e)[-50:])
+
+    # ---------------- phase 4: upgrade / store failure recovery -----------
+    img = b"\x00" * 200
+    try:
+        acc.raw("0x2c", "0x31", "0x5a", "0x02", "0x01")          # HPM prepare
+        for i in range(3):
+            acc.raw("0x2c", "0x32", "0x5a", "0x%02x" % i,
+                    *["0x%02x" % b for b in img[i * 20:(i + 1) * 20]])
+        acc.raw("0x2c", "0x33", "0x5a", "0x00", "0xff", "0x00", "0x00", "0x00")
+        record("4", "HPM finish with wrong length", False, "accepted")
+    except Exception as e:
+        record("4", "HPM finish with wrong length", True, str(e)[-50:])
+    try:
+        v = acc.raw("0x06", "0x01")
+        record("4", "board alive after the HPM abort", len(v) >= 11, v.hex())
+    except Exception as e:
+        record("4", "board alive after the HPM abort", False, str(e)[-50:])
+    try:
+        before = acc.raw("0x32", "0x18")
+        acc.raw("0x32", "0x1a", "0xff", "0x20", "0x00", "0x00", "0x00", "0x00", "0x00")
+        acc.raw("0x32", "0x1b", "0x00", "0x00", *["0x%02x" % b for b in bytes(8)])
+        after = acc.raw("0x32", "0x18")
+        record("4", "interrupted clock-store write keeps the old slot",
+               before[0] == 1 and after[:2] == before[:2],
+               "valid=%d len=%d" % (after[0], after[2] | (after[3] << 8)))
+    except Exception as e:
+        record("4", "interrupted clock-store write keeps the old slot", False,
+               str(e)[-50:])
+
     # ---------------- phase 5: soak / long duration -----------------------
     t0 = time.time()
     n = 0
