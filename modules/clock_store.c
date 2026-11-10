@@ -29,6 +29,15 @@
 #include "eeprom_24xx512.h"
 #endif
 
+/* statistics of the last successful slot apply */
+static uint16_t clock_store_last_records;
+static uint16_t clock_store_last_registers;
+static uint32_t clock_store_last_ms;
+
+uint16_t clock_store_get_last_records(void)   { return clock_store_last_records; }
+uint16_t clock_store_get_last_registers(void) { return clock_store_last_registers; }
+uint32_t clock_store_get_last_ms(void)        { return clock_store_last_ms; }
+
 #define CLOCK_PTR_MAGIC   0x50434655u   /* "UFCP" */
 #define CLOCK_SLOT_MAGIC  0x43434655u   /* 'UFCC' */
 /* the second pointer copy must stay inside the pointer page (0x200..0x2FF):
@@ -330,7 +339,7 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         const uint8_t *data = rec + 4;
         uint8_t recid = data[3];
         rec_count++;
-#ifdef MODULE_UART_DEBUG
+#ifdef CLOCK_STORE_VERBOSE
         log_printk("clk", "rec off=%u rlen=%u chk=%s recid=0x%02x",
                (unsigned)off, rlen, (chk == 0) ? "ok" : "bad", recid);
 #endif
@@ -341,16 +350,16 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
             uint8_t dlen = (uint8_t)(plen - 8u);
             uint8_t dev_addr = payload[4];
             if (recid == 0x40 && dlen == 16u) {
-#ifdef MODULE_UART_DEBUG
+#ifdef CLOCK_STORE_VERBOSE
                 log_printk("clk", "switch record addr=0x%02x dlen=%u", dev_addr, dlen);
 #endif
                 if (!clock_store_apply_switch(p, dev_addr)) {
-#ifdef MODULE_UART_DEBUG
+#ifdef CLOCK_STORE_VERBOSE
                     log_printk("clk", "switch apply FAILED");
 #endif
                     return 0;
                 }
-#ifdef MODULE_UART_DEBUG
+#ifdef CLOCK_STORE_VERBOSE
                 log_printk("clk", "switch apply OK");
 #endif
             } else if ((recid & 0xF0) == 0x30 && dlen >= 3u) {
@@ -375,11 +384,10 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         }
         off += 4u + rlen;
     }
-#ifdef MODULE_UART_DEBUG
-    log_printk("clk", "apply done: %u records, %u registers, %u ms",
-           (unsigned)rec_count, (unsigned)si_count,
-           (unsigned)((xTaskGetTickCount() - t_apply0) * portTICK_PERIOD_MS));
-#endif
+    /* statistics for the caller (the payload prints one summary line) */
+    clock_store_last_records = rec_count;
+    clock_store_last_registers = si_count;
+    clock_store_last_ms = (uint32_t)((xTaskGetTickCount() - t_apply0) * portTICK_PERIOD_MS);
     return 1;
 }
 
@@ -409,7 +417,7 @@ int clock_store_apply(void)
     int found;
 
     int ok = ptr_load(&ptr, &found);
-#ifdef MODULE_UART_DEBUG
+#ifdef CLOCK_STORE_VERBOSE
     log_printk("clk", "ptr_load=%d found=%d slot=%d len=%u", ok, found, ptr.slot, ptr.len);
 #endif
     if (!ok) {

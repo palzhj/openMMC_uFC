@@ -16,6 +16,9 @@ int clock_store_apply_boot(void);
 
 /* Apply the active slot now. Returns 1 on success. */
 int clock_store_apply(void);
+uint16_t clock_store_get_last_records(void);
+uint16_t clock_store_get_last_registers(void);
+uint32_t clock_store_get_last_ms(void);
 
 /* Board hooks (weak defaults in clock_store.c): the switch record is 16
  * bytes; addr comes from the FRU device header (0x58 on the uFC,

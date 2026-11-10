@@ -301,21 +301,29 @@ static int payload_clock_log_status(void)
   static const char *names[2] = { "PLL0", "PLL1" };
   static const uint8_t chips[2] = { CHIP_ID_SI5345_0, CHIP_ID_SI5345_1 };
 
+  char state[2][10] = { "??", "??" };
   int ok = 0;
+
   for (uint8_t i = 0; i < 2; i++)
   {
     uint8_t live = 0xFF;
     if (!clock_program_pll_status(chips[i], &live, NULL))
     {
-      log_printk("clk", "%s status read error", names[i]);
+      strcpy(state[i], "err");
       ok = -1;
       continue;
     }
-    if (live & (1u << 2)) {
+    if (live & (1u << 2))
+    {
       ok = -1;
+      strcpy(state[i], "not lock");
     }
-    log_printk("clk", "%s %s", names[i], (live & (1u << 2)) ? "not locked" : "locked");
+    else
+    {
+      strcpy(state[i], "locked");
+    }
   }
+  log_printk("clk", "PLL0 %s, PLL1 %s", state[0], state[1]);
   return ok;
 }
 
@@ -330,7 +338,10 @@ static mmc_err payload_clock_configure(void)
    * from the main power, so they lose their configuration at every cycle. */
   if (clock_store_apply())
   {
-    log_printk("clk", "config from EEPROM preset");
+    log_printk("clk", "apply from EEPROM preset: %u records, %u registers (%u ms)",
+               (unsigned)clock_store_get_last_records(),
+               (unsigned)clock_store_get_last_registers(),
+               (unsigned)clock_store_get_last_ms());
     vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
     payload_clock_log_status();
     return MMC_OK;
