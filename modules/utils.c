@@ -29,6 +29,7 @@
 #include "FreeRTOS.h"
 #include "utils.h"
 #include "task.h"
+#include "semphr.h"
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -44,10 +45,27 @@ TickType_t getTickDifference(TickType_t current_time, TickType_t start_time)
     return result;
 }
 
+static SemaphoreHandle_t log_lock;
+
 void log_printk( const char * tag, const char * fmt, ... )
 {
     uint32_t ms = (uint32_t)((uint64_t)xTaskGetTickCount() * 1000u / configTICK_RATE_HZ);
+    BaseType_t locked = pdFALSE;
     va_list ap;
+
+    /* several tasks log concurrently (payload, hotswap, IPMI, sensors): keep
+     * each line atomic so characters from different lines never interleave */
+    if ( xTaskGetSchedulerState() == taskSCHEDULER_RUNNING )
+    {
+        if ( log_lock == NULL )
+        {
+            log_lock = xSemaphoreCreateMutex();
+        }
+        if ( log_lock != NULL )
+        {
+            locked = xSemaphoreTake( log_lock, pdMS_TO_TICKS( 50 ) );
+        }
+    }
 
     /* the tiny printf-stdarg has no 'l' modifier: use %u only */
     printf( "[%4u.%03u] %-5s: ", (unsigned)(ms / 1000u), (unsigned)(ms % 1000u), tag );
@@ -55,6 +73,11 @@ void log_printk( const char * tag, const char * fmt, ... )
     vprintf( fmt, ap );
     va_end( ap );
     printf( "\n" );
+
+    if ( locked == pdTRUE )
+    {
+        xSemaphoreGive( log_lock );
+    }
 }
 
 uint8_t calculate_chksum ( uint8_t * buffer, uint8_t range )

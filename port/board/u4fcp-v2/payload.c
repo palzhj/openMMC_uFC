@@ -296,21 +296,27 @@ static const uint8_t clock_config_default[16] = {
 /* Print the lock status of both Si5345s.
  * Status: 0x0C00 live / 0x0C01 sticky: [0] SYSINCAL, [1] LOSXAXB, [2] LOL,
  * [3] LOS, [4] OOF, [5] HOLD. */
-static void payload_clock_log_status(void)
+static int payload_clock_log_status(void)
 {
   static const char *names[2] = { "PLL0", "PLL1" };
   static const uint8_t chips[2] = { CHIP_ID_SI5345_0, CHIP_ID_SI5345_1 };
 
+  int ok = 0;
   for (uint8_t i = 0; i < 2; i++)
   {
     uint8_t live = 0xFF;
     if (!clock_program_pll_status(chips[i], &live, NULL))
     {
       log_printk("clk", "%s status read error", names[i]);
+      ok = -1;
       continue;
+    }
+    if (live & (1u << 2)) {
+      ok = -1;
     }
     log_printk("clk", "%s %s", names[i], (live & (1u << 2)) ? "not locked" : "locked");
   }
+  return ok;
 }
 
 /* Configure the clock switch and both PLLs.
@@ -772,6 +778,7 @@ void vTaskPayload(void *pvParameters)
         // Only change the state if the clock configuration succeeds
         FPGA_prom_timer = 0;
         new_state = PAYLOAD_STATE_FPGA_SETUP;
+        log_printk("boot", "payload power-up done");
       }
 #else
       new_state = PAYLOAD_STATE_FPGA_SETUP;
