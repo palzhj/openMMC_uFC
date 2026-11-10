@@ -6,9 +6,18 @@ ADN4604 and added a second Si5345). The controller is the **STM32F103C8T6**
 (64 KB flash, 20 KB SRAM, 1 KB pages) and the EEPROM an **AT24CM01**
 (1 Mbit = 128 KB, 256-byte pages).
 
-> The port sources are a copy of the v2 port; the clock section still refers
-> to the ADN4604 (driver, address 0x48, two PLL tables) and **must be aligned
-> with the v1 hardware** before the clocking is used on this board.
+## Clocking (v1 hardware)
+
+| device | I²C | driver |
+|---|---|---|
+| 8V54816A switch (`U67`) | `0x70` ch2, **0x58** | `modules/idt_8v54816.c`, 16-byte block write |
+| Si5345A PLL | `0x70` ch2, **0x69** (A1=0, A0=1) | `pll_configuration()`, 526-register table from `default_0-Registers.h` (the v1 ClockBuilder export) |
+
+The switch matrix follows the 8V54816A model (`bit7` output, `bit6`
+termination, `bit5` polarity, `[3:0]` source). The compiled default is
+conservative (all ports inputs); the actual routing is expected from the
+clock store (EEPROM slot, applied on every payload power-up) or is written
+with the toolbox's Clock tab (the v1 template shows the 8V54816A table).
 
 The board sources are an **independent copy** of the v2 port (i2c/pin
 mapping, SDR, FRU image, payload, OEM commands) so this port can diverge;

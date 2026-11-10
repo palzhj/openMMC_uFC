@@ -42,15 +42,15 @@
 #include "eeprom_24xx512.h"
 #include "i2c.h"
 #include "i2c_mapping.h"
-#ifdef MODULE_ADN4604
-#include "adn4604.h"
+#include "mmc_error.h"
+#ifdef MODULE_IDT_8V54816
+#include "idt_8v54816.h"
 #include "clock_config.h"
 #ifdef MODULE_CLOCK_STORE
 #include "clock_store.h"
 #include "clock_program.h"
 #endif
 #include "default_0-Registers.h"
-#include "default_1-Registers.h"
 #endif
 #ifdef MODULE_VIO_TPL0102
 #include "tpl0102.h"
@@ -276,7 +276,7 @@ float tpl0102_get_amc_voltage(uint8_t chn)
 
 #endif
 
-#ifdef MODULE_ADN4604
+#ifdef MODULE_IDT_8V54816
 
 mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_revd_registers_ptr)
 {
@@ -342,111 +342,28 @@ mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_
   return MMC_OK;
 }
 
-// Inputs for ADN4604
-#define ADN4604_IN_AMC_TX_P17 0
-#define ADN4604_IN_AMC_RX_P17 1
-#define ADN4604_IN_TCLKD 2
-#define ADN4604_IN_TCLKC 3
-#define ADN4604_IN_TCLKA 4
-#define ADN4604_IN_TCLKB 5
-#define ADN4604_IN_FCLKA 6
-#define ADN4604_IN_FPGA_CLK_OUT 7
-#define ADN4604_IN_PLL1_OUT 8
-#define ADN4604_IN_PLL0_OUT 9
-#define ADN4604_IN_FMC1_CLK_M2C 10
-#define ADN4604_IN_FMC1_CLK_BIDIR 11
-#define ADN4604_IN_FMC0_CLK_M2C 12
-#define ADN4604_IN_FMC0_CLK_BIDIR 13
-#define ADN4604_IN_LEMO_CLK 14
-#define ADN4604_IN_RTM2AMC_CLK 15
+/* 8V54816A clock switch (u4FCP-v1: U67 @0x58, channel 2 of the TCA9548A).
+ * One byte per port: bit7 = output, bit6 = 100 ohm termination, bit5 = polarity
+ * (1 = non-inverted), bits 3:0 = source port.  The 16 bytes are written as one
+ * block by modules/idt_8v54816.c. */
+#define CLK_SW_DIR_OUT   0x80
+#define CLK_SW_TERM      0x40
+#define CLK_SW_POL       0x20
 
-#define ADN4604_OUTPUT_EN 0x80
+mmc_err pll_configuration(uint8_t chip_id, const si5345_revd_register_t *si5345_revd_registers_ptr);
 
 mmc_err clock_configuration(const uint8_t clk_cfg[16])
 {
-  adn_connect_map_t con;
-  mmc_err error;
+  uint8_t block[16];
 
-  /* Disable input and output termination*/
-  error = adn4604_termination_ctl(0xF);
-  if (error != MMC_OK)
-  {
-    return error;
-  }
-
-  /* Translate the configuration to enable or disable the outputs */
-  uint16_t out_enable_flag = {
-      ((clk_cfg[0] & 0x80) >> 7) << 0 |
-      ((clk_cfg[1] & 0x80) >> 7) << 1 |
-      ((clk_cfg[2] & 0x80) >> 7) << 2 |
-      ((clk_cfg[3] & 0x80) >> 7) << 3 |
-      ((clk_cfg[4] & 0x80) >> 7) << 4 |
-      ((clk_cfg[5] & 0x80) >> 7) << 5 |
-      ((clk_cfg[6] & 0x80) >> 7) << 6 |
-      ((clk_cfg[7] & 0x80) >> 7) << 7 |
-      ((clk_cfg[8] & 0x80) >> 7) << 8 |
-      ((clk_cfg[9] & 0x80) >> 7) << 9 |
-      ((clk_cfg[10] & 0x80) >> 7) << 10 |
-      ((clk_cfg[11] & 0x80) >> 7) << 11 |
-      ((clk_cfg[12] & 0x80) >> 7) << 12 |
-      ((clk_cfg[13] & 0x80) >> 7) << 13 |
-      ((clk_cfg[14] & 0x80) >> 7) << 14 |
-      ((clk_cfg[15] & 0x80) >> 7) << 15};
-
-  /* Configure the interconnects*/
-  con.out0 = clk_cfg[0] & 0x0F;
-  con.out1 = clk_cfg[1] & 0x0F;
-  con.out2 = clk_cfg[2] & 0x0F;
-  con.out3 = clk_cfg[3] & 0x0F;
-  con.out4 = clk_cfg[4] & 0x0F;
-  con.out5 = clk_cfg[5] & 0x0F;
-  con.out6 = clk_cfg[6] & 0x0F;
-  con.out7 = clk_cfg[7] & 0x0F;
-  con.out8 = clk_cfg[8] & 0x0F;
-  con.out9 = clk_cfg[9] & 0x0F;
-  con.out10 = clk_cfg[10] & 0x0F;
-  con.out11 = clk_cfg[11] & 0x0F;
-  con.out12 = clk_cfg[12] & 0x0F;
-  con.out13 = clk_cfg[13] & 0x0F;
-  con.out14 = clk_cfg[14] & 0x0F;
-  con.out15 = clk_cfg[15] & 0x0F;
-
-  error = adn4604_xpt_config(ADN_XPT_MAP0_CON_REG, con);
-  if (error != MMC_OK)
-  {
-    return error;
-  }
-
-  /* Enable desired outputs */
   for (uint8_t i = 0; i < 16; i++)
   {
-    if ((out_enable_flag >> i) & 0x1)
-    {
-      error = adn4604_tx_control(i, TX_ENABLED);
-      if (error != MMC_OK)
-      {
-        return error;
-      }
-    }
-    else
-    {
-      error = adn4604_tx_control(i, TX_DISABLED);
-      if (error != MMC_OK)
-      {
-        return error;
-      }
-    }
+    block[i] = clk_cfg[i];
   }
-
-  error = adn4604_active_map(ADN_XPT_MAP0);
-  if (error != MMC_OK)
-  {
-    return error;
-  }
-
-  return adn4604_update();
+  return (clock_switch_write_reg(block) == 16) ? MMC_OK : MMC_IO_ERR;
 }
-#endif
+
+#endif /* MODULE_IDT_8V54816 */
 
 EventGroupHandle_t amc_payload_evt = NULL;
 #ifdef MODULE_RTM
@@ -501,23 +418,11 @@ void vTaskPayload(void *pvParameters)
 
 #endif
 
-  uint8_t clock_config[16];
-  clock_config[0] = ADN4604_IN_PLL1_OUT;
-  clock_config[1] = ADN4604_IN_PLL1_OUT | ADN4604_OUTPUT_EN;
-  clock_config[2] = ADN4604_IN_PLL1_OUT;
-  clock_config[3] = ADN4604_IN_PLL1_OUT;
-  clock_config[4] = ADN4604_IN_PLL1_OUT;
-  clock_config[5] = ADN4604_IN_PLL1_OUT;
-  clock_config[6] = ADN4604_IN_PLL1_OUT;
-  clock_config[7] = ADN4604_IN_PLL1_OUT;
-  clock_config[8] = ADN4604_IN_PLL1_OUT;
-  clock_config[9] = ADN4604_IN_PLL1_OUT;
-  clock_config[10] = ADN4604_IN_PLL1_OUT;
-  clock_config[11] = ADN4604_IN_PLL1_OUT;
-  clock_config[12] = ADN4604_IN_PLL1_OUT;
-  clock_config[13] = ADN4604_IN_PLL1_OUT;
-  clock_config[14] = ADN4604_IN_PLL1_OUT;
-  clock_config[15] = ADN4604_IN_PLL1_OUT;
+  /* 8V54816A default: every port an input (no outputs enabled).  The real
+   * routing is expected from the clock store (EEPROM slot) or the toolbox;
+   * the v1 board's port map is documented in tools/clocking/u4fcp-v1-clocking.json. */
+  uint8_t clock_config[16] = { 0, 0, 0, 0, 0, 0, 0, 0,
+                               0, 0, 0, 0, 0, 0, 0, 0 };
 
   uint8_t state = PAYLOAD_NO_POWER;
   /* Use arbitrary state value to force the first state update */
@@ -548,7 +453,7 @@ void vTaskPayload(void *pvParameters)
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
 
-#ifdef MODULE_ADN4604
+#ifdef MODULE_IDT_8V54816
   /* Recover clock switch configuration saved in EEPROM */
   // eeprom_24xx512_read(CHIP_ID_RTC_EEPROM, 0x0, clock_config, 16, 10);
 #endif
@@ -566,26 +471,17 @@ void vTaskPayload(void *pvParameters)
      */
     if (current_evt & PAYLOAD_MESSAGE_CLOCK_CONFIG)
     {
-#ifdef MODULE_ADN4604
-      // eeprom_24xx02_write(CHIP_ID_RTC_EEPROM, 0x0, clock_config, 16, 10);
+#ifdef MODULE_IDT_8V54816
       if (PAYLOAD_FPGA_ON)
       {
-        if (adn4604_reset() == MMC_OK)
-          printf("ADN4604 reset OK\n");
-        else
-          printf("ADN4604 reset ERROR\n");
         if (clock_configuration(clock_config) == MMC_OK)
-          printf("ADN4604 config OK\n");
+          log_printk("clk", "8V54816A configured");
         else
-          printf("ADN4604 config ERROR\n");
+          log_printk("clk", "8V54816A config failed");
         if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) == MMC_OK)
-          printf("PLL0 config OK\n");
+          log_printk("clk", "PLL configured");
         else
-          printf("PLL0 config ERROR\n");
-        if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) == MMC_OK)
-          printf("PLL1 config OK\n");
-        else
-          printf("PLL1 config ERROR\n");
+          log_printk("clk", "PLL config failed");
       }
 #endif
       xEventGroupClearBits(amc_payload_evt, PAYLOAD_MESSAGE_CLOCK_CONFIG);
@@ -686,34 +582,33 @@ void vTaskPayload(void *pvParameters)
 
     case PAYLOAD_STATE_CLK_SETUP:
       if (QUIESCED_req || (PP_good == 0)) new_state = PAYLOAD_SWITCHING_OFF;
-#ifdef MODULE_ADN4604
-      /* Configure clock switch */
-      if (adn4604_reset() == MMC_OK)
+#ifdef MODULE_IDT_8V54816
+      /* Clock switch + the single PLL (8V54816A @0x58, Si5345 @0x69).  The
+       * clock store is applied first (it reprograms the switch and the PLL);
+       * the compiled default is used when the store holds no valid slot. */
+#if defined(MODULE_CLOCK_STORE)
+      if (clock_store_apply())
       {
-        if (clock_configuration(clock_config) == MMC_OK)
-        {
-          printf("ADN4604 config OK\n");
-          if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) == MMC_OK)
-          {
-            printf("PLL0 config OK\n");
-            if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) == MMC_OK)
-            {
-              printf("PLL1 config OK\n");
-              // Only change the state if the clock configuration succeeds
-              FPGA_prom_timer = 0;
-              new_state = PAYLOAD_STATE_FPGA_SETUP;
-            }
-            else
-              printf("PLL1 config ERROR\n");
-          }
-          else
-            printf("PLL0 config ERROR\n");
-        }
-        else
-          printf("ADN4604 config ERROR\n");
+        log_printk("clk", "config from EEPROM preset");
       }
       else
-        printf("ADN4604 reset ERROR\n");
+#endif
+      if (clock_configuration(clock_config) != MMC_OK)
+      {
+        log_printk("clk", "8V54816A config failed");
+        break;
+      }
+      else if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) != MMC_OK)
+      {
+        log_printk("clk", "PLL config failed");
+        break;
+      }
+      else
+      {
+        log_printk("clk", "config from defaults");
+      }
+      FPGA_prom_timer = 0;
+      new_state = PAYLOAD_STATE_FPGA_SETUP;
 #else
       new_state = PAYLOAD_STATE_FPGA_SETUP;
 #endif
@@ -925,27 +820,17 @@ uint8_t payload_hpm_activate_firmware(void)
 #endif
 
 #if defined(MODULE_CLOCK_STORE)
-/* Clock-store board hooks: the 16-byte switch record uses the ADN4604
- * configuration format (bit 7 = output enable, bits 3:0 = input select),
- * and the FRU device-header address selects the PLL (0x68 = PLL0,
- * 0x69 = PLL1). */
-int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
-{
-    if (addr != 0x48) {
-        return 0;   /* ADN4604 */
-    }
-    return clock_configuration(matrix) == MMC_OK;
-}
+/* Clock-store board hooks for the u4FCP-v1: the switch record is the 8V54816A
+ * matrix (0x58), the FRU device-header address selects the device (0x69 = the
+ * single Si5345). */
+/* clock_store_apply_switch() comes from modules/idt_8v54816.c (8V54816A) */
 
 int clock_store_apply_si5345(uint8_t addr, uint16_t reg, uint8_t val)
 {
-    if (addr == 0x68) {
-        clock_program_select_chip(CHIP_ID_SI5345_0);
-    } else if (addr == 0x69) {
-        clock_program_select_chip(CHIP_ID_SI5345_1);
-    } else {
+    if (addr != 0x69) {
         return 0;
     }
+    clock_program_select_chip(CHIP_ID_SI5345_0);
     return clock_program_write_entry(reg, val);
 }
 #endif

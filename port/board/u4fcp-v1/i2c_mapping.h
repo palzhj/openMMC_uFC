@@ -25,9 +25,8 @@ enum {
     CHIP_ID_MUX_0 = 0,
     CHIP_ID_FMC0_EEPROM,
     CHIP_ID_FMC1_EEPROM,
-    CHIP_ID_ADN,
-    CHIP_ID_SI5345_0,
-    CHIP_ID_SI5345_1,
+    CHIP_ID_8V54816,          /* 8V54816A clock switch @0x58 */
+    CHIP_ID_SI5345_0,         /* the single Si5345A PLL @0x69 (A1=0, A0=1) */
     // CHIP_ID_FPGA_0,
     CHIP_ID_TCA9554_JTAG_0,
     // CHIP_ID_FIREFLY_0,

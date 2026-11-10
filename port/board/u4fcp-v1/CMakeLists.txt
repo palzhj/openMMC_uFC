@@ -23,7 +23,7 @@ set(TARGET_MODULES
   "HOTSWAP_SENSOR"
   "PAYLOAD"
   "VIO_TPL0102"
-  "ADN4604"
+  "8V54816"
   # "CLOCK_CONFIG"
   "UCD90XXX"
   )
@@ -46,8 +46,9 @@ if (";${TARGET_MODULES};" MATCHES ";BOARD_CONFIG;")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_BOARD_CONFIG")
 endif()
 
-if (";${TARGET_MODULES};" MATCHES ";ADN4604;")
-  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_ADN4604")
+if (";${TARGET_MODULES};" MATCHES ";8V54816;")
+  set(MODULES_FLAGS "${MODULES_FLAGS} -DMODULE_IDT_8V54816")
+  set(PROJ_SRCS ${PROJ_SRCS} ${CMAKE_SOURCE_DIR}/modules/idt_8v54816.c)
 endif()
 
 if (";${TARGET_MODULES};" MATCHES ";VIO_TPL0102;")
@@ -81,7 +82,7 @@ option(CLOCK_STORE "Clock configuration store (EEPROM slots) over IPMI" ON)
 if (CLOCK_STORE)
   list(APPEND TARGET_MODULES "CLOCK_STORE")
   set(MODULES_FLAGS "${MODULES_FLAGS} -DCLOCK_STORE_EEPROM")
-  # the ADN4604/Si5345 are powered from the payload main power:
+  # the 8V54816A/Si5345 are powered from the payload main power:
   set(MODULES_FLAGS "${MODULES_FLAGS} -DCLOCK_STORE_APPLY_IN_PAYLOAD")
 endif()
 option(I2C_ACCESS "Enable generic I2C transfers over IPMI" ON)
