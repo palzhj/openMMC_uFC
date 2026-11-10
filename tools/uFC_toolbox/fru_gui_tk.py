@@ -605,44 +605,50 @@ class FruEditor(tk.Tk):
         ttk.Combobox(row, textvariable=self.slot_sel, values=("auto", "A", "B"),
                      width=5, state="readonly").pack(side="left")
 
-        grid = ttk.Frame(parent)
-        grid.pack(fill="both", expand=True, pady=(0, 4))
+        body = ttk.Frame(parent)
+        body.pack(fill="both", expand=True, pady=(0, 4))
+        in_lf = ttk.LabelFrame(body, text="inputs  (INV = P/N inversion)",
+                               style="Section.TLabelframe", padding=(6, 2))
+        in_lf.pack(side="left", fill="both", expand=True, padx=(0, 14))
+        out_lf = ttk.LabelFrame(body, text="outputs  (source select + TX enable)",
+                                style="Section.TLabelframe", padding=(6, 2))
+        out_lf.pack(side="left", fill="both", expand=True)
+
         labels = self._mux_port_labels()
         src_names = self._mux_sources()
         values = ["IN%d %s" % (i, src_names[i].split(" ", 1)[1]) if i in src_names else "IN%d" % i
                   for i in range(16)]
-        # headers: inputs (name + inversion) | gap | outputs (name + source + TX enable)
-        heads = (("input", 0), ("inv", 1), ("", 2), ("output", 3),
-                 ("source (input)", 4), ("TX enable", 5))
-        for text, col in heads:
-            ttk.Label(grid, text=text, style="Hint.TLabel").grid(
-                row=0, column=col, sticky="w", padx=(4, 8) if col != 2 else (0, 0))
-        ttk.Label(grid, text="", width=4).grid(row=0, column=2)
+
         self.adn_out = []
         self.adn_inv = []
+
+        ttk.Label(in_lf, text="input", style="Hint.TLabel").grid(row=0, column=0, sticky="w", padx=(4, 8))
+        ttk.Label(in_lf, text="inv", style="Hint.TLabel").grid(row=0, column=1, sticky="w", padx=(4, 8))
         for i in range(16):
             name = labels.get(i, "CLK%d" % i)
-            # left: input name + inversion
-            ttk.Label(grid, text=name, width=22, anchor="w",
+            ttk.Label(in_lf, text=name, width=22, anchor="w",
                       font=(UI_FONT, 9)).grid(row=i + 1, column=0, sticky="w", padx=(4, 8))
             inv = tk.BooleanVar(value=False)
-            cb = ttk.Checkbutton(grid, text="INV", variable=inv)
+            cb = ttk.Checkbutton(in_lf, text="INV", variable=inv)
             cb.grid(row=i + 1, column=1, sticky="w", padx=(4, 8))
             self._hint(cb, "SIGN[%d]: 1 = invert the P/N pair of input IN%d" % (i, i))
             self.adn_inv.append(inv)
-            # gap column
-            ttk.Label(grid, text="", width=14).grid(row=i + 1, column=2)
-            # right: output row
-            ttk.Label(grid, text=name, width=22, anchor="w",
-                      font=(UI_FONT, 9)).grid(row=i + 1, column=3, sticky="w", padx=(4, 8))
+
+        ttk.Label(out_lf, text="output", style="Hint.TLabel").grid(row=0, column=0, sticky="w", padx=(4, 8))
+        ttk.Label(out_lf, text="source (input)", style="Hint.TLabel").grid(row=0, column=1, sticky="w", padx=(4, 8))
+        ttk.Label(out_lf, text="TX enable", style="Hint.TLabel").grid(row=0, column=2, sticky="w", padx=(4, 8))
+        for i in range(16):
+            name = labels.get(i, "CLK%d" % i)
+            ttk.Label(out_lf, text=name, width=22, anchor="w",
+                      font=(UI_FONT, 9)).grid(row=i + 1, column=0, sticky="w", padx=(4, 8))
             src = tk.StringVar(value=values[0] if values else "IN0")
-            sb = ttk.Combobox(grid, textvariable=src, values=values, width=22, state="readonly")
-            sb.grid(row=i + 1, column=4, sticky="w", padx=(4, 8))
+            sb = ttk.Combobox(out_lf, textvariable=src, values=values, width=22, state="readonly")
+            sb.grid(row=i + 1, column=1, sticky="w", padx=(4, 8))
             self._hint(sb, "input routed to this output (map byte [3:0])")
             en = tk.StringVar(value="disabled")
-            eb = ttk.Combobox(grid, textvariable=en, values=self.ADN_TX_MODES, width=10,
+            eb = ttk.Combobox(out_lf, textvariable=en, values=self.ADN_TX_MODES, width=10,
                               state="readonly")
-            eb.grid(row=i + 1, column=5, sticky="w", padx=(4, 8))
+            eb.grid(row=i + 1, column=2, sticky="w", padx=(4, 8))
             self._hint(eb, "TX basic control [5:4]: 00 disabled, 11 enabled")
             self.adn_out.append({"src": src, "en": en})
 
