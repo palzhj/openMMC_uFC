@@ -2,16 +2,17 @@
  "format": "ufc-clocking",
  "version": 1,
  "meta": {
-  "board": "u4FCP v2",
-  "status": "partial",
+  "board": "u4FCP v2.2",
+  "status": "transcribed",
   "sources": [
-   "u4FCPv2/readme/clock.png (block diagram)",
-   "u4FCPv2/template/u4FCPv2 (CLK scripts, KUP XDC)"
+   "downloads/schematics/u4FCP_V2.2.pdf sheet 9 (Clock)",
+   "u4FCPv2/readme/clock.png (block diagram)"
   ],
   "notes": [
-   "MUX ports from the u4FCPv2 clock block diagram (u4FCPv2/readme/clock.png) and",
-   "the firmware's ADN4604_IN_* port defines (port N = CLK<N>); the pin-level",
-   "schematic page for the ADN4604 has not been transcribed yet, so 'pin' is empty."
+   "ADN4604 U79B: 16 in (IN0..IN15) and 16 out (OUT0..OUT15); the AMC/FCLK/TCLK/AMC_TX/RX pairs pass through the switch (IN + OUT pair per port).",
+   "PLL0 = U85 @0x68, PLL1 = U61 @0x69 (silkscreen addresses 7'b1101_000 / 7'b1101_001).",
+   "The PLL outputs loop back into the switch (PLL0/1 OUT -> IN9/IN8) and the switch can feed the PLL inputs (OUT6/OUT7).",
+   "Termination: 0xF0 = 0x0F is the firmware default; the AC-coupled lines rely on the far-end 100 ohm (AMC/FMC) - to be confirmed by measurement."
   ]
  },
  "boards": {
@@ -34,32 +35,19 @@
    ]
   },
   "MUX0": {
-   "part": "ADN4604",
+   "part": "ADN4604ASVZ",
    "bus": 1,
    "addr": 72,
    "parent": "u4fcp",
    "class": "chip",
-   "label": "MUX 0",
+   "label": "ADN4604 (U79B)",
    "box": [
     160,
     30,
     240,
     420
-   ]
-  },
-  "MUX1": {
-   "part": "ADN4604",
-   "bus": 1,
-   "addr": 72,
-   "parent": "u4fcp",
-   "class": "chip",
-   "label": "MUX 1 (RTM)",
-   "box": [
-    160,
-    470,
-    240,
-    300
-   ]
+   ],
+   "page": "u4FCP_V2.2.pdf sheet 9"
   },
   "FMC0": {
    "part": "FMC0",
@@ -110,12 +98,12 @@
    ]
   },
   "PLL0": {
-   "part": "Si5345 (2:10)",
+   "part": "Si5345B-D-GM",
    "bus": 1,
-   "addr": 105,
+   "addr": 104,
    "parent": "u4fcp",
    "class": "chip",
-   "label": "PLL 0",
+   "label": "PLL0 (U85)",
    "box": [
     600,
     260,
@@ -124,31 +112,17 @@
    ]
   },
   "PLL1": {
-   "part": "Si5345 (2:10)",
+   "part": "Si5345B-D-GM",
    "bus": 1,
-   "addr": 106,
+   "addr": 105,
    "parent": "u4fcp",
    "class": "chip",
-   "label": "PLL 1",
+   "label": "PLL1 (U61)",
    "box": [
     600,
     470,
     140,
     200
-   ]
-  },
-  "PLL2": {
-   "part": "Si5345 (2:10)",
-   "bus": 1,
-   "addr": 107,
-   "parent": "u4fcp",
-   "class": "chip",
-   "label": "PLL 2",
-   "box": [
-    600,
-    680,
-    140,
-    120
    ]
   },
   "KUP": {
@@ -195,12 +169,13 @@
    "device": "ADN4604",
    "name": "CLK0",
    "signal": "AMC_TX_P17",
-   "note": "AMC WR part 17 transmit pair",
-   "dir": "inout",
+   "pin": "2/3",
+   "note": "AMC WR part 17 transmit pair (AMC_TX_L_P17 -> C594 -> IN0)",
+   "dir": "in",
    "capability": {
     "in": true,
-    "out": true,
-    "tristate": true,
+    "out": false,
+    "tristate": false,
     "default": "in"
    }
   },
@@ -210,12 +185,13 @@
    "device": "ADN4604",
    "name": "CLK1",
    "signal": "AMC_RX_P17",
+   "pin": "5/6",
    "note": "AMC WR part 17 receive pair",
-   "dir": "inout",
+   "dir": "in",
    "capability": {
     "in": true,
-    "out": true,
-    "tristate": true,
+    "out": false,
+    "tristate": false,
     "default": "in"
    }
   },
@@ -225,6 +201,7 @@
    "device": "ADN4604",
    "name": "CLK2",
    "signal": "TCLKD",
+   "pin": "8/9",
    "note": "AMC TCLKD",
    "dir": "in",
    "capability": {
@@ -240,6 +217,7 @@
    "device": "ADN4604",
    "name": "CLK3",
    "signal": "TCLKC",
+   "pin": "11/12",
    "note": "AMC TCLCK",
    "dir": "in",
    "capability": {
@@ -255,6 +233,7 @@
    "device": "ADN4604",
    "name": "CLK4",
    "signal": "TCLKA",
+   "pin": "14/15",
    "note": "AMC TCLKA",
    "dir": "in",
    "capability": {
@@ -270,6 +249,7 @@
    "device": "ADN4604",
    "name": "CLK5",
    "signal": "TCLKB",
+   "pin": "17/18",
    "note": "AMC TCLKB",
    "dir": "in",
    "capability": {
@@ -285,6 +265,7 @@
    "device": "ADN4604",
    "name": "CLK6",
    "signal": "FCLKA",
+   "pin": "20/21",
    "note": "AMC FCLKA",
    "dir": "in",
    "capability": {
@@ -300,7 +281,8 @@
    "device": "ADN4604",
    "name": "CLK7",
    "signal": "FPGA_CLK_OUT",
-   "note": "FPGA KUP clock output",
+   "pin": "23/24",
+   "note": "FPGA clock output (FPGA_CLK_OUT_P/N -> C580/C579)",
    "dir": "in",
    "capability": {
     "in": true,
@@ -315,7 +297,8 @@
    "device": "ADN4604",
    "name": "CLK8",
    "signal": "PLL1_OUT",
-   "note": "PLL1 output (into the mux)",
+   "pin": "52/53",
+   "note": "PLL1 (Si5345 U61) output -> PLL1_OUT_C_P/N",
    "dir": "in",
    "capability": {
     "in": true,
@@ -330,7 +313,8 @@
    "device": "ADN4604",
    "name": "CLK9",
    "signal": "PLL0_OUT",
-   "note": "PLL0 output (into the mux)",
+   "pin": "55/56",
+   "note": "PLL0 (Si5345 U85) output -> PLL0_OUT_C_P/N",
    "dir": "in",
    "capability": {
     "in": true,
@@ -345,13 +329,14 @@
    "device": "ADN4604",
    "name": "CLK10",
    "signal": "FMC1_CLK_M2C",
-   "note": "FMC1 CLK0/CLK1 M2C",
-   "dir": "out",
+   "pin": "58/59",
+   "note": "FMC1 CLK_M2C pair",
+   "dir": "in",
    "capability": {
-    "in": false,
-    "out": true,
+    "in": true,
+    "out": false,
     "tristate": false,
-    "default": "out"
+    "default": "in"
    }
   },
   {
@@ -360,12 +345,13 @@
    "device": "ADN4604",
    "name": "CLK11",
    "signal": "FMC1_CLK_BIDIR",
-   "note": "FMC1 CLK2/CLK3 bidirectional",
-   "dir": "inout",
+   "pin": "61/62",
+   "note": "FMC1 CLK_BIDIR pair",
+   "dir": "in",
    "capability": {
     "in": true,
-    "out": true,
-    "tristate": true,
+    "out": false,
+    "tristate": false,
     "default": "in"
    }
   },
@@ -375,13 +361,14 @@
    "device": "ADN4604",
    "name": "CLK12",
    "signal": "FMC0_CLK_M2C",
-   "note": "FMC0 CLK0/CLK1 M2C",
-   "dir": "out",
+   "pin": "64/65",
+   "note": "FMC0 CLK_M2C pair",
+   "dir": "in",
    "capability": {
-    "in": false,
-    "out": true,
+    "in": true,
+    "out": false,
     "tristate": false,
-    "default": "out"
+    "default": "in"
    }
   },
   {
@@ -390,12 +377,13 @@
    "device": "ADN4604",
    "name": "CLK13",
    "signal": "FMC0_CLK_BIDIR",
-   "note": "FMC0 CLK2/CLK3 bidirectional",
-   "dir": "inout",
+   "pin": "67/68",
+   "note": "FMC0 CLK_BIDIR pair",
+   "dir": "in",
    "capability": {
     "in": true,
-    "out": true,
-    "tristate": true,
+    "out": false,
+    "tristate": false,
     "default": "in"
    }
   },
@@ -404,13 +392,14 @@
    "parent": "MUX0",
    "device": "ADN4604",
    "name": "CLK14",
-   "signal": "LEMO_CLK",
-   "note": "front panel LEMO clock",
-   "dir": "inout",
+   "signal": "LEMO_CLK_IN",
+   "pin": "70/71",
+   "note": "LEMO clock input",
+   "dir": "in",
    "capability": {
     "in": true,
-    "out": true,
-    "tristate": true,
+    "out": false,
+    "tristate": false,
     "default": "in"
    }
   },
@@ -420,7 +409,8 @@
    "device": "ADN4604",
    "name": "CLK15",
    "signal": "RTM2AMC_CLK",
-   "note": "RTM to AMC clock",
+   "pin": "73/74",
+   "note": "RTM -> AMC clock",
    "dir": "in",
    "capability": {
     "in": true,
@@ -428,15 +418,355 @@
     "tristate": false,
     "default": "in"
    }
+  },
+  {
+   "id": "MUX.OUT0",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT0",
+   "signal": "AMC2RTM_CLK",
+   "pin": "27/28",
+   "note": "AMC -> RTM clock",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT1",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT1",
+   "signal": "MMCX_OUT",
+   "pin": "30/31",
+   "note": "MMCX connector",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT2",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT2",
+   "signal": "FMC0_CLK_OUT_P2",
+   "pin": "33/34",
+   "note": "FMC0 clock output pair 2",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT3",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT3",
+   "signal": "AMC2RTM_TCLK",
+   "pin": "36/37",
+   "note": "AMC -> RTM TCLK",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT4",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT4",
+   "signal": "FMC1_CLK_OUT_P2",
+   "pin": "39/40",
+   "note": "FMC1 clock output pair 2",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT5",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT5",
+   "signal": "AMC2RTM_GTCLK",
+   "pin": "42/43",
+   "note": "AMC -> RTM GTCLK",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT6",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT6",
+   "signal": "PLL0_IN",
+   "pin": "45/46",
+   "note": "PLL0 input (U85 IN0/IN1)",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT7",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT7",
+   "signal": "PLL1_IN",
+   "pin": "48/49",
+   "note": "PLL1 input (U61 IN0/IN1)",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT8",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT8",
+   "signal": "FPGA_CLK_SW",
+   "pin": "77/78",
+   "note": "switch clock to the FPGA (FPGA_CLK_SW_P/N)",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT9",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT9",
+   "signal": "AMC_FCLKA_COUT",
+   "pin": "80/81",
+   "note": "switch -> AMC FCLKA (back to the AMC)",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT10",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT10",
+   "signal": "AMC_TCLKB_COUT",
+   "pin": "83/84",
+   "note": "switch -> AMC TCLKB",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT11",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT11",
+   "signal": "AMC_TCLKA_COUT",
+   "pin": "86/87",
+   "note": "switch -> AMC TCLKA",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT12",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT12",
+   "signal": "AMC_TCLCK_COUT",
+   "pin": "89/90",
+   "note": "switch -> AMC TCLCK",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT13",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT13",
+   "signal": "AMC_TCLKD_COUT",
+   "pin": "92/93",
+   "note": "switch -> AMC TCLKD",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT14",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT14",
+   "signal": "AMC_RX_COUT",
+   "pin": "95/96",
+   "note": "switch -> AMC RX pair",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "MUX.OUT15",
+   "parent": "MUX0",
+   "device": "ADN4604",
+   "name": "OUT15",
+   "signal": "AMC_TX_COUT",
+   "pin": "98/99",
+   "note": "switch -> AMC TX pair",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "PLL0.IN",
+   "parent": "PLL0",
+   "device": "Si5345",
+   "name": "IN0/IN1",
+   "signal": "PLL0_IN",
+   "pin": "63/64",
+   "note": "from the ADN4604 OUT6",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "PLL0.OUT",
+   "parent": "PLL0",
+   "device": "Si5345",
+   "name": "OUT0\u2026OUT11",
+   "signal": "PLL0_OUT",
+   "note": "FPGA MGT clocks, FMC/RTM clocks",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
+  },
+  {
+   "id": "PLL1.IN",
+   "parent": "PLL1",
+   "device": "Si5345",
+   "name": "IN0/IN1",
+   "signal": "PLL1_IN",
+   "pin": "63/64",
+   "note": "from the ADN4604 OUT7",
+   "dir": "in",
+   "capability": {
+    "in": true,
+    "out": false,
+    "tristate": false,
+    "default": "in"
+   }
+  },
+  {
+   "id": "PLL1.OUT",
+   "parent": "PLL1",
+   "device": "Si5345",
+   "name": "OUT0\u2026OUT11",
+   "signal": "PLL1_OUT",
+   "note": "FPGA MGT clocks, FMC/RTM clocks",
+   "dir": "out",
+   "capability": {
+    "in": false,
+    "out": true,
+    "tristate": true,
+    "default": "out"
+   }
   }
  ],
- "links": [],
+ "links": [
+  {
+   "a": "PLL0.OUT",
+   "b": "MUX.CLK9",
+   "kind": "fixed"
+  },
+  {
+   "a": "PLL1.OUT",
+   "b": "MUX.CLK8",
+   "kind": "fixed"
+  },
+  {
+   "a": "MUX.OUT6",
+   "b": "PLL0.IN",
+   "kind": "fixed"
+  },
+  {
+   "a": "MUX.OUT7",
+   "b": "PLL1.IN",
+   "kind": "fixed"
+  }
+ ],
  "routing": {},
  "clock": {
   "switch": {
-   "part": "ADN4604",
+   "part": "ADN4604ASVZ",
    "addr": 72,
-   "format": "adn4604"
+   "format": "adn4604",
+   "note": "U79B, I2C 0x48 (ADDR0=ADDR1=0), SCL/SDA 76/75, RESET_B 1, UPDATE 25; internal 50 ohm termination 0xF0 bits (firmware writes 0x0F = all off)."
   },
   "plls": [
    {

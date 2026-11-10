@@ -5,15 +5,15 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
 
 ## Clocking (ADN4604 / Si5345)
 
-- [ ] **[blocked]** Transcribe the ADN4604 pin-level schematic (the u4FCPv2
-      clock page) into `tools/clocking/u4fcp-v2-clocking.json`: the package
-      pins of the 16 ports and the port↔net `links`. The file is currently
-      `meta.status = "partial"` — 16 points with directions, **0 links, no
-      pins**, so the System diagram has no routing graph and the validator
-      only checks the names.
-- [ ] **[blocked]** Confirm the ADN4604 termination setting against the
-      schematic: the firmware writes `0xF0 = 0x0F` (all four 50 Ω quadrants
-      disabled) on the assumption that the far end terminates.
+- [x] Transcribed the ADN4604 pin-level map from `u4FCP_V2.2.pdf` sheet 9
+      into `tools/clocking/u4fcp-v2-clocking.json`: 32 ports (IN0..IN15,
+      OUT0..OUT15) with package pins and nets, the PLL input/fb links
+      (`PLL0_OUT`→IN9, `PLL1_OUT`→IN8, OUT6→PLL0, OUT7→PLL1), U85@0x68 and
+      U61@0x69. The validator reports 36 points / 4 links / 0 errors.
+- [ ] **[next]** Confirm the ADN4604 termination by measurement: the firmware
+      writes `0xF0 = 0x0F` (all four 50 Ω quadrants disabled). The schematic
+      is AC-coupled everywhere with the far end (AMC/FMC/FPGA) providing the
+      differential termination; check one link with a scope before changing.
 - [ ] **[next]** Decide and capture the **real routing**. The stored preset
       (`tools/firmware/u4fcp-v2/clk-preset.bin`) and the compiled default
       are all outputs disabled (`0x08 ×16`, i.e. every output ← input 8,

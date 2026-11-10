@@ -187,19 +187,51 @@ input select**. `clock_configuration()` translates it into:
 FPGA/fan-out actually consumes (the Clock tab's ADN4604 table or the stored
 preset).
 
-## Port names (firmware `ADN4604_IN_*`)
+## Port map (u4FCP_V2.2 schematic, sheet 9, U79B)
 
-| # | signal | # | signal |
-|---|---|---|---|
-| 0 | `AMC_TX_P17` | 8 | `PLL1_OUT` |
-| 1 | `AMC_RX_P17` | 9 | `PLL0_OUT` |
-| 2 | `TCLKD` | 10 | `FMC1_CLK_M2C` |
-| 3 | `TCLCK` | 11 | `FMC1_CLK_BIDIR` |
-| 4 | `TCLKA` | 12 | `FMC0_CLK_M2C` |
-| 5 | `TCLKB` | 13 | `FMC0_CLK_BIDIR` |
-| 6 | `FCLKA` | 14 | `LEMO_CLK` |
-| 7 | `FPGA_CLK_OUT` | 15 | `RTM2AMC_CLK` |
+The ADN4604 has 16 fixed inputs and 16 fixed outputs; the AMC TCLK/FCLK/
+TX/RX pairs pass through the switch (an input from the AMC and an output
+back to the AMC).
 
-Source: `u4FCPv2/readme/clock.png` (clock block diagram) and the firmware
-port defines; the pin-level schematic page for the ADN4604 has not been
+**Inputs** (`ADN4604_IN_*` in the firmware):
+
+| port | pins | net | | port | pins | net |
+|---|---|---|---|---|---|---|
+| IN0 | 2/3 | `AMC_TX_P17` | | IN8 | 52/53 | `PLL1_OUT` |
+| IN1 | 5/6 | `AMC_RX_P17` | | IN9 | 55/56 | `PLL0_OUT` |
+| IN2 | 8/9 | `TCLKD` | | IN10 | 58/59 | `FMC1_CLK_M2C` |
+| IN3 | 11/12 | `TCLKC` | | IN11 | 61/62 | `FMC1_CLK_BIDIR` |
+| IN4 | 14/15 | `TCLKA` | | IN12 | 64/65 | `FMC0_CLK_M2C` |
+| IN5 | 17/18 | `TCLKB` | | IN13 | 67/68 | `FMC0_CLK_BIDIR` |
+| IN6 | 20/21 | `FCLKA` | | IN14 | 70/71 | `LEMO_CLK_IN` |
+| IN7 | 23/24 | `FPGA_CLK_OUT` | | IN15 | 73/74 | `RTM2AMC_CLK` |
+
+**Outputs:**
+
+| port | pins | net | | port | pins | net |
+|---|---|---|---|---|---|---|
+| OUT0 | 27/28 | `AMC2RTM_CLK` | | OUT8 | 77/78 | `FPGA_CLK_SW` |
+| OUT1 | 30/31 | `MMCX_OUT` | | OUT9 | 80/81 | `AMC_FCLKA_COUT` |
+| OUT2 | 33/34 | `FMC0_CLK_OUT_P2` | | OUT10 | 83/84 | `AMC_TCLKB_COUT` |
+| OUT3 | 36/37 | `AMC2RTM_TCLK` | | OUT11 | 86/87 | `AMC_TCLKA_COUT` |
+| OUT4 | 39/40 | `FMC1_CLK_OUT_P2` | | OUT12 | 89/90 | `AMC_TCLCK_COUT` |
+| OUT5 | 42/43 | `AMC2RTM_GTCLK` | | OUT13 | 92/93 | `AMC_TCLKD_COUT` |
+| OUT6 | 45/46 | `PLL0_IN` | | OUT14 | 95/96 | `AMC_RX_COUT` |
+| OUT7 | 48/49 | `PLL1_IN` | | OUT15 | 98/99 | `AMC_TX_COUT` |
+
+Control pins: `SCL` 76 / `SDA` 75, `RESET_B` 1, `UPDATE` 25, `ADDR1/SDI` 50,
+`ADDR0/CS` 51. The I²C address is **0x48** (both address pins low).
+
+The two PLLs are `Si5345B-D-GM`: **U85 = 0x68** (`7'b1101_000`) and
+**U61 = 0x69** (`7'b1101_001`). The PLL outputs loop back into the switch
+(`PLL0_OUT` -> IN9, `PLL1_OUT` -> IN8) and the switch can feed the PLL
+inputs (OUT6 -> PLL0, OUT7 -> PLL1).
+
+The port map is mirrored in
+`tools/clocking/u4fcp-v2-clocking.json` (36 points with pins and the
+`PLL` feedback links), so the Clock tab and the validator use it directly.
+
+Source: the u4FCP_V2.2 schematic, sheet 9 (clock), file
+`downloads/schematics/u4FCP_V2.2.pdf`; the block diagram
+`u4FCPv2/readme/clock.png` matches it.
 transcribed into the clocking JSON yet (only names/directions).
