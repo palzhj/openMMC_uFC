@@ -539,6 +539,31 @@ void payload_init(void)
 #endif
 }
 
+/* When the payload is unpowered its rails read 0 V / 0 A, which the SDR
+ * thresholds interpret as failures. Stop scanning/event generation for the
+ * payload sensors while the power is down; the hotswap sensor (the module
+ * state) always stays enabled. */
+static void payload_sensors_scan(bool enable)
+{
+  for (sensor_t *p = sdr_head; p != NULL; p = p->next)
+  {
+    if (p->task_handle != NULL && vTaskHotSwap_Handle != NULL &&
+        *p->task_handle == vTaskHotSwap_Handle)
+    {
+      continue;
+    }
+    if (enable)
+    {
+      sensor_enable(p);
+    }
+    else
+    {
+      p->state = SENSOR_STATE_NORMAL;
+      sensor_disable(p);
+    }
+  }
+}
+
 void vTaskPayload(void *pvParameters)
 {
 #ifdef MODULE_VIO_TPL0102
@@ -663,8 +688,10 @@ void vTaskPayload(void *pvParameters)
     {
 
     case PAYLOAD_NO_POWER:
+      payload_sensors_scan(false);   /* rails are down */
       if (PP_good)
       {
+        payload_sensors_scan(true);
         /* Turn DCDC converters on */
         setDC_DC_ConvertersON(true);
         /* Clear hotswap sensor backend power failure bits */

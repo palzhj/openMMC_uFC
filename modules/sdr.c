@@ -438,9 +438,11 @@ IPMI_HANDLER(ipmi_se_get_sensor_reading, NETFN_SE, IPMI_GET_SENSOR_READING_CMD, 
         rsp->data[len++] = cur_sensor->readout_value;
         rsp->data[len++] = cur_sensor->event_scan;
 
-        /* Present threshold status ( [7:6] Reserved, return as 1b )*/
-        rsp->data[len] = 0xC0;
-        rsp->data[len] |= cur_sensor->state;
+        /* [7] event messages enabled, [6] sensor scanning enabled, [5:0] state.
+         * A sensor that is not scanned (payload unpowered) returns 0x00 there,
+         * which makes the MCH display it as not available instead of reporting
+         * the 0 V / 0 A readings as threshold violations. */
+        rsp->data[len] = (cur_sensor->event_scan & 0xC0) | (cur_sensor->state & 0x3F);
         len++;
     }
 
