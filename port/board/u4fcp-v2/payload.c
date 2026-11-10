@@ -721,6 +721,14 @@ void vTaskPayload(void *pvParameters)
       payload_sensors_scan(false);   /* rails are down */
       if (PP_good)
       {
+        /* A payload power cycle does not reset the MMC: mark it explicitly
+         * so a log that starts here is not mistaken for an MMC reboot. */
+        static uint8_t payload_powerups;
+        if (payload_powerups++ > 0)
+        {
+          log_printk("pwr", "payload restart (MMC uptime %u s, no MMC reset)",
+                     (unsigned)(xTaskGetTickCount() / configTICK_RATE_HZ));
+        }
         payload_sensors_scan(true);
         /* Turn DCDC converters on */
         setDC_DC_ConvertersON(true);
