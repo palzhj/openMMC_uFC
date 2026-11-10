@@ -1,0 +1,15 @@
+openMMC_uFC documentation snapshot 2026-11-10
+
+README.md                                  11147 B
+docs/CLOCK_CONFIG_FORMAT.md                6734 B
+docs/CLOCK_SWITCH.md                       8351 B
+docs/CLOCKING.md                           5942 B
+docs/USER_MANUAL.md                        13724 B
+docs/I2C_ACCESS.md                         8679 B
+docs/DEBUGGING.md                          12723 B
+docs/UCD90320_NOTES.md                     3919 B
+tools/uFC_toolbox/README.md                16049 B
+tools/firmware/u4fcp-v2/README.md          7948 B
+tools/firmware/u4fcp-v1/README.md          1642 B
+tools/firmware/ufc-v2/README.md            936 B
+build/readme.md                            16672 B
