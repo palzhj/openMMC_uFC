@@ -28,6 +28,9 @@
 /* Kernel includes. */
 #include "FreeRTOS.h"
 #include "utils.h"
+#include "task.h"
+#include <stdarg.h>
+#include <stdio.h>
 
 TickType_t getTickDifference(TickType_t current_time, TickType_t start_time)
 {
@@ -39,6 +42,19 @@ TickType_t getTickDifference(TickType_t current_time, TickType_t start_time)
         result = current_time - start_time;
     }
     return result;
+}
+
+void log_printk( const char * tag, const char * fmt, ... )
+{
+    uint32_t ms = (uint32_t)((uint64_t)xTaskGetTickCount() * 1000u / configTICK_RATE_HZ);
+    va_list ap;
+
+    /* the tiny printf-stdarg has no 'l' modifier: use %u only */
+    printf( "[%4u.%03u] %-5s: ", (unsigned)(ms / 1000u), (unsigned)(ms % 1000u), tag );
+    va_start( ap, fmt );
+    vprintf( fmt, ap );
+    va_end( ap );
+    printf( "\n" );
 }
 
 uint8_t calculate_chksum ( uint8_t * buffer, uint8_t range )

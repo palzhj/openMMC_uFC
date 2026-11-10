@@ -40,7 +40,7 @@ void fru_init( uint8_t id )
 #if defined(FRU_USE_COMPILED) && !defined(FRU_READ_ONLY)
     /* Board configured to serve the FRU compiled from user_amc_fru.h
      * (the EEPROM is not consulted). */
-    printf("[FRU][%s] using the compiled FRU image (user_amc_fru.h)\n",
+    log_printk("fru", "using the compiled FRU image (user_amc_fru.h)",
            id == FRU_AMC ? "AMC" : "RTM");
     fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
     fru[id].runtime = true;
@@ -48,10 +48,10 @@ void fru_init( uint8_t id )
 #endif
 
 #if defined(FRU_WRITE_EEPROM) && !defined(FRU_READ_ONLY)
-    printf(">FRU_WRITE_EEPROM flag enabled! Building FRU info...\n");
+    log_printk("fru", "FRU_WRITE_EEPROM enabled, building image");
     fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
 
-    printf(" Writing FRU info to EEPROM... \n");
+    log_printk("fru", "writing image to EEPROM");
     fru[id].cfg.write_f( fru[id].cfg.eeprom_id, 0x00, fru[id].buffer, fru[id].fru_size, pdMS_TO_TICKS(100) );
 #endif
 
@@ -59,11 +59,11 @@ void fru_init( uint8_t id )
     if ( !fru_check_integrity(id, &fru[id].fru_size) ) {
 #if !defined(FRU_READ_ONLY) && !defined(FRU_NO_BUILDER)
         /* Could not access the SEEPROM, create a runtime fru info */
-        printf("Could not find a valid FRU information in EEPROM, building a runtime info...\n");
+        log_printk("fru", "no valid EEPROM image, building runtime info");
         fru[id].fru_size = fru[id].cfg.build_f( &fru[id].buffer );
         fru[id].runtime = true;
 #else
-        printf("FRU: no valid data in EEPROM (builder disabled)\n");
+        log_printk("fru", "no valid EEPROM data (builder disabled)");
 #endif
     }
 }
@@ -93,11 +93,11 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         fru[id].cfg.read_f( fru[id].cfg.eeprom_id, 0x00, &common_header[0], 8, 10 );
     }
 
-    printf("[FRU][%s] Asserting FRU information integrity\n", id == FRU_AMC ? "AMC" : "RTM");
+    log_printk("fru", "checking integrity");
     total_len += 8;
     if ( !((calculate_chksum( &common_header[0], 8 ) == 0) && common_header[0] == 1) ) {
         /* Wrong checksum */
-        printf("[FRU][%s] Error in COMMON HEADER checksum\n", id == FRU_AMC ? "AMC" : "RTM");
+        log_printk("fru", "Error in COMMON HEADER checksum", id == FRU_AMC ? "AMC" : "RTM");
         return 0;
     }
 
@@ -107,7 +107,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
     multirec_off = 8*common_header[5];
 
     if (chassis_off > 0) {
-        printf("[FRU][%s] Checking CHASSIS AREA record...", id == FRU_AMC ? "AMC" : "RTM");
+        const char *area_msg = "CHASSIS AREA record";
         if (fru[id].runtime) {
             rec_len = fru[id].buffer[chassis_off+1];
         } else {
@@ -126,11 +126,11 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
             }
             if (rec_buff && !((calculate_chksum( &rec_buff[0], rec_len ) == 0) && rec_buff[0] == 1) ) {
                 /* Wrong checksum */
-                printf(" Error!\n");
+                log_printk("fru", "%s: error", area_msg);
                 vPortFree(rec_buff);
                 return 0;
             } else {
-                printf(" Success!\n");
+                log_printk("fru", "%s: ok", area_msg);
                 total_len += rec_len;
             }
             vPortFree(rec_buff);
@@ -139,7 +139,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
     }
 
     if (board_off > 0) {
-        printf("[FRU][%s] Checking BOARD AREA record...", id == FRU_AMC ? "AMC" : "RTM");
+        const char *area_msg = "BOARD AREA record";
         if (fru[id].runtime) {
             rec_len = fru[id].buffer[board_off+1];
         } else {
@@ -159,11 +159,11 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
             }
             if (rec_buff && !((calculate_chksum( &rec_buff[0], rec_len ) == 0) && rec_buff[0] == 1) ) {
                 /* Wrong checksum */
-                printf(" Error!\n");
+                log_printk("fru", "%s: error", area_msg);
                 vPortFree(rec_buff);
                 return 0;
             } else {
-                printf(" Success!\n");
+                log_printk("fru", "%s: ok", area_msg);
                 total_len += rec_len;
             }
             vPortFree(rec_buff);
@@ -172,7 +172,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
     }
 
     if (product_off > 0) {
-        printf("[FRU][%s] Checking PRODUCT AREA record...", id == FRU_AMC ? "AMC" : "RTM");
+        const char *area_msg = "PRODUCT AREA record";
         if (fru[id].runtime) {
             rec_len = fru[id].buffer[product_off+1];
         } else {
@@ -192,11 +192,11 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
             }
             if (rec_buff && !((calculate_chksum( &rec_buff[0], rec_len ) == 0 ) && rec_buff[0] == 1) ) {
                 /* Wrong checksum */
-                printf(" Error!\n");
+                log_printk("fru", "%s: error", area_msg);
                 vPortFree(rec_buff);
                 return 0;
             } else {
-                printf(" Success!\n");
+                log_printk("fru", "%s: ok", area_msg);
                 total_len += rec_len;
             }
             vPortFree(rec_buff);
@@ -208,7 +208,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         uint8_t eol = 0;
         uint8_t rec_chksum;
         rec_len = 0;
-        printf("[FRU][%s] Checking MULTIRECORD AREA records...\n", id == FRU_AMC ? "AMC" : "RTM");
+        log_printk("fru", "checking multirecord area");
         rec_buff = pvPortMalloc(5 + 255);
         if (!rec_buff) return 0;
         do {
@@ -220,7 +220,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
             /* Calculate Multirecord header checksum */
             if ( !(calculate_chksum( &rec_buff[0], 5 ) == 0) ) {
                 /* Wrong checksum */
-                printf("[FRU][%s] Error in MULTIRECORD AREA HEADER integrity check!\n", id == FRU_AMC ? "AMC" : "RTM");
+                log_printk("fru", "multirecord header checksum error");
                 return 0;
             }
             multirec_off += 5;
@@ -241,7 +241,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
                 }
                 if ( !((calculate_chksum( &rec_buff[0], rec_len ) == rec_chksum)) ) {
                     /* Wrong checksum */
-                    printf("[FRU][%s] Error in MULTIRECORD AREA integrity check!\n", id == FRU_AMC ? "AMC" : "RTM");
+                    log_printk("fru", "multirecord checksum error");
                     return 0;
                 } else {
                     total_len += rec_len;
@@ -257,7 +257,7 @@ uint8_t fru_check_integrity( uint8_t id, size_t *fru_size )
         *fru_size = total_len;
     }
 
-    printf("[FRU][%s] FRU info is healthy!\n", id == FRU_AMC ? "AMC" : "RTM");
+    log_printk("fru", "info is healthy");
     return 1;
 }
 

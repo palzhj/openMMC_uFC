@@ -92,12 +92,12 @@ uint8_t setDC_DC_ConvertersON(bool on)
 {
   if (on)
   {
-    printf("Enable Main Power\n");
+    log_printk("pwr", "main power on");
     gpio_set_pin_high(PIN_PORT(GPIO_PMBUS_CTRL), PIN_NUMBER(GPIO_PMBUS_CTRL));
   }
   else
   {
-    printf("Disable Main Power\n");
+    log_printk("pwr", "main power off");
     gpio_set_pin_low(PIN_PORT(GPIO_PMBUS_CTRL), PIN_NUMBER(GPIO_PMBUS_CTRL));
   }
   return 1;
@@ -107,7 +107,7 @@ static void fpga_soft_reset(void)
 {
   gpio_set_pin_low(PIN_PORT(GPIO_FPGA_RESET_B), PIN_NUMBER(GPIO_FPGA_RESET_B));
   asm("NOP");
-  printf("Reset FPGA\n");
+  log_printk("fpga", "reset");
   gpio_set_pin_high(PIN_PORT(GPIO_FPGA_RESET_B), PIN_NUMBER(GPIO_FPGA_RESET_B));
 
   /* Blink BLUE LED to indicate to the user that the Reset was performed */
@@ -148,7 +148,7 @@ mmc_err config_jtag(void)
   if (JTAG_FMC1_ENABLE) tx_data[1] &= ~JTAG_FMC1_EN_B;
   if(!standalone_mode) tx_data[1] |= JTAG_AMC_EN;
   if(!ucd_get_gpio(&ucd_data[0], UCD_GPI_RTM_PS_B_ID))  tx_data[1] &= ~JTAG_RTM_EN_B;
-  printf("JTAG: AMC=%d RTM=%d FMC0=%d FMC1=%d\n",
+  log_printk("jtag", "AMC=%d RTM=%d FMC0=%d FMC1=%d",
     ((tx_data[1] & JTAG_AMC_EN)?1:0),
     ((tx_data[1] & JTAG_RTM_EN_B)?0:1),
     ((tx_data[1] & JTAG_FMC0_EN_B)?0:1),
@@ -259,7 +259,7 @@ void tpl0102_set_amc_voltage(uint8_t chn, float voltage, bool use_eeprom)
 
   dac = AMC_CONV_VLOT(voltage);
 #ifdef DEBUG
-  printf("Set FMC%d DAC=%d\n", chn, dac);
+  log_printk("vadj", "FMC%d DAC=%d", chn, dac);
 #endif
   if (use_eeprom)
     tpl0102_set_non_volatile_val(chn, dac);
@@ -306,10 +306,10 @@ static void payload_clock_log_status(void)
     uint8_t live = 0xFF;
     if (!clock_program_pll_status(chips[i], &live, NULL))
     {
-      printf("[CLK] %s: status read error\n", names[i]);
+      log_printk("clk", "%s status read error", names[i]);
       continue;
     }
-    printf("[CLK] %s: %s\n", names[i], (live & (1u << 2)) ? "not locked" : "locked");
+    log_printk("clk", "%s %s", names[i], (live & (1u << 2)) ? "not locked" : "locked");
   }
 }
 
@@ -322,36 +322,36 @@ static mmc_err payload_clock_configure(void)
 {
   if (clock_store_apply_boot())
   {
-    printf("[CLK] config: EEPROM preset\n");
+    log_printk("clk", "config from EEPROM preset");
     vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
     payload_clock_log_status();
     return MMC_OK;
   }
 
-  printf("[CLK] config: default (EEPROM blank)\n");
+  log_printk("clk", "config from defaults (EEPROM blank)");
   if (adn4604_reset() != MMC_OK)
   {
-    printf("ADN4604 reset ERROR\n");
+    log_printk("clk", "ADN4604 reset failed");
     return MMC_TIMEOUT_ERR;
   }
   if (clock_configuration(clock_config_default) != MMC_OK)
   {
-    printf("ADN4604 config ERROR\n");
+    log_printk("clk", "ADN4604 config failed");
     return MMC_IO_ERR;
   }
-  printf("ADN4604 config OK\n");
+  log_printk("clk", "ADN4604 configured");
   if (pll_configuration(CHIP_ID_SI5345_0, si5345_revd_registers_0) != MMC_OK)
   {
-    printf("PLL0 config ERROR\n");
+    log_printk("clk", "PLL0 config failed");
     return MMC_IO_ERR;
   }
-  printf("PLL0 config OK\n");
+  log_printk("clk", "PLL0 configured");
   if (pll_configuration(CHIP_ID_SI5345_1, si5345_revd_registers_1) != MMC_OK)
   {
-    printf("PLL1 config ERROR\n");
+    log_printk("clk", "PLL1 config failed");
     return MMC_IO_ERR;
   }
-  printf("PLL1 config OK\n");
+  log_printk("clk", "PLL1 configured");
   vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
   payload_clock_log_status();
   return MMC_OK;
@@ -599,8 +599,8 @@ void vTaskPayload(void *pvParameters)
 #endif
 #ifdef MODULE_UART_DEBUG
   /* debug only: the FMC VADJ values read back from the digital pots */
-  printf("FMC0 Vadj = %d mV\n", (int)(1000 * tpl0102_get_amc_voltage(0)));
-  printf("FMC1 Vadj = %d mV\n", (int)(1000 * tpl0102_get_amc_voltage(1)));
+  log_printk("vadj", "FMC0 %d mV", (int)(1000 * tpl0102_get_amc_voltage(0)));
+  log_printk("vadj", "FMC1 %d mV", (int)(1000 * tpl0102_get_amc_voltage(1)));
 #endif
 
 #endif
@@ -694,7 +694,7 @@ void vTaskPayload(void *pvParameters)
         payload_sensors_scan(false);   /* power is about to be removed */
       }
 #ifdef DEBUG
-      printf("QUIESCED received\n");
+      log_printk("pwr", "quiesce request");
 #endif
       xEventGroupClearBits(amc_payload_evt, PAYLOAD_MESSAGE_QUIESCE);
     }
@@ -729,13 +729,13 @@ void vTaskPayload(void *pvParameters)
       if (QUIESCED_req || (PP_good == 0)) new_state = PAYLOAD_SWITCHING_OFF;
       if (DCDC_good == 1)
       {
-        printf("Enable FMC0 Power\n");
+        log_printk("pwr", "FMC0 power on");
         ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC0_3V3AUX_EN_ID, 1);
         ucd_set_power(&ucd_data[0], UCD_FMC0_VADJ_ID, 1);
         // ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC0_PG_C2M_ID, 1);
         vTaskDelay(1000/portTICK_PERIOD_MS);
 
-        printf("Enable FMC1 Power\n");
+        log_printk("pwr", "FMC1 power on");
         ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC1_3V3AUX_EN_ID, 1);
         ucd_set_power(&ucd_data[0], UCD_FMC1_VADJ_ID, 1);
         // ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC1_PG_C2M_ID, 1);
@@ -745,19 +745,19 @@ void vTaskPayload(void *pvParameters)
         // ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 1);
         if (ucd_get_gpio(&ucd_data[0], UCD_GPI_RTM_PS_B_ID))
         {
-          printf("No RTM\n");
+          log_printk("pwr", "no RTM");
         }
         else
         {
           ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 1);
-          printf("Enable RTM Power\n");
+          log_printk("pwr", "RTM power on");
         }
 
         // Turn on the green light
         LEDUpdate( FRU_AMC, LED2, LEDMODE_OVERRIDE, LEDINIT_ON, 0, 0 );
         // config JTAG
         if (config_jtag() != MMC_OK)
-          printf("JTAG config ERROR\n");
+          log_printk("jtag", "config failed");
         new_state = PAYLOAD_STATE_CLK_SETUP;
       }
       break;
@@ -792,7 +792,7 @@ void vTaskPayload(void *pvParameters)
         FPGA_prom_timer++;
         if (FPGA_prom_timer == FPGA_PROM_MAX_CNT)
         {
-          printf("FPGA program timeout\n");
+          log_printk("fpga", "programming timeout");
           /* Blink RED LED to indicate to the user that the Reset was performed */
           LEDUpdate(FRU_AMC, LED1, LEDMODE_LAMPTEST, LEDINIT_ON, 5, 0);
           new_state = PAYLOAD_FPGA_ON;

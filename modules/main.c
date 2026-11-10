@@ -126,7 +126,7 @@ static void ram_report(const char *where)
         p++;
     }
     uint32_t unused = (uint32_t)(&_estack - p) * 4;
-    printf("[RAM] %-12s heap_free=%u stack_unused=%u\n",
+    log_printk("mem", "%-12s heap_free=%u stack_unused=%u",
            where, (unsigned)xPortGetFreeHeapSize(), (unsigned)unused);
 }
 #else
@@ -147,10 +147,8 @@ int main( void )
     uart_init( UART_DEBUG );
 #endif
 
-    printf("openMMC Starting!\n");
-    printf("Build date: %s %s\n", __DATE__, __TIME__);
-    printf("Version: %s\n", g_GIT_TAG);
-    printf("SHA1: %s\n", g_GIT_SHA1);
+    log_printk("boot", "openMMC %s (%s %s)", g_GIT_TAG, __DATE__, __TIME__);
+    log_printk("boot", "sha1 %s", g_GIT_SHA1);
 
 #ifdef MODULE_WATCHDOG
     watchdog_init();
@@ -160,7 +158,7 @@ int main( void )
 
     i2c_init();
 #ifdef MODULE_UART_DEBUG
-    printf("[BOOT] i2c_init\n");
+    log_printk("boot", "i2c_init");
 #endif
 
     ipmb_addr = get_ipmb_addr( );
@@ -170,7 +168,7 @@ int main( void )
     fru_init(FRU_AMC);
 #endif
 #ifdef MODULE_UART_DEBUG
-    printf("[BOOT] fru_init\n");
+    log_printk("boot", "fru_init");
 #endif
     ram_report("fru");
 
@@ -178,21 +176,21 @@ int main( void )
     sdr_init();
 #endif
 #ifdef MODULE_UART_DEBUG
-    printf("[BOOT] sdr_init\n");
+    log_printk("boot", "sdr_init");
 #endif
     ram_report("sdr");
 #ifdef MODULE_SENSORS
     sensor_init();
 #endif
 #ifdef MODULE_UART_DEBUG
-    printf("[BOOT] sensor_init\n");
+    log_printk("boot", "sensor_init");
 #endif
     ram_report("sensors");
 #ifdef MODULE_PAYLOAD
     payload_init();
 #endif
 #ifdef MODULE_UART_DEBUG
-    printf("[BOOT] payload_init\n");
+    log_printk("boot", "payload_init");
 #endif
     ram_report("payload");
 #ifdef MODULE_SCANSTA1101
@@ -209,7 +207,7 @@ int main( void )
     ipmi_init();
     ram_report("ipmi");
 #ifdef MODULE_UART_DEBUG
-    printf("[BOOT] ipmi_init\n");
+    log_printk("boot", "ipmi_init");
 #endif
 
 #ifdef MODULE_BOARD_CONFIG

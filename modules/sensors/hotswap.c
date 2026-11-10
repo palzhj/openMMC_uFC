@@ -144,7 +144,7 @@ void vTaskHotSwap( void *Parameters )
 
         if ( new_state_amc ^ old_state_amc ) {
             if ( new_state_amc == 0 ) {
-                printf("AMC Hotswap handle pressed!\n");
+                log_printk("hs", "AMC handle pressed");
             } else {
                 printf("AMC Hotswap handle released!\n");
             }
@@ -171,7 +171,7 @@ void vTaskHotSwap( void *Parameters )
 
         if ( new_state_rtm ^ old_state_rtm ) {
             if ( new_state_rtm == 0 ) {
-                printf("RTM Hotswap handle pressed!\n");
+                log_printk("hs", "RTM handle pressed");
 
                 if (standalone_mode) {
                     payload_send_message(FRU_RTM, PAYLOAD_MESSAGE_RTM_ENABLE);

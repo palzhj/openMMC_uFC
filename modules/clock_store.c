@@ -19,6 +19,7 @@
 
 #include "port.h"
 #include "clock_store.h"
+#include "utils.h"
 #include "clock_program.h"
 #include "ipmi.h"
 #include "i2c.h"
@@ -330,7 +331,7 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         uint8_t recid = data[3];
         rec_count++;
 #ifdef MODULE_UART_DEBUG
-        printf("[CLKS] rec off=%u rlen=%u chk=%s recid=0x%02x\n",
+        log_printk("clk", "rec off=%u rlen=%u chk=%s recid=0x%02x\n",
                (unsigned)off, rlen, (chk == 0) ? "ok" : "bad", recid);
 #endif
         uint8_t plen = (uint8_t)(rlen - 6u);
@@ -341,16 +342,16 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
             uint8_t dev_addr = payload[4];
             if (recid == 0x40 && dlen == 16u) {
 #ifdef MODULE_UART_DEBUG
-                printf("[CLKS] switch record addr=0x%02x dlen=%u\n", dev_addr, dlen);
+                log_printk("clk", "switch record addr=0x%02x dlen=%u\n", dev_addr, dlen);
 #endif
                 if (!clock_store_apply_switch(p, dev_addr)) {
 #ifdef MODULE_UART_DEBUG
-                    printf("[CLKS] switch apply FAILED\n");
+                    log_printk("clk", "switch apply FAILED\n");
 #endif
                     return 0;
                 }
 #ifdef MODULE_UART_DEBUG
-                printf("[CLKS] switch apply OK\n");
+                log_printk("clk", "switch apply OK\n");
 #endif
             } else if ((recid & 0xF0) == 0x30 && dlen >= 3u) {
                 if (!clock_store_apply_begin(dev_addr)) {
@@ -375,7 +376,7 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
         off += 4u + rlen;
     }
 #ifdef MODULE_UART_DEBUG
-    printf("[CLKS] apply done: %u records, %u registers, %u ms\n",
+    log_printk("clk", "apply done: %u records, %u registers, %u ms\n",
            (unsigned)rec_count, (unsigned)si_count,
            (unsigned)((xTaskGetTickCount() - t_apply0) * portTICK_PERIOD_MS));
 #endif
@@ -409,7 +410,7 @@ int clock_store_apply(void)
 
     int ok = ptr_load(&ptr, &found);
 #ifdef MODULE_UART_DEBUG
-    printf("[CLKS] ptr_load=%d found=%d slot=%d len=%u\n", ok, found, ptr.slot, ptr.len);
+    log_printk("clk", "ptr_load=%d found=%d slot=%d len=%u\n", ok, found, ptr.slot, ptr.len);
 #endif
     if (!ok) {
         return apply_slot(0) || apply_slot(1);

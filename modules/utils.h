@@ -70,6 +70,10 @@ TickType_t getTickDifference( TickType_t current_time, TickType_t start_time );
  */
 uint8_t calculate_chksum( uint8_t * buffer, uint8_t range );
 
+/* Kernel-style log line: "[    1.234] tag  : message\n" (uptime from the
+ * FreeRTOS tick, tag padded to five characters). */
+void log_printk( const char * tag, const char * fmt, ... );
+
 /**
  * @brief Compare 2 buffers
  *
