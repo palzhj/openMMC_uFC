@@ -51,6 +51,9 @@ if (I2C_ACCESS)
   list(APPEND TARGET_MODULES "I2C_ACCESS")
 endif()
 
+# Production default: the board ships with the IWDG (2 s, fed every 666 ms).
+# DISABLE_WATCHDOG defaults to OFF project-wide; pass -DDISABLE_WATCHDOG=ON for
+# a debugging build without it (the IWDG cannot be stopped once started).
 if (NOT DISABLE_WATCHDOG)
   list(APPEND TARGET_MODULES "WATCHDOG")
 endif()
