@@ -151,6 +151,39 @@ uint8_t clock_program_write_entry(uint16_t addr, uint8_t data)
     return si5345_write(addr, data);
 }
 
+uint8_t clock_program_read_entry(uint16_t addr, uint8_t *data)
+{
+    uint8_t page = (uint8_t)(addr >> 8);
+
+    if (page != si5345_current_page) {
+        if (!si5345_write8(0x01, page)) {
+            return 0;
+        }
+        si5345_current_page = page;
+    }
+    return si5345_read8((uint8_t)addr, data);
+}
+
+/* Live and sticky status of one PLL.
+ * 0x0C00 (live) / 0x0C01 (sticky): bit0 SYSINCAL, bit1 LOSXAXB, bit2 LOL,
+ * bit3 LOS, bit4 OOF, bit5 HOLD. */
+uint8_t clock_program_pll_status(uint8_t chip_id, uint8_t *live, uint8_t *sticky)
+{
+    uint8_t a = 0xFF, b = 0xFF;
+
+    clock_program_select_chip(chip_id);
+    if (!clock_program_read_entry(0x0C00, &a) || !clock_program_read_entry(0x0C01, &b)) {
+        return 0;
+    }
+    if (live) {
+        *live = a;
+    }
+    if (sticky) {
+        *sticky = b;
+    }
+    return 1;
+}
+
 #if defined(SI5345_HAVE_REGS_H)
 static uint8_t si5345_write_table(const si5345_reg_t *regs, uint16_t count)
 {

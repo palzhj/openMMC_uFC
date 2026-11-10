@@ -295,6 +295,33 @@ static const uint8_t clock_config_default[16] = {
   ADN4604_IN_PLL1_OUT, ADN4604_IN_PLL1_OUT,
 };
 
+/* Print the lock status of both Si5345s.
+ * Status: 0x0C00 live / 0x0C01 sticky: [0] SYSINCAL, [1] LOSXAXB, [2] LOL,
+ * [3] LOS, [4] OOF, [5] HOLD. */
+static void payload_clock_log_status(void)
+{
+  static const char *names[2] = { "PLL0", "PLL1" };
+  static const uint8_t chips[2] = { CHIP_ID_SI5345_0, CHIP_ID_SI5345_1 };
+
+  for (uint8_t i = 0; i < 2; i++)
+  {
+    uint8_t live = 0xFF, sticky = 0xFF;
+    if (!clock_program_pll_status(chips[i], &live, &sticky))
+    {
+      printf("[CLK] %s: status read FAILED\n", names[i]);
+      continue;
+    }
+    printf("[CLK] %s: %s  live=0x%02X sticky=0x%02X  "
+           "(SYSINCAL=%u LOSXAXB=%u LOL=%u LOS=%u OOF=%u HOLD=%u)\n",
+           names[i],
+           (live & (1u << 2)) ? "NOT LOCKED" : "locked",
+           live, sticky,
+           (unsigned)((live >> 0) & 1u), (unsigned)((live >> 1) & 1u),
+           (unsigned)((live >> 2) & 1u), (unsigned)((live >> 3) & 1u),
+           (unsigned)((live >> 4) & 1u), (unsigned)((live >> 5) & 1u));
+  }
+}
+
 /* Configure the clock switch and both PLLs.
  *
  * The clock configuration stored in the EEPROM wins when a valid slot is
@@ -305,6 +332,8 @@ static mmc_err payload_clock_configure(void)
   if (clock_store_apply_boot())
   {
     printf("clock config taken from the EEPROM\n");
+    vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
+    payload_clock_log_status();
     return MMC_OK;
   }
 
@@ -332,6 +361,8 @@ static mmc_err payload_clock_configure(void)
     return MMC_IO_ERR;
   }
   printf("PLL1 config OK\n");
+  vTaskDelay(pdMS_TO_TICKS(100));   /* let the PLLs lock */
+  payload_clock_log_status();
   return MMC_OK;
 }
 #endif
