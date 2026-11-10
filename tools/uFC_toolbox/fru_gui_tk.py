@@ -556,10 +556,16 @@ class FruEditor(tk.Tk):
     ADN_DEV = 0x48
     ADN_MUX = [(0x70, 2)]
     ADN_TX_MODES = ("disabled", "standby", "squelched", "enabled")
-    ADN_TERMS = (("RXW", 0, "input 7:0 (West) termination"),
-                 ("RXE", 1, "input 15:8 (East) termination"),
-                 ("TXS", 2, "output 7:0 (South) termination"),
-                 ("TXN", 3, "output 15:8 (North) termination"))
+    ADN_TERMS = (
+        ("RXW", 0, "Inputs 7:0 (West) 50 ohm on-chip termination - "
+                   "0xF0[0], ticked = termination DISABLED (1)"),
+        ("RXE", 1, "Inputs 15:8 (East) 50 ohm on-chip termination - "
+                   "0xF0[1], ticked = termination DISABLED (1)"),
+        ("TXS", 2, "Outputs 7:0 (South) 50 ohm on-chip termination - "
+                   "0xF0[2], ticked = termination DISABLED (1)"),
+        ("TXN", 3, "Outputs 15:8 (North) 50 ohm on-chip termination - "
+                   "0xF0[3], ticked = termination DISABLED (1)"),
+    )
 
     def _adn_rw(self, wdata=None, rlen=0):
         acc = self._access()
@@ -628,7 +634,8 @@ class FruEditor(tk.Tk):
 
         term = ttk.Frame(parent)
         term.pack(fill="x", pady=(2, 2))
-        ttk.Label(term, text="termination", style="FieldLabel.TLabel").pack(side="left", padx=(0, 6))
+        ttk.Label(term, text="termination (ticked = OFF)",
+                  style="FieldLabel.TLabel").pack(side="left", padx=(0, 6))
         self.adn_term = {}
         for name, bit, tip in self.ADN_TERMS:
             v = tk.BooleanVar(value=False)
@@ -639,6 +646,16 @@ class FruEditor(tk.Tk):
         self.adn_info = tk.StringVar(value="")
         tk.Label(term, textvariable=self.adn_info, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(side="left", padx=(12, 0))
+
+        note = ("0xF0 registers the on-chip 50 ohm terminations in four quadrants: "
+                "RXW = inputs 7:0 (West), RXE = inputs 15:8 (East), TXS = outputs 7:0 "
+                "(South), TXN = outputs 15:8 (North).  Bit = 1 disables the termination, "
+                "bit = 0 enables it (reset default 0x00 = all enabled).  The firmware's "
+                "clock_configuration() writes 0x0F, i.e. all four disabled - only "
+                "correct if the far end terminates the line (FPGA/fanout 50 ohm); a "
+                "ticked box here means that group stays unterminated.")
+        tk.Label(parent, text=note, bg=BG, fg=MUTED, font=(UI_FONT, 8),
+                 justify="left", anchor="w", wraplength=1080).pack(fill="x", pady=(2, 0))
 
     @staticmethod
     def _adn_src_index(text, default=0):
