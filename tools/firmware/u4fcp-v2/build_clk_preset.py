@@ -19,12 +19,31 @@ from fru_core import FruAccess, build_clock_slot, upload_clock_slot  # noqa: E40
 
 
 def parse_matrix():
-    """clock_config[] from payload.c (ADN4604 input select + enable)."""
+    """ADN4604 default matrix from payload.c (input select + enable bits)."""
     src = open(os.path.join(BOARD, "payload.c")).read()
+    defs = {"ADN4604_IN_PLL1_OUT": 8, "ADN4604_OUTPUT_EN": 0x80}
+    m = re.search(r"clock_config_default\[16\]\s*=\s*\{(.*?)\}\s*;", src, re.S)
+    if m:
+        vals = []
+        for part in [x.strip() for x in m.group(1).split(",") if x.strip()]:
+            val = 0
+            for term in re.split(r"[|+]", part):
+                term = term.strip()
+                if term in defs:
+                    val |= defs[term]
+                elif term.isdigit():
+                    val |= int(term)
+                elif term.lower().startswith("0x"):
+                    val |= int(term, 16)
+                else:
+                    raise SystemExit("unknown matrix term %r" % term)
+            vals.append(val)
+        if len(vals) != 16:
+            raise SystemExit("clock_config_default has %d entries" % len(vals))
+        return bytes(vals)
     m = re.search(r"clock_config\[0\]\s*=\s*([^;]+);", src)
     if not m:
         raise SystemExit("clock_config[] not found in payload.c")
-    defs = {"ADN4604_IN_PLL1_OUT": 8, "ADN4604_OUTPUT_EN": 0x80}
     matrix = []
     for line in re.findall(r"clock_config\[(\d+)\]\s*=\s*([^;]+);", src):
         idx, expr = int(line[0]), line[1]
