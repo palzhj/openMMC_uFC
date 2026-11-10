@@ -14,7 +14,7 @@ SERIAL=${1:-}
 shift
 
 BIN_DIR=uart-debug; SLOT=12; MCH=192.168.1.41; BUS=0
-MFG_TIME=""; CLOCK_STORE=""; DO_FLASH=1; DO_FRU=1
+MFG_TIME=""; CLOCK_STORE=""; VADJ=1.8; DO_FLASH=1; DO_FRU=1; DO_VADJ=1
 while [ $# -gt 0 ]; do
     case "$1" in
         --slot)        SLOT=$2; shift 2 ;;
@@ -23,8 +23,10 @@ while [ $# -gt 0 ]; do
         --bin-dir)     BIN_DIR=$2; shift 2 ;;
         --mfg-time)    MFG_TIME=$2; shift 2 ;;
         --clock-store) CLOCK_STORE=$2; shift 2 ;;
+        --vadj)        VADJ=$2; shift 2 ;;
         --no-flash)    DO_FLASH=0; shift ;;
         --no-fru)      DO_FRU=0; shift ;;
+        --no-vadj)     DO_VADJ=0; shift ;;
         -h|--help)     sed -n '2,12p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 1 ;;
     esac
@@ -36,4 +38,7 @@ if [ "$DO_FRU" = 1 ]; then
     [ -n "$MFG_TIME" ] && set -- "$@" --mfg-time "$MFG_TIME"
     [ -n "$CLOCK_STORE" ] && set -- "$@" --clock-store "$CLOCK_STORE"
     "$HERE/fru_program.sh" "$@"
+fi
+if [ "$DO_VADJ" = 1 ]; then
+    "$HERE/vadj_program.sh" --fmc0 "$VADJ" --fmc1 "$VADJ" --persist --slot "$SLOT"         --mch "$MCH" --bus "$BUS" --no-wait
 fi

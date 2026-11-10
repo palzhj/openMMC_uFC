@@ -34,7 +34,8 @@ The bring-up is split in two steps, plus a convenience wrapper:
 | `jlink_program.sh` | newboot + application over SWD, `fw_info` cleared |
 | `fru_program.sh <serial>` | FRU with the unique serial (+ optional clock store) |
 | `clk_program.sh` | write/capture the clock configuration preset |
-| `program.sh <serial>` | both flash + FRU in one go |
+| `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
+| `program.sh <serial>` | flash + FRU + VADJ (+ clock) in one go |
 
 ```bash
 # 1. flash a blank board (SWD)
@@ -47,6 +48,10 @@ The bring-up is split in two steps, plus a convenience wrapper:
 # 3. clock configuration preset (clk-preset.bin next to this script)
 ./clk_program.sh --apply                       # write the preset, apply now
 ./clk_program.sh --dump clk-preset.bin         # capture a new preset from a working board
+
+# 4. FMC VADJ (TPL0102-100PWR, factory default 1.8 V, persistent)
+./vadj_program.sh --read                       # print the current values
+./vadj_program.sh --fmc0 1.8 --fmc1 1.8 --persist
 
 # or everything in one command:
 ./program.sh U4FCP2-0001 --clock-store clk-preset.bin
