@@ -258,6 +258,17 @@ __attribute__((weak)) int clock_store_apply_si5345(uint8_t addr, uint16_t reg, u
     return clock_program_write_entry(reg, val);
 }
 
+/* Board hooks: called around one PLL register record, so that the bus can be
+ * held for the whole chunk instead of taken for every register. */
+__attribute__((weak)) int clock_store_apply_begin(void)
+{
+    return 1;
+}
+
+__attribute__((weak)) void clock_store_apply_end(void)
+{
+}
+
 /* Parse the FRU multirecord file stored in a slot region and apply it. */
 static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
 {
@@ -314,15 +325,20 @@ static int apply_fru_stream(uint8_t region, uint16_t fru_off, uint32_t len)
                 printf("[CLKS] switch apply OK\n");
 #endif
             } else if ((recid & 0xF0) == 0x30 && dlen >= 3u) {
+                if (!clock_store_apply_begin()) {
+                    return 0;
+                }
                 for (uint8_t i = 0; i + 2u < dlen; i += 3u) {
                     uint16_t addr = ((uint16_t)p[i] << 8) | p[i + 1];
                     if (!clock_store_apply_si5345(dev_addr, addr, p[i + 2])) {
+                        clock_store_apply_end();   /* never leak the bus */
                         return 0;
                     }
                     if (++si_count == 3u) {
                         vTaskDelay(pdMS_TO_TICKS(SI5345_DELAY_MS));
                     }
                 }
+                clock_store_apply_end();
             }
         }
         if (rec[1] & 0x80) {   /* end of list */

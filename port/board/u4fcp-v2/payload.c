@@ -856,6 +856,18 @@ int clock_store_apply_switch(const uint8_t *matrix, uint8_t addr)
     return clock_configuration(matrix) == MMC_OK;
 }
 
+/* the store calls these around one PLL record: hold the clock bus while the
+ * chunk of registers is written (the EEPROM reads between records need it) */
+int clock_store_apply_begin(void)
+{
+    return clock_program_batch_begin();
+}
+
+void clock_store_apply_end(void)
+{
+    clock_program_batch_end();
+}
+
 int clock_store_apply_si5345(uint8_t addr, uint16_t reg, uint8_t val)
 {
     if (addr == 0x68) {

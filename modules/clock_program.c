@@ -51,10 +51,41 @@ static uint8_t si5345_chip = CLOCK_PROG_CHIP;
 
 /* The Si5345 uses 8-bit register addresses with a page register at 0x01:
  * the 16-bit ClockBuilder address is (page << 8) | register. */
+static uint8_t batch_on;
+static uint8_t batch_addr, batch_iface;
+
+/* Hold the clock I2C bus for a whole register table: the per-register
+ * take/give is what makes a 526-register table slow when the sensor task
+ * polls the same interface. */
+int clock_program_batch_begin(void)
+{
+    if (batch_on) {
+        return 1;
+    }
+    if (!i2c_take_by_chipid(si5345_chip, &batch_addr, &batch_iface, CLOCK_PROG_TIMEOUT)) {
+        return 0;
+    }
+    si5345_current_page = 0xFF;
+    batch_on = 1;
+    return 1;
+}
+
+void clock_program_batch_end(void)
+{
+    if (batch_on) {
+        i2c_give(batch_iface);
+        batch_on = 0;
+    }
+}
+
 static uint8_t si5345_write8(uint8_t reg, uint8_t data)
 {
     uint8_t i2c_addr, iface;
     uint8_t buf[2] = { reg, data };
+
+    if (batch_on) {
+        return xI2CMasterWrite(batch_iface, batch_addr, buf, 2) == 2;
+    }
 
     /* The first transaction after the mux selects channel 2 can NACK
      * (TCA9548A power-up behaviour), so retry like the EEPROM driver. */
