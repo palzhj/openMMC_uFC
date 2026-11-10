@@ -1808,6 +1808,29 @@ class FruEditor(tk.Tk):
         tk.Label(parent, textvariable=self.i2c_vadj_hint, bg=BG, fg=MUTED,
                  font=(UI_FONT, 8), anchor="w").pack(anchor="w")
 
+        # JTAG selection: TCA9554 @0x39 on the FPGA bus (mux 0x70 ch4)
+        jtag = ttk.Frame(parent)
+        jtag.pack(fill="x", pady=(6, 4))
+        ttk.Label(jtag, text="JTAG", style="FieldLabel.TLabel").pack(side="left", padx=(0, 8))
+        self.jtag_vars = {}
+        for name in ("AMC", "RTM", "FMC0", "FMC1"):
+            var = tk.BooleanVar(value=False)
+            cb = ttk.Checkbutton(jtag, text=name, variable=var)
+            cb.pack(side="left", padx=(0, 10))
+            self._hint(cb, "TCA9554 output bit driving the JTAG chain select (%s)" % name)
+            self.jtag_vars[name] = var
+        jr = ttk.Button(jtag, text="Read JTAG", command=self.jtag_read)
+        jr.pack(side="left", padx=(6, 0))
+        self._hint(jr, "Read the TCA9554 output/config registers (0x39 on mux ch4) "
+                       "and tick the enabled JTAG targets")
+        ja = ttk.Button(jtag, text="Apply JTAG", command=self.jtag_apply)
+        ja.pack(side="left", padx=(6, 0))
+        self._hint(ja, "Program the TCA9554 with the ticked JTAG selection "
+                       "(config 0x0F, output register 0x01)")
+        self.i2c_jtag_hint = tk.StringVar(value="")
+        tk.Label(parent, textvariable=self.i2c_jtag_hint, bg=BG, fg=MUTED,
+                 font=(UI_FONT, 8), anchor="w").pack(anchor="w")
+
         out = ttk.Frame(parent)
         out.pack(fill="both", expand=True)
         ttk.Label(out, text="Result", style="Hint.TLabel").pack(anchor="w")
@@ -1945,6 +1968,64 @@ class FruEditor(tk.Tk):
             return access.xfer(1, mux, 0x56, bytes([reg]), 1)[0]
         access.xfer(1, mux, 0x56, bytes([reg, val]), 0)
         return None
+
+    # ---- JTAG select (TCA9554 @0x39, mux 0x70 ch4) -------------------------
+    JTAG_DEV = 0x39
+    JTAG_MUX = [(0x70, 4)]
+    JTAG_BITS = {"AMC": 0x10, "FMC0": 0x20, "FMC1": 0x40, "RTM": 0x80}
+    # AMC is active high; RTM/FMC0/FMC1 are *_EN_B (active low)
+    JTAG_ACTIVE_LOW = ("RTM", "FMC0", "FMC1")
+
+    def _jtag_read_reg(self, reg):
+        acc = self._access()
+        return acc.xfer(1, self.JTAG_MUX, self.JTAG_DEV, bytes([reg]), 1)[0]
+
+    def _jtag_write_reg(self, reg, val):
+        acc = self._access()
+        acc.xfer(1, self.JTAG_MUX, self.JTAG_DEV, bytes([reg, val]), 0)
+
+    def _jtag_decode(self, out):
+        res = {}
+        for name, bit in self.JTAG_BITS.items():
+            on = bool(out & bit)
+            if name in self.JTAG_ACTIVE_LOW:
+                on = not on
+            res[name] = on
+        return res
+
+    @staticmethod
+    def _jtag_encode(vars_):
+        out = 0
+        for name, bit in FruEditor.JTAG_BITS.items():
+            on = vars_[name].get()
+            if name in FruEditor.JTAG_ACTIVE_LOW:
+                on = not on
+            if on:
+                out |= bit
+        return out
+
+    def jtag_read(self):
+        try:
+            out = self._jtag_read_reg(0x01)
+            cfg = self._jtag_read_reg(0x03)
+            st = self._jtag_decode(out)
+            for name, val in st.items():
+                self.jtag_vars[name].set(val)
+            self.i2c_jtag_hint.set(
+                "output=0x%02X config=0x%02X -> AMC=%d RTM=%d FMC0=%d FMC1=%d"
+                % (out, cfg, st["AMC"], st["RTM"], st["FMC0"], st["FMC1"]))
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "JTAG read failed:\n%s" % e)
+
+    def jtag_apply(self):
+        try:
+            out = self._jtag_encode(self.jtag_vars)
+            self._jtag_write_reg(0x03, 0x0F)   # P7..P4 outputs, P3..P0 inputs
+            self._jtag_write_reg(0x01, out)
+            self.jtag_read()
+            self.i2c_jtag_hint.set("written, read back: " + self.i2c_jtag_hint.get())
+        except Exception as e:
+            messagebox.showerror(APP_TITLE, "JTAG write failed:\n%s" % e)
 
     def _vadj_read(self):
         try:
