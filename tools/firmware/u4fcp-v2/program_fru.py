@@ -74,7 +74,8 @@ def main():
         "product": dict(cfg.get("product", {}), serial=serial),
     }
     if "module_current_ma" in cfg:
-        values["module_current"] = cfg["module_current_ma"]
+        # the FRU 'module current' record stores 100 mA units
+        values["module_current"] = int(cfg["module_current_ma"]) // 100
 
     image = build_image(parsed, values, limit=512)
     image = image_for_eeprom(image, 512)
