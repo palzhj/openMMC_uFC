@@ -231,6 +231,11 @@ The port map is mirrored in
 `tools/clocking/u4fcp-v2-clocking.json` (36 points with pins and the
 `PLL` feedback links), so the Clock tab and the validator use it directly.
 
+![ADN4604 port map (u4FCP_V2.2 sheet 9)](u4fcp-v2-clock-adn4604.png)
+
+The same data as Graphviz: [`u4fcp-v2-clocking.dot`](u4fcp-v2-clocking.dot)
+(`dot -Tpng` renders the PLL feedback view).
+
 Source: the u4FCP_V2.2 schematic, sheet 9 (clock), file
 `downloads/schematics/u4FCP_V2.2.pdf`; the block diagram
 `u4FCPv2/readme/clock.png` matches it.

@@ -1,0 +1,70 @@
+digraph clocking {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fillcolor="#FFFFFF",
+        color="#E4DED2", fontname="Helvetica", fontsize=8];
+  edge [fontname="Helvetica", fontsize=7];
+  subgraph "cluster_board_u4fcp" { label="board u4FCP v2.0"; fontsize=10; color="#EDEAE2";
+    subgraph "cluster_MUX0" { label="ADN4604 (U79B)"; fontsize=9; color="#FAF9F5";
+      "MUX.CLK0" [label="CLK0 in\npin 2/3"];
+      "MUX.CLK1" [label="CLK1 in\npin 5/6"];
+      "MUX.CLK2" [label="CLK2 in\npin 8/9"];
+      "MUX.CLK3" [label="CLK3 in\npin 11/12"];
+      "MUX.CLK4" [label="CLK4 in\npin 14/15"];
+      "MUX.CLK5" [label="CLK5 in\npin 17/18"];
+      "MUX.CLK6" [label="CLK6 in\npin 20/21"];
+      "MUX.CLK7" [label="CLK7 in\npin 23/24"];
+      "MUX.CLK8" [label="CLK8 in\npin 52/53"];
+      "MUX.CLK9" [label="CLK9 in\npin 55/56"];
+      "MUX.CLK10" [label="CLK10 in\npin 58/59"];
+      "MUX.CLK11" [label="CLK11 in\npin 61/62"];
+      "MUX.CLK12" [label="CLK12 in\npin 64/65"];
+      "MUX.CLK13" [label="CLK13 in\npin 67/68"];
+      "MUX.CLK14" [label="CLK14 in\npin 70/71"];
+      "MUX.CLK15" [label="CLK15 in\npin 73/74"];
+      "MUX.OUT0" [label="OUT0 out\npin 27/28"];
+      "MUX.OUT1" [label="OUT1 out\npin 30/31"];
+      "MUX.OUT2" [label="OUT2 out\npin 33/34"];
+      "MUX.OUT3" [label="OUT3 out\npin 36/37"];
+      "MUX.OUT4" [label="OUT4 out\npin 39/40"];
+      "MUX.OUT5" [label="OUT5 out\npin 42/43"];
+      "MUX.OUT6" [label="OUT6 out\npin 45/46"];
+      "MUX.OUT7" [label="OUT7 out\npin 48/49"];
+      "MUX.OUT8" [label="OUT8 out\npin 77/78"];
+      "MUX.OUT9" [label="OUT9 out\npin 80/81"];
+      "MUX.OUT10" [label="OUT10 out\npin 83/84"];
+      "MUX.OUT11" [label="OUT11 out\npin 86/87"];
+      "MUX.OUT12" [label="OUT12 out\npin 89/90"];
+      "MUX.OUT13" [label="OUT13 out\npin 92/93"];
+      "MUX.OUT14" [label="OUT14 out\npin 95/96"];
+      "MUX.OUT15" [label="OUT15 out\npin 98/99"];
+    }
+    subgraph "cluster_AMC" { label="AMC"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_FMC0" { label="FMC0"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_KUP" { label="FPGA KUP"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_FMC1" { label="FMC1"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_PLL0" { label="PLL0 (U85)"; fontsize=9; color="#FAF9F5";
+      "PLL0.IN" [label="IN0/IN1 in\npin 63/64"];
+      "PLL0.OUT" [label="OUT0…OUT11 out"];
+    }
+    subgraph "cluster_K7" { label="FPGA K7"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_PLL1" { label="PLL1 (U61)"; fontsize=9; color="#FAF9F5";
+      "PLL1.IN" [label="IN0/IN1 in\npin 63/64"];
+      "PLL1.OUT" [label="OUT0…OUT11 out"];
+    }
+    subgraph "cluster_FMC2" { label="FMC2"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_FMC3" { label="FMC3"; fontsize=9; color="#FAF9F5";
+    }
+    subgraph "cluster_OSC" { label="OSC"; fontsize=9; color="#FAF9F5";
+    }
+  }
+  "PLL0.OUT" -> "MUX.CLK9" [color="#8A8A80"];
+  "PLL1.OUT" -> "MUX.CLK8" [color="#8A8A80"];
+  "MUX.OUT6" -> "PLL0.IN" [color="#8A8A80"];
+  "MUX.OUT7" -> "PLL1.IN" [color="#8A8A80"];
+}
