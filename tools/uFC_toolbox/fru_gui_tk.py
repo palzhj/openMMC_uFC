@@ -2260,6 +2260,9 @@ class FruEditor(tk.Tk):
     def jtag_apply(self):
         try:
             out = self._jtag_encode(self.jtag_vars)
+            # keep P0..P3: the TCA9554 drives AMC_TX_EN17 / AMC_RX_EN17 there
+            cur = self._jtag_read_reg(0x01)
+            out = (cur & 0x0F) | (out & 0xF0)
             self._jtag_write_reg(0x03, 0x0F)   # P7..P4 outputs, P3..P0 inputs
             self._jtag_write_reg(0x01, out)
             self.jtag_read()

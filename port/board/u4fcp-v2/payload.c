@@ -132,55 +132,55 @@ mmc_err config_jtag(void)
   uint8_t i2c_written = 0;
   uint8_t err_cnt = 0;
   uint8_t tx_data[2];
+  uint8_t cur_out = 0;
+  bool rtm_present;
 
   if (get_ipmb_addr() == IPMB_ADDR_DISCONNECTED) {
       standalone_mode = true;
   }
 
+  /* Preserve P0..P3 (AMC_TX/RX_EN17 on the schematic): only the JTAG
+   * selection bits P4..P7 are rewritten. */
   tx_data[0] = TCA9554_OUTPUT_REG;
-  // Disable AMC, FMC0, FMC1, RTM as default
-  tx_data[1] = JTAG_FMC0_EN_B | JTAG_FMC1_EN_B | JTAG_RTM_EN_B;
-
-#define JTAG_FMC0_ENABLE 0
-#define JTAG_FMC1_ENABLE 0
-
-  if (JTAG_FMC0_ENABLE) tx_data[1] &= ~JTAG_FMC0_EN_B;
-  if (JTAG_FMC1_ENABLE) tx_data[1] &= ~JTAG_FMC1_EN_B;
-  if(!standalone_mode) tx_data[1] |= JTAG_AMC_EN;
-  if(!ucd_get_gpio(&ucd_data[0], UCD_GPI_RTM_PS_B_ID))  tx_data[1] &= ~JTAG_RTM_EN_B;
-  log_printk("jtag", "AMC=%d RTM=%d FMC0=%d FMC1=%d",
-    ((tx_data[1] & JTAG_AMC_EN)?1:0),
-    ((tx_data[1] & JTAG_RTM_EN_B)?0:1),
-    ((tx_data[1] & JTAG_FMC0_EN_B)?0:1),
-    ((tx_data[1] & JTAG_FMC1_EN_B)?0:1)
-  );
-
-  // set output
   i2c_written = 0;
-  while (i2c_written != 2)
+  err_cnt = 0;
+  while (i2c_written != 1)
   {
-
     if (i2c_take_by_chipid(CHIP_ID_TCA9554_JTAG_0, &i2c_addr, &i2c_interface, portMAX_DELAY) == pdTRUE)
     {
-      i2c_written = xI2CMasterWrite(i2c_interface, i2c_addr, tx_data, 2);
+      i2c_written = xI2CMasterWriteRead(i2c_interface, i2c_addr, &tx_data[0], 1, &cur_out, 1);
       i2c_give(i2c_interface);
     }
-    if (i2c_written != 2)
+    if (i2c_written != 1)
     {
-      err_cnt++;
-      if (err_cnt == 0xF)
+      if (++err_cnt == 0xF)
         return MMC_IO_ERR;
-      else
-        vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+      vTaskDelay(pdMS_TO_TICKS(5));
     }
   }
 
-  // set config as output: 0 = output
+  /* P4 = CON_JTAG_EN_L (local connector, active low), P5 = FMC0, P6 = FMC1,
+   * P7 = RTM.  Default: FMC0/FMC1/RTM off, connector on for a standalone
+   * board, off when the card sits in a crate (the AMC path is used). */
+  cur_out &= 0x0F;
+  cur_out |= (standalone_mode ? 0 : JTAG_AMC_EN) |
+             JTAG_FMC0_EN_B | JTAG_FMC1_EN_B | JTAG_RTM_EN_B;
+
+  /* RTM JTAG only when the RTM is present (UCD GPIO); a missing/unresponsive
+   * UCD is treated as 'no RTM' (the RTM enabled by mistake breaks the chain). */
+  rtm_present = (ucd_get_gpio(&ucd_data[0], UCD_GPI_RTM_PS_B_ID) == 0);
+  if (rtm_present) cur_out &= ~JTAG_RTM_EN_B;
+
+  log_printk("jtag", "CON=%d RTM=%d FMC0=%d FMC1=%d",
+    (!standalone_mode ? 1 : 0), rtm_present, 0, 0);
+
+  /* Config first (P4..P7 outputs, P0..P3 inputs), then the output register. */
+  tx_data[0] = TCA9554_CFG_REG;
+  tx_data[1] = (uint8_t)(~(JTAG_AMC_EN | JTAG_FMC0_EN_B | JTAG_FMC1_EN_B | JTAG_RTM_EN_B));
   i2c_written = 0;
+  err_cnt = 0;
   while (i2c_written != 2)
   {
-    tx_data[0] = TCA9554_CFG_REG;
-    tx_data[1] = (uint8_t)(~(JTAG_AMC_EN | JTAG_FMC0_EN_B | JTAG_FMC1_EN_B | JTAG_RTM_EN_B));
     if (i2c_take_by_chipid(CHIP_ID_TCA9554_JTAG_0, &i2c_addr, &i2c_interface, portMAX_DELAY) == pdTRUE)
     {
       i2c_written = xI2CMasterWrite(i2c_interface, i2c_addr, tx_data, 2);
@@ -188,11 +188,28 @@ mmc_err config_jtag(void)
     }
     if (i2c_written != 2)
     {
-      err_cnt++;
-      if (err_cnt == 0xF)
+      if (++err_cnt == 0xF)
         return MMC_IO_ERR;
-      else
-        vTaskDelay(pdMS_TO_TICKS(5)); /* Avoid too much unnecessary I2C trafic*/
+      vTaskDelay(pdMS_TO_TICKS(5));
+    }
+  }
+
+  tx_data[0] = TCA9554_OUTPUT_REG;
+  tx_data[1] = cur_out;
+  i2c_written = 0;
+  err_cnt = 0;
+  while (i2c_written != 2)
+  {
+    if (i2c_take_by_chipid(CHIP_ID_TCA9554_JTAG_0, &i2c_addr, &i2c_interface, portMAX_DELAY) == pdTRUE)
+    {
+      i2c_written = xI2CMasterWrite(i2c_interface, i2c_addr, tx_data, 2);
+      i2c_give(i2c_interface);
+    }
+    if (i2c_written != 2)
+    {
+      if (++err_cnt == 0xF)
+        return MMC_IO_ERR;
+      vTaskDelay(pdMS_TO_TICKS(5));
     }
   }
 

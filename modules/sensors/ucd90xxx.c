@@ -93,6 +93,7 @@
 #define UCD_GPIO_CONFIG_STATUS 0x08
 
 #define UCD_UPDATE_RATE 5000
+#define UCD_MAX_READ_TRIES 10   /* 10 x 40 ms, bounded retry */
 
 #define UCD_REG_DEVICE_ID_LENGTH 32
 
@@ -119,7 +120,10 @@ uint8_t ucd_read_byte(ucd_data_t *data, uint8_t reg_addr, uint8_t *read)
   uint8_t i2c_interf, i2c_addr;
   uint8_t val = 0;
   uint8_t rx_len = 0;
+  uint8_t tries = 0;
 
+  /* Bounded: a dead/unpowered UCD must not hang the caller forever (the
+   * payload's JTAG step and the sensor task both call this). */
   while (rx_len != 1)
   {
     if (i2c_take_by_chipid(data->chipid, &i2c_addr, &i2c_interf, portMAX_DELAY) == pdTRUE)
@@ -130,6 +134,11 @@ uint8_t ucd_read_byte(ucd_data_t *data, uint8_t reg_addr, uint8_t *read)
 
     if (rx_len != 1)
     {
+      if (++tries >= UCD_MAX_READ_TRIES)
+      {
+        *read = 0xFF;   /* defined value for the caller */
+        return 0;
+      }
 #ifdef DEBUG
       printf("UCD read error @ 0x%x\n", reg_addr);
 #endif
