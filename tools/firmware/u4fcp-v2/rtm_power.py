@@ -39,8 +39,8 @@ def main():
                 continue
             print("%-14s page %d: VOUT=%7.3f V  IOUT=%8.3f A  TEMP=%5.1f C"
                   % (rails[page], page, vout, amps, degc))
-        except Exception:
-            pass
+        except Exception as e:
+            print('  page %d: %s' % (page, str(e)[-50:]))
     return 0
 
 if __name__ == "__main__":
