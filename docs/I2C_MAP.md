@@ -20,28 +20,24 @@ Source: `u4FCPv2/readme/i2c.png`; channel numbers from the firmware
 
 ## uRTM2.3 — complete tree behind the AMC’s channel 5
 
-Measured with `tools/firmware/u4fcp-v2/rtm_scan.py` (addresses 0x08‑0x77).
-Last verified: 2026-11-11, re-scan identical to the table below.
-
 | path | devices |
 |---|---|
-| RTM bus (`0x70` ch5) | IO **`0x3C`**, **`0x3E`** (+ the muxes `0x70/0x71/0x72` ACK themselves) |
+| RTM bus (`0x70` ch5) | **TCA9554 `0x3C`** (RTM IO), **TCA9554 `0x3E`** (FMC IO) |
 | `0x71` ch0 | FMC2 EEPROM `0x52` — **not populated** |
 | `0x71` ch1 | FMC3 EEPROM `0x53` — **not populated** |
-| `0x71` ch2 | **CLK MUX `0x49`**, **PLL2 `0x6A`** |
-| `0x71` ch3 | **JTAG IO `0x3D`**, **TCA9548A `0x72`** |
+| `0x71` ch2 | **CLK MUX `0x49`** (ADN4604), **PLL2 `0x6A`** |
+| `0x71` ch3 | **TCA9548A `0x72`** (FPGA/ReDriver mux) |
 | `0x71` ch4 | FireFly — not populated |
 | `0x71` ch5 | FireFly — not populated |
 | `0x71` ch6 | DDR3 — not populated |
 | `0x71` ch7 | **24C512 `0x55`** (FRU, blank), **PMBus `0x5B`**, **pot `0x57`** |
-| `0x72` ch0 (via `0x71` ch3) | **ReDriverIO `0x3F`**, **`0x76`** |
-| `0x72` ch1 | **ReDriverIO `0x3F`**, **`0x76`** |
-| `0x72` ch2 | **JTAG IO `0x3D`** |
+| `0x72` ch0 (via `0x71` ch3) | **TCA9554 `0x3F`**, **PI3EQX16908 `0x76` + `0x7E`** |
+| `0x72` ch1 | **TCA9554 `0x3F`**, **PI3EQX16908 `0x76` + `0x7E`** |
+| `0x72` ch2 | **TCA9554 `0x3D`** (JTAG IO) |
 
-Remark: `0x3C/0x3D/0x3E/0x3F` and the mux addresses also answer on paths that
-do not route them — the uRTM buses are not strictly isolated (or a channel
-select occasionally does not latch); the muxes and the RTM IO devices sit
-upstream of the second mux, so a scan cannot hide them.
+The four `0x76`/`0x7E` ReDrivers share two addresses; the `0x72` channel
+selects which pair (ch0 = group A, ch1 = group B).  `0x3C/0x3D/0x3E/0x3F`
+answer on several paths (the RTM segments are not strictly isolated).
 
 Read example (RTM FRU):
 ```
