@@ -1,6 +1,20 @@
 {
- "0x3C (RTM bus)": "4b4b4b4b",
- "0x3E (RTM bus)": "f3f3f3f3",
- "0x3D (0x71 ch3)": "7f7f7f7f",
- "0x3F (0x72 ch0)": "0c0c0c0c"
+ "0x3C RTM bus": {
+  "input": 75,
+  "output": 11,
+  "polarity": 0,
+  "config": 240
+ },
+ "0x3E RTM bus": {
+  "input": 243,
+  "output": 255,
+  "polarity": 0,
+  "config": 255
+ },
+ "0x3F 72ch0": {
+  "input": 12,
+  "output": 12,
+  "polarity": 0,
+  "config": 0
+ }
 }
