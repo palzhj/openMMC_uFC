@@ -54,13 +54,15 @@ is **switched off** in the u4FCP-v2 build:
 - the JTAG side is wired (`JTAG_RTM_EN_B`, `UCD_GPI_RTM_PS_B_ID`) and the
   RTM EEPROM bus exists (`I2C_BUS_RTM_ID` = I2C2 ch5).
 
-- [ ] **[next]** Decide the RTM management model: the RTM has its own MMC/
-      FRU (the URTM_V2_3 sheet) — the AMC MMC can either manage the RTM
-      directly (the afc-v3 rtm.c model) or just provide the power/JTAG and
-      let the RTM's own MMC report.
-- [ ] **[next]** Port a `port/board/u4fcp-v2/rtm.c` (payload power on/off,
-      presence via `UCD_GPI_RTM_PS_B_ID`, reset/interrupt lines) and enable
-      `"RTM"` in TARGET_MODULES.
+- [x] AMC-side RTM control in `port/board/u4fcp-v2/rtm.c`: presence from
+      RTM_PS# (PA8), 12 V after `RTM_TURNON_DELAY_MS` (3 s), handle monitor
+      only after `RTM_CONFIG_DELAY_MS` (10 s) so the RTM controller can
+      configure its clocks, 12 V cut on handle removal / RTM fault / payload
+      shutdown or reset.  Verified on AMC12 + uRTM2.3: `rtm : RTM detected`
+      -> `rtm : RTM 12 V on (handle monitor in 10 s)`.
+- [ ] **[next]** RTM FRU/hotswap reporting to the MCH (the uRTM's FRU EEPROM
+      on I2C2 ch5, FRU_RTM + SDR 0xC0 hotswap record) — requires deciding
+      whether the AMC or the RTM's own MMC owns the RTM FRU.
 - [ ] Add the RTM rails/sensors to the SDR if the AMC MMC reports them
       (`12V0_RTM`, `RTM_PS#`, the RTM temperatures).
 - [ ] Verify the RTM FRU read over I2C2 ch5 and the RTM JTAG (`RTM_EN_B`)

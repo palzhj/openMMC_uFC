@@ -65,6 +65,7 @@ set(BOARD_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set( PROJ_SRCS ${PROJ_SRCS} ${BOARD_PATH}/sdr_list.c )
 set( PROJ_SRCS ${PROJ_SRCS} ${BOARD_PATH}/i2c_mapping.c )
 set( PROJ_SRCS ${PROJ_SRCS} ${BOARD_PATH}/pin_mapping.c )
+set( PROJ_SRCS ${PROJ_SRCS} ${BOARD_PATH}/rtm.c )
 
 if (";${TARGET_MODULES};" MATCHES ";PAYLOAD;")
   set(PROJ_SRCS ${PROJ_SRCS} ${BOARD_PATH}/payload.c)

@@ -31,6 +31,7 @@
 /* Project Includes */
 #include "port.h"
 #include "payload.h"
+#include "rtm.h"
 #include "ipmi.h"
 #include "task_priorities.h"
 #include "hotswap.h"
@@ -653,11 +654,17 @@ void vTaskPayload(void *pvParameters)
 /* FPGA program done flag */
 #define FPGA_PROM_TIMEOUT 100000 // ms
 #define FPGA_PROM_MAX_CNT (FPGA_PROM_TIMEOUT / PAYLOAD_BASE_DELAY)
+
+#ifndef RTM_CONFIG_DELAY_MS
+#define RTM_CONFIG_DELAY_MS  10000
+#endif
   uint8_t FPGA_prom_timer = 0;
   uint8_t FPGA_prom_done = 0;
 
   uint8_t QUIESCED_req = 0;
   EventBits_t current_evt;
+
+  /* AMC-side RTM control lives in rtm.c */
 
   extern sensor_t *hotswap_amc_sensor;
 
@@ -710,7 +717,7 @@ void vTaskPayload(void *pvParameters)
        * If you issue a shutdown fru command in the MCH shell, the payload power
        * task will receive a PAYLOAD_MESSAGE_QUIESCE message and set the
        * QUIESCED_req flag to '1' and the MCH will shutdown the 12VP0 power,
-  {     * maki}ng the payload power task go to PAYLOAD_NO_POWER state.
+       * making the payload power task go to PAYLOAD_NO_POWER state.
        * So, if we are in the PAYLOAD_QUIESCED state and receive a
        * PAYLOAD_MESSAGE_QUIESCE message, the QUIESCED_req flag
        * should be '0'
@@ -785,16 +792,18 @@ void vTaskPayload(void *pvParameters)
                    (int)(1000 * tpl0102_get_amc_voltage(1)));
 #endif
 
-        // Check RTM
-        // ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 1);
-        if (ucd_get_gpio(&ucd_data[0], UCD_GPI_RTM_PS_B_ID))
+        /* RTM present?  RTM_PS# (PA8) low = handle closed; the 12 V is
+         * enabled from the RTM_SETUP state (rtm.c startup policy). */
+        rtm_init();
+        if (!rtm_present())
         {
           log_printk("pwr", "no RTM");
+          new_state = PAYLOAD_STATE_CLK_SETUP;
         }
         else
         {
-          ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 1);
-          log_printk("pwr", "RTM power on");
+          log_printk("rtm", "RTM detected");
+          new_state = PAYLOAD_STATE_RTM_SETUP;
         }
 
         // Turn on the green light
@@ -802,6 +811,18 @@ void vTaskPayload(void *pvParameters)
         // config JTAG
         if (config_jtag() != MMC_OK)
           log_printk("jtag", "config failed");
+      }
+      break;
+
+    case PAYLOAD_STATE_RTM_SETUP:
+      if (QUIESCED_req || (PP_good == 0)) { new_state = PAYLOAD_SWITCHING_OFF; break; }
+      if (rtm_enable_12v() == MMC_OK)
+      {
+        new_state = PAYLOAD_STATE_CLK_SETUP;
+      }
+      else if (!rtm_present())
+      {
+        log_printk("rtm", "RTM left before power-up, no 12 V");
         new_state = PAYLOAD_STATE_CLK_SETUP;
       }
       break;
@@ -849,6 +870,19 @@ void vTaskPayload(void *pvParameters)
       if (QUIESCED_req == 1 || PP_good == 0 || DCDC_good == 0)
       {
         new_state = PAYLOAD_SWITCHING_OFF;
+        break;
+      }
+      /* RTM handle / fault monitor (rtm.c): the handle is only interpreted
+       * after the RTM controller configured its clocks. */
+      if (rtm_handle_removed())
+      {
+        log_printk("rtm", "RTM removed, 12 V off");
+        rtm_disable_12v();
+      }
+      else if (rtm_12v_is_on() && (rtm_overcurrent_check() != MMC_OK))
+      {
+        log_printk("rtm", "RTM power fault, 12 V off");
+        rtm_disable_12v();
       }
       break;
 
@@ -856,7 +890,7 @@ void vTaskPayload(void *pvParameters)
       /* rails are going down: stop scanning them before they fall out of
        * range, otherwise every sensor sends a lower-non-recoverable event */
       payload_sensors_scan(false);
-      ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 0);
+      rtm_disable_12v();
       // ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
 
       // ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC0_PG_C2M_ID, 0);
@@ -892,6 +926,7 @@ void vTaskPayload(void *pvParameters)
     case PAYLOAD_RESET:
       /*Reset DCDC converters*/
       payload_sensors_scan(false);
+      rtm_disable_12v();
       setDC_DC_ConvertersON(false);
       new_state = PAYLOAD_NO_POWER;
       break;
