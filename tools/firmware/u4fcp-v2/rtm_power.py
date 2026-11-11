@@ -28,7 +28,7 @@ def main():
             v = acc.xfer(1, PATH, DEV, bytes([0x8B]), 2)
             i = acc.xfer(1, PATH, DEV, bytes([0x8C]), 2)
             t = acc.xfer(1, PATH, DEV, bytes([0x8D]), 2)
-            vout = lin(v[1] << 8 | v[0])
+            vout = lin(v[1] << 8 | v[0], exp)
             # IOUT/TEMPERATURE use the UCD's own coefficients
             # (MFR_IOUT_COEFF etc. are not read here): print the raw values
             iraw = i[1] << 8 | i[0]
