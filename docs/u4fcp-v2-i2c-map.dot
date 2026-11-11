@@ -1,34 +1,44 @@
 digraph i2c {
-  rankdir=LR; bgcolor="white"; splines=false;
-  node [shape=box, style="rounded", fontname="Helvetica"];
+  rankdir=LR; bgcolor="white"; splines=false; nodesep=0.25;
+  node [shape=box, style="rounded", fontname="Helvetica", fontsize=10];
   edge [fontname="Helvetica", fontsize=9];
 
   mcu [label="u4FCP-v2 MMC\nSTM32F103CBT6\nI2C2 PB10/PB11"];
-  mux [label="TCA9548A 0x70\n(AMC mux)"];
+  amux [label="TCA9548A 0x70\n(AMC mux)"];
+  mcu -> amux [label="I2C2"];
 
-  mcu -> mux [label="I2C2"];
-
-  subgraph cluster_amc {
-    label="u4FCP-v2";
-    ch0 [label="ch0 FMC0\nEEPROM 0x50"];
-    ch1 [label="ch1 FMC1\nEEPROM 0x51"];
-    ch2 [label="ch2 clock\nADN4604 0x48\nSi5345 0x68 / 0x69"];
-    ch4 [label="ch4 FPGA\nTCA9554 JTAG 0x39"];
-    ch7 [label="ch7 power\nEEPROM 0x54\nUCD90320 0x11\nTPL0102 0x56"];
-  }
-
+  ch0 [label="ch0 FMC0\nEEPROM 0x50"];
+  ch1 [label="ch1 FMC1\nEEPROM 0x51"];
+  ch2 [label="ch2 clock\nCLK MUX 0x48 (ADN4604)\nPLL0 0x68 / PLL1 0x69"];
+  ch3 [label="ch3 FireFly\n(not populated)"];
+  ch4 [label="ch4 FPGA\nJTAG IO 0x39 (+ KUP)"];
   ch5 [label="ch5 RTM bus"];
-  mux -> ch0; mux -> ch1; mux -> ch2; mux -> ch4; mux -> ch7; mux -> ch5;
+  ch6 [label="ch6 DDR4\n(not populated)"];
+  ch7 [label="ch7 power\n24C512 0x54\nPMBus 0x11\npot 0x56"];
+  amux -> ch0; amux -> ch1; amux -> ch2; amux -> ch3; amux -> ch4; amux -> ch5; amux -> ch6; amux -> ch7;
 
   subgraph cluster_rtm {
-    label="uRTM2.3";
-    rtmmux [label="TCA9548A 0x71\n(RTM mux)"];
-    fru [label="CAT24C512 0x52/0x53\nRTM FRU"];
-    mmc [label="STM32F103CBT6\nRTM MMC"];
-    pll [label="CLK MUX 0x49 + PLL2 0x6A\nRTM clock"];
-    io [label="TCA9548A 0x72\nFPGA bus"];
-    pwr [label="24C512 0x55\nPMBus 0x5B"];
+    label="uRTM2.3 (behind ch5)";
+    busnode [label="RTM bus\nIO 0x3C, 0x3E"];
+    rmux [label="TCA9548A 0x71\n(RTM mux)"];
+    ch5 -> busnode;
+    busnode -> rmux;
+
+    r0 [label="ch0 FMC2 EEPROM 0x52\n(not populated)"];
+    r1 [label="ch1 FMC3 EEPROM 0x53\n(not populated)"];
+    r2 [label="ch2 clock\nCLK MUX 0x49\nPLL2 0x6A"];
+    r3 [label="ch3 FPGA\nJTAG IO 0x3D\n+mux 0x72"];
+    r4 [label="ch4 FireFly\n(not populated)"];
+    r5 [label="ch5 FireFly\n(not populated)"];
+    r6 [label="ch6 DDR3\n(not populated)"];
+    r7 [label="ch7 power\n24C512 0x55 (FRU, blank)\nPMBus 0x5B, pot 0x57"];
+    rmux -> r0; rmux -> r1; rmux -> r2; rmux -> r3; rmux -> r4; rmux -> r5; rmux -> r6; rmux -> r7;
+
+    fmux [label="TCA9548A 0x72\n(FPGA mux)"];
+    r3 -> fmux;
+    f0 [label="ch0: ReDriverIO 0x3F\n+ 0x76"];
+    f1 [label="ch1: ReDriverIO 0x3F\n+ 0x76"];
+    f2 [label="ch2: JTAG IO 0x3D"];
+    fmux -> f0; fmux -> f1; fmux -> f2;
   }
-  ch5 -> rtmmux [label="RTM_MP_3V3"];
-  rtmmux -> fru; rtmmux -> mmc; rtmmux -> pll; rtmmux -> io; rtmmux -> pwr;
 }

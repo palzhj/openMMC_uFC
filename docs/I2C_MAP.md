@@ -18,26 +18,31 @@ Source: `u4FCPv2/readme/i2c.png`; channel numbers from the firmware
 | 6 | DDR4 | (empty) |
 | 7 | power | **24C512 `0x54`** (`7'b1010_100`), **PMBus `0x11`** (`7'b001_001`), **potentiometer `0x56`** (`7'b1010_110`) |
 
-## uRTM2.3 — behind the AMC’s channel 5, its own TCA9548A `@0x71`
+## uRTM2.3 — complete tree behind the AMC’s channel 5
 
-Source: `u4FCPv2/readme/i2c.png` (RTM side).
+Measured with `tools/firmware/u4fcp-v2/rtm_scan.py` (addresses 0x08‑0x77):
 
-| device | address | function |
-|---|---|---|
-| **TCA9548A** | **`0x71`** (`7'b1110_001`) | the RTM’s 8‑channel mux |
-| → ch0 | EEPROM `0x52` (`7'b1010_010`) | FMC2 EEPROM |
-| → ch1 | EEPROM `0x53` (`7'b1010_011`) | FMC3 EEPROM |
-| → ch2 | **CLK MUX `0x49`** (`7'b1001_001`), **PLL2 `0x6A`** (`7'b1101_010`) | RTM clocking |
-| → ch3 | **IIC MUX `0x72`** (`7'b1110_010`) | the RTM FPGA bus: **ReDriverIO `0x3F`** (`7'b0111_111`), **JTAG IO `0x3D`** (`7'b0111_101`), ReDriver ×2 `7'b1111_x10`/`7'b1110_1x0` |
-| → ch4 | FireFly transceiver |  |
-| → ch5 | FireFly transceiver |  |
-| → ch6 | DDR3 |  |
-| → ch7 | **24C512 `0x55`** (`7'b1010_101`), **PMBus `0x5B`** (`7'b1011_011`), **potentiometer `0x57`** (`7'b1010_111`) | RTM power/FMC |
+| path | devices |
+|---|---|
+| RTM bus (`0x70` ch5) | IO **`0x3C`**, **`0x3E`** (+ the muxes `0x70/0x71/0x72` ACK themselves) |
+| `0x71` ch0 | FMC2 EEPROM `0x52` — **not populated** |
+| `0x71` ch1 | FMC3 EEPROM `0x53` — **not populated** |
+| `0x71` ch2 | **CLK MUX `0x49`**, **PLL2 `0x6A`** |
+| `0x71` ch3 | **JTAG IO `0x3D`**, **TCA9548A `0x72`** |
+| `0x71` ch4 | FireFly — not populated |
+| `0x71` ch5 | FireFly — not populated |
+| `0x71` ch6 | DDR3 — not populated |
+| `0x71` ch7 | **24C512 `0x55`** (FRU, blank), **PMBus `0x5B`**, **pot `0x57`** |
+| `0x72` ch0 (via `0x71` ch3) | **ReDriverIO `0x3F`**, **`0x76`** |
+| `0x72` ch1 | **ReDriverIO `0x3F`**, **`0x76`** |
+| `0x72` ch2 | **JTAG IO `0x3D`** |
 
-The AMC’s RTM channel also carries the RTM’s **IO `0x3E`** (`7'b0111_110`), the
-**FMC IO `0x3E`** and the **RTM MCU** (no I²C address, it is the AMC’s peer
-controller).
+Remark: `0x3C/0x3D/0x3E/0x3F` and the mux addresses also answer on paths that
+do not route them — the uRTM buses are not strictly isolated (or a channel
+select occasionally does not latch); the muxes and the RTM IO devices sit
+upstream of the second mux, so a scan cannot hide them.
 
-Addresses are the 7‑bit values drawn on the block diagram.  The RTM bus only responds when
-`RTM_MP_3V3` (UCD `GPO_RTM_MP_EN`) is enabled — currently not done by the
-AMC firmware.
+Read example (RTM FRU):
+```
+raw 0x32 0x20 0x01 0x02 0x70 0x05 0x71 0x07 0x55 0x02 0x00 0x00 0x10
+```
