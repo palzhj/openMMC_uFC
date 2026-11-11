@@ -30,7 +30,8 @@ def main():
     print("VOUT_MODE=0x%02x -> exponent %d" % (mode, exp))
     # page map from uRTMv2.3_with_current_limitation.tifsp (RailDefinitions)
     # VOUT_SCALE_MONITOR (0x2A) from the Fusion project: the fraction of the
-    # rail voltage present at the monitor pin (12 V rails 0.164, 3.3/1.8 V 0.5)
+    # rail voltage at the monitor pin.  RTM_12V divider = 5.1k + 1k on MON9:
+    # 1k/(5.1k+1k) = 0.164; the other rails use the 0.5 divider.
     rails = {0: ("RTM_12V", 0.164), 1: ("MP_3V3", 0.5),
              2: ("FMC2_12V_CURR", 0.164), 3: ("FMC2_VADJ", 0.5),
              4: ("FMC2_3V3_CURR", 0.5), 5: ("FMC3_12V_CURR", 0.164),
