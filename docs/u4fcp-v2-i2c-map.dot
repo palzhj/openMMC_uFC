@@ -1,0 +1,34 @@
+digraph i2c {
+  rankdir=LR; bgcolor="white"; splines=false;
+  node [shape=box, style="rounded", fontname="Helvetica"];
+  edge [fontname="Helvetica", fontsize=9];
+
+  mcu [label="u4FCP-v2 MMC\nSTM32F103CBT6\nI2C2 PB10/PB11"];
+  mux [label="TCA9548A 0x70\n(AMC mux)"];
+
+  mcu -> mux [label="I2C2"];
+
+  subgraph cluster_amc {
+    label="u4FCP-v2";
+    ch0 [label="ch0 FMC0\nEEPROM 0x50"];
+    ch1 [label="ch1 FMC1\nEEPROM 0x51"];
+    ch2 [label="ch2 clock\nADN4604 0x48\nSi5345 0x68 / 0x69"];
+    ch4 [label="ch4 FPGA\nTCA9554 JTAG 0x39"];
+    ch7 [label="ch7 power\nEEPROM 0x54\nUCD90320 0x11\nTPL0102 0x56"];
+  }
+
+  ch5 [label="ch5 RTM bus"];
+  mux -> ch0; mux -> ch1; mux -> ch2; mux -> ch4; mux -> ch7; mux -> ch5;
+
+  subgraph cluster_rtm {
+    label="uRTM2.3";
+    rtmmux [label="TCA9548A 0x70\n(RTM mux)"];
+    fru [label="CAT24C512 0x50\nRTM FRU"];
+    mmc [label="STM32F103CBT6\nRTM MMC"];
+    pll [label="Si5345B 0x68/0x69\nRTM clock"];
+    io [label="PCA9554\nLEDs / handle"];
+    pwr [label="INA210 / LTM4671\nPMBus"];
+  }
+  ch5 -> rtmmux [label="RTM_MP_3V3"];
+  rtmmux -> fru; rtmmux -> mmc; rtmmux -> pll; rtmmux -> io; rtmmux -> pwr;
+}
