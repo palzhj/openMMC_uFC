@@ -24,7 +24,7 @@ Notes:
 
 | device | address | function |
 |---|---|---|
-| **TCA9548A** | `0x70` | the RTM’s own 8‑channel mux (3 V3) |
+| **TCA9548A** | **`0x71`** | the RTM’s own 8‑channel mux (3 V3) |
 | **CAT24C512YI‑GT3** | `0x50` (strap) | the RTM FRU EEPROM (16‑bit addressing, 64 KB) |
 | **STM32F103CBT6** | — | the RTM’s MMC (openMMC `urtm-v2` port), configures the RTM clocks |
 | **Si5345B‑D‑GM** | `0x68`/`0x69` | the RTM’s clock PLL (via the RTM mux) |
