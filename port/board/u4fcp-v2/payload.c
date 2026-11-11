@@ -884,6 +884,13 @@ void vTaskPayload(void *pvParameters)
         log_printk("rtm", "RTM power fault, 12 V off");
         rtm_disable_12v();
       }
+      else if (!rtm_12v_is_on() && rtm_present())
+      {
+        /* the handle was closed again (RTM re-inserted): re-power the RTM
+         * without touching the AMC payload */
+        log_printk("rtm", "RTM handle closed again, re-powering");
+        rtm_enable_12v();
+      }
       break;
 
     case PAYLOAD_SWITCHING_OFF:
