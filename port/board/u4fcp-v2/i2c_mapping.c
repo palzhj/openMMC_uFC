@@ -15,7 +15,7 @@ i2c_bus_mapping_t i2c_bus_map[I2C_BUS_CNT] = {
   [I2C_BUS_CLOCK_ID]    = {I2C2_ID, 2, 1},
   [I2C_BUS_FIREFLY_ID]  = {I2C2_ID, 3, 0},
   [I2C_BUS_FPGA_ID]     = {I2C2_ID, 4, 1},
-  [I2C_BUS_RTM_ID]      = {I2C2_ID, 5, 0},
+  [I2C_BUS_RTM_ID]      = {I2C2_ID, 5, 1},
   [I2C_BUS_DDR4_ID]     = {I2C2_ID, 6, 0},
   [I2C_BUS_POWER_ID]    = {I2C2_ID, 7, 1},
   [I2C_BUS_MUX_ID]      = {I2C2_ID, -1, 1}
@@ -35,7 +35,10 @@ i2c_chip_mapping_t i2c_chip_map[I2C_CHIP_CNT] = {
   // [CHIP_ID_DDR4]        = {I2C_BUS_DDR4_ID,   0x0},
   [CHIP_ID_EEPROM]        = {I2C_BUS_POWER_ID,  0x54},
   [CHIP_ID_PMBUS_0]       = {I2C_BUS_POWER_ID,  0x11},
-  [CHIP_ID_TPL0102_0]     = {I2C_BUS_POWER_ID,  0x56}
+  [CHIP_ID_TPL0102_0]     = {I2C_BUS_POWER_ID,  0x56},
+  /* RTM: 0x70 ch5 -> TCA9548A 0x71 (ch7) -> UCD90124A 0x5B */
+  [CHIP_ID_RTM_MUX_1]     = {I2C_BUS_RTM_ID,    RTM_MUX_1_ADDR},
+  [CHIP_ID_RTM_UCD]       = {I2C_BUS_RTM_ID,    0x5B}
 };
 
 bool i2c_set_mux_bus(uint8_t bus_id, i2c_mux_state_t *i2c_mux, int8_t new_state)
@@ -80,4 +83,16 @@ uint8_t i2c_get_mux_bus(uint8_t bus_id, i2c_mux_state_t *i2c_mux)
   } else {
       return i2c_mux->state;
   }
+}
+
+/* Second mux level of the RTM path: the AMC switch 0x70 ch5 reaches the RTM
+ * bus, TCA9548A 0x71 then selects the segment the UCD90124A sits on (ch7).
+ * There is no cached state: the RTM (and its switch) disappears with the
+ * module, and the only user switches it once per poll. */
+bool i2c_rtm_mux_select( uint8_t i2c_interface )
+{
+  uint8_t tca_channel = 1 << RTM_MUX_1_UCD_CHANNEL;
+
+  /* xI2CMasterWrite returns the number of bytes written (1 = success) */
+  return xI2CMasterWrite( i2c_interface, RTM_MUX_1_ADDR, &tca_channel, 1 ) == 1;
 }

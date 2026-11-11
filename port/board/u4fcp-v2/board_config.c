@@ -22,6 +22,7 @@
 /* Project Includes */
 #include "port.h"
 #include "ipmb.h"
+#include "rtm_sensors.h"
 
 void board_init()
 {
@@ -55,6 +56,10 @@ extern uint8_t ipmb_addr;
 
 void board_config()
 {
+  /* RTM FMC2/FMC3 monitors: the task inserts/removes the SDRs with the
+   * RTM presence and polls the uRTM UCD90124A once per second */
+  rtm_sensors_init();
+
   // // Enable interrupt
   // __set_PRIMASK(0);
 

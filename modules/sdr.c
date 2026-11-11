@@ -131,12 +131,21 @@ void sdr_init( void )
 
 sensor_t * sdr_insert_entry( SDR_TYPE type, void * sdr, TaskHandle_t *monitor_task, uint8_t diag_id, uint8_t chipid )
 {
+    /* The AMC's own sensors report their record ID as sensor number, with the
+     * entity instance derived from the IPMB address (PICMG AMC Module). */
+    return sdr_insert_entry_full( type, sdr, monitor_task, diag_id, chipid,
+                                  sdr_count, 0x60 | ((ipmb_addr - 0x70) >> 1) );
+}
+
+sensor_t * sdr_insert_entry_full( SDR_TYPE type, void * sdr, TaskHandle_t *monitor_task, uint8_t diag_id, uint8_t chipid, uint8_t sensor_number, uint8_t entity_instance )
+{
     uint8_t sdr_len = sdr_get_size_by_type(type);
 
     sensor_t * entry = pvPortMalloc( sizeof(sensor_t) );
     memset( entry, 0, sizeof(sensor_t) );
 
     entry->num = sdr_count;
+    entry->sensor_number = sensor_number;
     entry->sdr_type = type;
     entry->sdr = sdr;
     entry->sdr_length = sdr_len;
@@ -144,12 +153,15 @@ sensor_t * sdr_insert_entry( SDR_TYPE type, void * sdr, TaskHandle_t *monitor_ta
     entry->diag_devID = diag_id;
     entry->chipid = chipid;
     entry->ownerID = ipmb_addr;
-    entry->entityinstance =  0x60 | ((ipmb_addr - 0x70) >> 1);
+    entry->entityinstance = entity_instance;
     entry->readout_value = 0;
     entry->state = SENSOR_STATE_LOW_NON_REC;
     entry->event_scan = 0xC0; /* Start with sensor enabled */
 
-    /* Link the sdr list */
+    /* Link the sdr list.  Entries can be inserted at run time (RTM sensors),
+     * so the list mutation must not be interrupted by a reader: the IPMI task
+     * runs at a higher priority than the sensor tasks. */
+    portENTER_CRITICAL();
     if (sdr_tail) {
         sdr_tail->next = entry;
     }
@@ -158,6 +170,7 @@ sensor_t * sdr_insert_entry( SDR_TYPE type, void * sdr, TaskHandle_t *monitor_ta
 
     sdr_count++;
     sdr_change_count++;
+    portEXIT_CRITICAL();
 
     return entry;
 }
@@ -200,13 +213,25 @@ sensor_t * find_sensor_by_id( uint8_t id )
     return NULL;
 }
 
-void sdr_remove_entry( sensor_t * entry )
+sensor_t * find_sensor_by_number( uint8_t sensor_number )
+{
+    sensor_t * cur;
+
+    for ( cur = sdr_head; cur != NULL; cur = cur->next ) {
+        if (cur->sensor_number == sensor_number) {
+            return cur;
+        }
+    }
+    return NULL;
+}
+
+bool sdr_delete_entry( sensor_t * entry )
 {
     sensor_t * cur = sdr_head;
     sensor_t * prev = NULL;
 
-    if (entry == sdr_head) {
-        sdr_pop();
+    if (entry == NULL) {
+        return false;
     }
 
     while (cur != entry) {
@@ -214,29 +239,40 @@ void sdr_remove_entry( sensor_t * entry )
         cur = cur->next;
         if (cur == NULL) {
             /* We reached the end of the list and didn't find the entry */
-            return;
+            return false;
         }
     }
 
-    /* Relink the table */
-    prev->next = cur->next;
+    /* Relink the table (atomic w.r.t. the IPMI readers, see
+     * sdr_insert_entry_full()) */
+    portENTER_CRITICAL();
+    if (prev == NULL) {
+        sdr_head = cur->next;
+    } else {
+        prev->next = cur->next;
+    }
+    if (sdr_tail == cur) {
+        sdr_tail = prev;
+    }
 
     sdr_count--;
     sdr_change_count++;
+    portEXIT_CRITICAL();
 
     /* Free the entry */
     vPortFree(cur);
+
+    return true;
+}
+
+void sdr_remove_entry( sensor_t * entry )
+{
+    sdr_delete_entry( entry );
 }
 
 void sdr_pop( void )
 {
-    sensor_t * new_head;
-
-    if ( sdr_head ) {
-        new_head = sdr_head->next;
-        vPortFree( sdr_head );
-        sdr_head = new_head;
-    }
+    sdr_delete_entry( sdr_head );
 }
 
 void sensor_enable(sensor_t *sensor)
@@ -386,7 +422,9 @@ IPMI_HANDLER(ipmi_se_get_sdr, NETFN_SE, IPMI_GET_DEVICE_SDR_CMD, ipmi_msg *req, 
                 tmp_c = cur_sensor->entityinstance;
             }
             if (index == 7) {
-                tmp_c = record_id;
+                /* IPMI sensor number: the AMC's own sensors use their record
+                 * ID, the RTM monitor group its fixed numbers (0x20-0x27) */
+                tmp_c = cur_sensor->sensor_number;
             }
         } else if ( sdr_type == TYPE_11 || sdr_type == TYPE_12 ) {
             if (index == 13) {
@@ -421,15 +459,15 @@ IPMI_HANDLER(ipmi_se_get_sensor_reading, NETFN_SE, IPMI_GET_SENSOR_READING_CMD, 
     int sensor_number = req->data[0];
     int len = rsp->data_len;
 
-    sensor_t * cur_sensor = find_sensor_by_id( sensor_number );
+    sensor_t * cur_sensor = find_sensor_by_number( sensor_number );
 
-    if (sensor_number > sdr_count) {
+    if (cur_sensor == NULL) {
         rsp->completion_code = IPMI_CC_PARAM_OUT_OF_RANGE;
         rsp->data_len = 0;
         return;
     }
 
-    if (vTaskHotSwap_Handle != NULL && *(cur_sensor->task_handle) == vTaskHotSwap_Handle) {
+    if (vTaskHotSwap_Handle != NULL && cur_sensor->task_handle != NULL && *(cur_sensor->task_handle) == vTaskHotSwap_Handle) {
         rsp->data[len++] = 0x00;
         rsp->data[len++] = cur_sensor->event_scan;
         /* Current State Mask */
@@ -460,14 +498,14 @@ IPMI_HANDLER(ipmi_se_get_sensor_threshold, NETFN_SE, IPMI_GET_SENSOR_THRESHOLD_C
     int sensor_number = req->data[0];
     int len = rsp->data_len;
 
+    sensor_t *cur_sensor = find_sensor_by_number( sensor_number );
+
     /* Check if the requested sensor exists */
-    if (sensor_number > sdr_count) {
+    if ( cur_sensor == NULL) {
         rsp->completion_code = IPMI_CC_PARAM_OUT_OF_RANGE;
         rsp->data_len = 0;
         return;
     }
-
-    sensor_t *cur_sensor = find_sensor_by_id( sensor_number );
 
     /* Check if the selected sensor has a Full Sensor Record */
     if ( cur_sensor->sdr_type != TYPE_01) {

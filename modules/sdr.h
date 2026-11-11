@@ -23,6 +23,8 @@
 #ifndef SDR_H_
 #define SDR_H_
 
+#include <stdbool.h>
+
 #include "ipmb.h"
 
 #define NUM_SENSOR                      21      /* Number of sensors */
@@ -179,7 +181,8 @@ typedef struct {
 } SDR_type_12h_t;
 
 typedef struct sensor_t {
-    uint8_t num;
+    uint8_t num;            /* SDR record ID (sequential, from sdr_count) */
+    uint8_t sensor_number;  /* IPMI sensor number reported in the SDR (byte 7) */
     SDR_TYPE sdr_type;
     void * sdr;
     uint8_t sdr_length;
@@ -233,10 +236,27 @@ void sensor_disable(sensor_t *sensor);
 void check_sensor_event( sensor_t * sensor );
 void sensor_state_check( sensor_t *sensor );
 sensor_t * sdr_insert_entry( SDR_TYPE type, void * sdr, TaskHandle_t *monitor_task, uint8_t diag_id, uint8_t slave_addr);
+/**
+ * @brief Insert an SDR entry with an explicit sensor number / entity instance
+ *
+ * The AMC's own sensors use the record ID as sensor number and derive the
+ * entity instance from the IPMB address (see sdr_insert_entry()).  Sensors
+ * that belong to another entity (e.g. the RTM monitors reported by the AMC)
+ * need their own fixed sensor number and entity instance.
+ */
+sensor_t * sdr_insert_entry_full( SDR_TYPE type, void * sdr, TaskHandle_t *monitor_task, uint8_t diag_id, uint8_t slave_addr, uint8_t sensor_number, uint8_t entity_instance);
+/**
+ * @brief Free an SDR entry previously inserted (dynamic sensor removal)
+ *
+ * @retval true  the entry was found and unlinked
+ * @retval false the entry was NULL or not part of the repository
+ */
+bool sdr_delete_entry( sensor_t * entry );
 void sdr_remove_entry( sensor_t * entry );
 void sdr_pop( void );
 sensor_t * sdr_add_settings(uint8_t chipid, void * settings);
 sensor_t * find_sensor_by_sdr( void * sdr );
 sensor_t * find_sensor_by_id( uint8_t id );
+sensor_t * find_sensor_by_number( uint8_t sensor_number );
 
 #endif

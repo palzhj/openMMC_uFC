@@ -28,6 +28,7 @@
 #include "sdr.h"
 #include "utils.h"
 #include "i2c_mapping.h"
+#include "rtm_sensors.h"
 
 /* Sensors includes */
 #include "sensors.h"
@@ -1542,3 +1543,190 @@ void amc_sdr_init(void)
 #endif
 
 }
+
+/* -------------------------------------------------------------------------
+ * RTM FMC2/FMC3 monitors (entity 0xC0, instance 0x00)
+ *
+ * The uRTM2.3's UCD90124A (0x5B) monitors the two FMC sites.  The AMC MMC
+ * reads it (rtm_sensors.c) and owns these eight sensors: they are inserted
+ * with the fixed sensor numbers 0x20-0x27 while the RTM is present and
+ * removed again when the handle is opened.
+ *
+ * The fields shared by all eight records live in the prefix macro below.
+ * The thresholds are per rail; currents use 32 mA/LSB (M = 32, R = -3) and
+ * the FMC VADJ voltage 16 mV/LSB (M = 16, R = -3) so every value fits the
+ * 8-bit SDR reading.  Only upper going-high events are enabled: the RTM rails
+ * fall to 0 V whenever the payload cuts the 12 V, and lower-threshold events
+ * would just flood the event log.
+ * ------------------------------------------------------------------------- */
+
+#define SDR_RTM_MONITOR_PREFIX                                                 \
+  .hdr.recID_LSB = 0x00, /* Filled by sdr_insert_entry_full() */               \
+  .hdr.recID_MSB = 0x00,                                                       \
+  .hdr.SDRversion = 0x51,                                                      \
+  .hdr.rectype = TYPE_01,                                                      \
+  .hdr.reclength = sizeof(SDR_type_01h_t) - sizeof(SDR_entry_hdr_t),           \
+                                                                               \
+  .ownerID = 0x00,   /* i2c address, -> SDR_Init */                            \
+  .ownerLUN = 0x00,                                                            \
+  .sensornum = 0x00, /* sensor number, -> sdr_insert_entry_full() */           \
+                                                                               \
+  .entityID = 0xC0,          /* entity id: RTM */                              \
+  .entityinstance = 0x00,    /* entity instance, -> sdr_insert_entry_full() */ \
+  .sensorinit = 0x7F,        /* event generation + scanning enabled */         \
+  .sensorcap = 0x56,         /* capabilities: auto re-arm */                   \
+  .event_reading_type = 0x01,                                                  \
+  .readable_threshold_mask = 0x3F,  /* all thresholds readable */              \
+  .settable_threshold_mask = 0x00,  /* none settable */                        \
+  .sensor_units_3 = 0x00,                                                      \
+  .linearization = 0x00,                                                       \
+  .M_tol = 0x00,                                                               \
+  .B = 0x00,                                                                   \
+  .B_accuracy = 0x00,                                                          \
+  .Rexp_Bexp = 0xD0,         /* R = -3, B exponent = 0 */                      \
+  .sensor_max_reading = 0xFF,                                                  \
+  .sensor_min_reading = 0x00,                                                  \
+  .reserved1 = 0x00,                                                           \
+  .reserved2 = 0x00,                                                           \
+  .OEM = 0x00
+
+#define SDR_RTM_FMC2_12V_I_ID    "FMC2 +12V Curr"
+#define SDR_RTM_FMC2_3V3_I_ID    "FMC2 +3.3V Curr"
+#define SDR_RTM_FMC2_VADJ_V_ID   "FMC2 VADJ"
+#define SDR_RTM_FMC2_VADJ_I_ID   "FMC2 VADJ Curr"
+#define SDR_RTM_FMC3_12V_I_ID    "FMC3 +12V Curr"
+#define SDR_RTM_FMC3_3V3_I_ID    "FMC3 +3.3V Curr"
+#define SDR_RTM_FMC3_VADJ_V_ID   "FMC3 VADJ"
+#define SDR_RTM_FMC3_VADJ_I_ID   "FMC3 VADJ Curr"
+
+/* The linearization, units and thresholds below are the ones of the AMC's own
+ * FMC0/FMC1 records above: the RTM FMC sites are reported like the two on the
+ * AMC (32 mA/LSB for the 12 V and 3.3 V currents, 64 mA/LSB for VADJ current,
+ * 16 mV/LSB for VADJ voltage). */
+
+/* FMC 12 V current, as SDR_FMC0_12V_CURR */
+#define SDR_RTM_FMC_12V_I_THRESHOLDS                                           \
+  .nominal_reading = (uint8_t)(500 / 32),                                      \
+  .normal_max = (uint8_t)(1000 / 32),                                          \
+  .normal_min = 0,                                                             \
+  .upper_nonrecover_thr = (uint8_t)(3000 / 32),                                \
+  .upper_critical_thr = (uint8_t)(2500 / 32),                                  \
+  .upper_noncritical_thr = (uint8_t)(1500 / 32),                               \
+  .lower_nonrecover_thr = (uint8_t)(-1000 / 32),                               \
+  .lower_critical_thr = (uint8_t)(-500 / 32),                                  \
+  .lower_noncritical_thr = (uint8_t)(0 / 32)
+
+/* FMC 3.3 V current, as SDR_FMC0_P3V3_CURR */
+#define SDR_RTM_FMC_3V3_I_THRESHOLDS                                           \
+  .nominal_reading = (uint8_t)(1500 / 32),                                     \
+  .normal_max = (uint8_t)(3000 / 32),                                          \
+  .normal_min = 0,                                                             \
+  .upper_nonrecover_thr = (uint8_t)(4000 / 32),                                \
+  .upper_critical_thr = (uint8_t)(3600 / 32),                                  \
+  .upper_noncritical_thr = (uint8_t)(3300 / 32),                               \
+  .lower_nonrecover_thr = (uint8_t)(-1000 / 32),                               \
+  .lower_critical_thr = (uint8_t)(-500 / 32),                                  \
+  .lower_noncritical_thr = (uint8_t)(0 / 32)
+
+/* FMC VADJ current, as SDR_FMC0_VADJ_CURR */
+#define SDR_RTM_FMC_VADJ_I_THRESHOLDS                                          \
+  .nominal_reading = (uint8_t)(1500 / 64),                                     \
+  .normal_max = (uint8_t)(4000 / 64),                                          \
+  .normal_min = 0,                                                             \
+  .upper_nonrecover_thr = (uint8_t)(5000 / 64),                                \
+  .upper_critical_thr = (uint8_t)(4600 / 64),                                  \
+  .upper_noncritical_thr = (uint8_t)(4300 / 64),                               \
+  .lower_nonrecover_thr = (uint8_t)(-1000 / 64),                               \
+  .lower_critical_thr = (uint8_t)(-500 / 64),                                  \
+  .lower_noncritical_thr = (uint8_t)(0 / 64)
+
+/* FMC VADJ voltage, as SDR_FMC0_VADJ */
+#define SDR_RTM_FMC_VADJ_V_THRESHOLDS                                          \
+  .nominal_reading = (1350 / 16),                                              \
+  .normal_max = (1950 / 16),                                                   \
+  .normal_min = (850 / 16),                                                    \
+  .upper_nonrecover_thr = (2100 / 16),                                         \
+  .upper_critical_thr = (2050 / 16),                                           \
+  .upper_noncritical_thr = (2000 / 16),                                        \
+  .lower_nonrecover_thr = (700 / 16),                                          \
+  .lower_critical_thr = (750 / 16),                                            \
+  .lower_noncritical_thr = (800 / 16)
+
+/* current monitor record: same fields as SDR_FMC0_12V_CURR (_CURR records) */
+#define SDR_RTM_CURRENT(m, thresholds, id)                                     \
+  SDR_RTM_MONITOR_PREFIX,                                                      \
+  .sensor_units_1 = 0x80,                                                      \
+  .sensor_units_2 = 0x05, /* Amps */                                           \
+  .sensortype = SENSOR_TYPE_CURRENT,                                           \
+  .assertion_event_mask = 0x7A80,                                              \
+  .deassertion_event_mask = 0x7A80,                                            \
+  .M = m,                                                                      \
+  .acc_exp_sensor_dir = 0x02,                                                  \
+  .analog_flags = 0x02,                                                        \
+  .pos_thr_hysteresis = 2,                                                     \
+  .neg_thr_hysteresis = 2,                                                     \
+  thresholds,                                                                  \
+  .IDtypelen = 0xc0 | STR_SIZE(id),                                            \
+  .IDstring = id
+
+/* VADJ voltage record: same fields as SDR_FMC0_VADJ */
+#define SDR_RTM_VADJ_VOLTAGE(thresholds, id)                                   \
+  SDR_RTM_MONITOR_PREFIX,                                                      \
+  .sensor_units_1 = 0x00,                                                      \
+  .sensor_units_2 = 0x04, /* Volts */                                          \
+  .sensortype = SENSOR_TYPE_VOLTAGE,                                           \
+  .assertion_event_mask = 0x7A95,                                              \
+  .deassertion_event_mask = 0x7A80,                                            \
+  .M = 16,                                                                     \
+  .acc_exp_sensor_dir = 0x00,                                                  \
+  .analog_flags = 0x07,                                                        \
+  .pos_thr_hysteresis = 1,                                                     \
+  .neg_thr_hysteresis = 1,                                                     \
+  thresholds,                                                                  \
+  .IDtypelen = 0xc0 | STR_SIZE(id),                                            \
+  .IDstring = id
+
+const SDR_type_01h_t SDR_RTM_FMC2_12V_I = {
+  SDR_RTM_CURRENT(32, SDR_RTM_FMC_12V_I_THRESHOLDS, SDR_RTM_FMC2_12V_I_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC2_3V3_I = {
+  SDR_RTM_CURRENT(32, SDR_RTM_FMC_3V3_I_THRESHOLDS, SDR_RTM_FMC2_3V3_I_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC2_VADJ_V = {
+  SDR_RTM_VADJ_VOLTAGE(SDR_RTM_FMC_VADJ_V_THRESHOLDS, SDR_RTM_FMC2_VADJ_V_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC2_VADJ_I = {
+  SDR_RTM_CURRENT(64, SDR_RTM_FMC_VADJ_I_THRESHOLDS, SDR_RTM_FMC2_VADJ_I_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC3_12V_I = {
+  SDR_RTM_CURRENT(32, SDR_RTM_FMC_12V_I_THRESHOLDS, SDR_RTM_FMC3_12V_I_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC3_3V3_I = {
+  SDR_RTM_CURRENT(32, SDR_RTM_FMC_3V3_I_THRESHOLDS, SDR_RTM_FMC3_3V3_I_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC3_VADJ_V = {
+  SDR_RTM_VADJ_VOLTAGE(SDR_RTM_FMC_VADJ_V_THRESHOLDS, SDR_RTM_FMC3_VADJ_V_ID)
+};
+
+const SDR_type_01h_t SDR_RTM_FMC3_VADJ_I = {
+  SDR_RTM_CURRENT(64, SDR_RTM_FMC_VADJ_I_THRESHOLDS, SDR_RTM_FMC3_VADJ_I_ID)
+};
+
+/* Sensor number order (0x20-0x27): this table and rtm_sensors.c's monitor
+ * table must stay in the same order. */
+const SDR_type_01h_t * const SDR_RTM_FMC_UCD[RTM_SENSORS_COUNT] = {
+  &SDR_RTM_FMC2_12V_I,
+  &SDR_RTM_FMC2_3V3_I,
+  &SDR_RTM_FMC2_VADJ_V,
+  &SDR_RTM_FMC2_VADJ_I,
+  &SDR_RTM_FMC3_12V_I,
+  &SDR_RTM_FMC3_3V3_I,
+  &SDR_RTM_FMC3_VADJ_V,
+  &SDR_RTM_FMC3_VADJ_I
+};

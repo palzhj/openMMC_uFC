@@ -34,6 +34,7 @@
 #define tskRTM_MANAGE_PRIORITY          (tskIDLE_PRIORITY+2)
 
 #define tskUCDSENSOR_PRIORITY           (tskIDLE_PRIORITY+3)
+#define tskRTMSENSORS_PRIORITY          (tskIDLE_PRIORITY+3)
 #define tskSENSOR_PRIORITY              (tskIDLE_PRIORITY+3)
 #define tskHOTSWAP_PRIORITY             (tskIDLE_PRIORITY+3)
 #define tskLM75SENSOR_PRIORITY          (tskIDLE_PRIORITY+3)

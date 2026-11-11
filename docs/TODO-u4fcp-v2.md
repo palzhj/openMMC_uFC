@@ -40,19 +40,19 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
 ## RTM (rear transition module) management
 
 The u4FCP-v2 supports an RTM (`URTM_V2_3.pdf` in `downloads/schematics`).
-The generic RTM module and the board signals are present, but the RTM path
-is **switched off** in the u4FCP-v2 build:
+The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
+`rtm_sensors.c`); the generic `modules/rtm.c` stays disabled:
 
 - `port/board/u4fcp-v2/CMakeLists.txt` has `# "RTM"` commented out, so
-  `MODULE_RTM` is not set and `modules/rtm.c` (rtm_manage_init,
-  rtm_check_presence, rtm_enable/disable_payload_power) is never compiled;
-- the port has **no `rtm.c`** (the afc-v3 port has the reference board file);
-- the RTM presence path is stubbed: `RTM_PS_B` / `RTM_RES` / `RTM_INT_B`
-  reads are commented in `board_config.c`, the RTM management-power enable
-  (`UCD_GPO_RTM_MP_EN_ID`) is commented in `payload.c`, and the boot log
-  prints `pwr : no RTM`;
+  `MODULE_RTM` is not set and the generic `modules/rtm.c` (rtm_manage_init,
+  rtm_check_presence, rtm_enable/disable_payload_power) is never compiled —
+  its SDR dev-locator/hotswap path does not fit the uRTM, which has its own
+  MMC; the board-level `rtm.c` implements the presence/12 V policy instead;
+- the RTM management-power enable (`UCD_GPO_RTM_MP_EN_ID`) is still commented
+  in `payload.c` (the uRTM MP comes up with the AMC);
 - the JTAG side is wired (`JTAG_RTM_EN_B`, `UCD_GPI_RTM_PS_B_ID`) and the
-  RTM EEPROM bus exists (`I2C_BUS_RTM_ID` = I2C2 ch5).
+  RTM EEPROM bus exists (`I2C_BUS_RTM_ID` = I2C2 ch5, now enabled for the
+  two-level mux path to the uRTM UCD90124A).
 
 - [x] AMC-side RTM control in `port/board/u4fcp-v2/rtm.c`: presence from
       RTM_PS# (PA8), 12 V after `RTM_TURNON_DELAY_MS` (3 s), handle monitor
@@ -60,13 +60,26 @@ is **switched off** in the u4FCP-v2 build:
       configure its clocks, 12 V cut on handle removal / RTM fault / payload
       shutdown or reset.  Verified on AMC12 + uRTM2.3: `rtm : RTM detected`
       -> `rtm : RTM 12 V on (handle monitor in 10 s)`.
+- [x] FMC2/FMC3 monitors as AMC-owned RTM sensors (`rtm_sensors.c/.h`,
+      entity 0xC0/0x00, sensor numbers 0x20-0x27, 1 s poll of the uRTM
+      UCD90124A behind 0x70 ch5 -> 0x71 ch7, SDRs inserted/removed with the
+      RTM presence).  Details and the verification evidence:
+      `docs/RTM_SENSORS_PLAN.md`.  The boot dump needs the UART console
+      (`/dev/ttyUSB0`, 115200).
+- [ ] **[next]** Physical mount/remove test of the monitor group: the SDR
+      insert/remove path was exercised with a bench build
+      (`-DMODULES_FLAGS="-DRTM_SENSORS_SELFTEST"`, pretends the handle was
+      opened for 30 s), but pulling the uRTM with a human at the crate is
+      still open.  Note the NAT-MCH keeps the module SDR rows cached until it
+      re-reads the module repository, so after an unplug it shows the eight
+      names with a read error.
 - [ ] **[next]** RTM FRU/hotswap reporting to the MCH (the uRTM's FRU EEPROM
       on I2C2 ch5, FRU_RTM + SDR 0xC0 hotswap record) — requires deciding
       whether the AMC or the RTM's own MMC owns the RTM FRU.
-- [ ] Add the RTM rails/sensors to the SDR if the AMC MMC reports them
-      (`12V0_RTM`, `RTM_PS#`, the RTM temperatures).
+- [ ] Add the remaining RTM rail monitors if needed (`12V0_RTM`, the RTM
+      temperatures) — the FMC2/FMC3 group covers pages 2-7 only.
 - [ ] Verify the RTM FRU read over I2C2 ch5 and the RTM JTAG (`RTM_EN_B`)
-      with the RTM plugged (currently untested — no RTM in the crate).
+      with the RTM plugged.
 
 ## Toolbox
 
