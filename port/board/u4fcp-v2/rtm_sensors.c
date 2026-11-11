@@ -7,7 +7,7 @@
  * The AMC MMC owns the two FMC sites' monitors: this module reads them once
  * per second, converts the readings to IPMI SDR units, and inserts/removes
  * the eight SDR records with the RTM presence (RTM_PS#), so the MCH sees
- * them only while the RTM is plugged.  The sensor numbers (0x1B-0x22) follow
+ * them only while the RTM is plugged.  The sensor numbers (0x1B-0x23) follow
  * the AMC's own sensors (0x01-0x1A), so the MCH lists AMC first, RTM last.
  *
  * Units: the PMBus readings are converted to integer milli-volts /
@@ -41,6 +41,7 @@
 #define RTM_UCD_REG_VOUT_MODE   0x20
 #define RTM_UCD_REG_READ_VOUT   0x8B
 #define RTM_UCD_REG_READ_IOUT   0x8C
+#define RTM_UCD_REG_READ_TEMP   0x8D
 
 /* VOUT_MODE (0x20) is per PMBus page: the 12 V pages use 0x16 (x2^-10),
  * the 3.3 V / VADJ pages 0x14 (x2^-12). */
@@ -73,6 +74,9 @@ typedef struct {
 } rtm_monitor_t;
 
 static const rtm_monitor_t rtm_monitors[RTM_SENSORS_COUNT] = {
+  /* the UCD's own temperature first: READ_TEMPERATURE_1 is the internal
+   * sensor and reads the same on every page */
+  { RTM_UCD_PAGE_12V, RTM_UCD_REG_READ_TEMP, SENSOR_TYPE_TEMPERATURE, "RTM TEMP UCD" },
   /* currents grouped by rail family across the two sites, then the VADJ
    * voltages last (mirrors the AMC's FMC0/FMC1 block) */
   { 2, RTM_UCD_REG_READ_IOUT, SENSOR_TYPE_CURRENT, "FMC2 12V I"  },
@@ -87,7 +91,7 @@ static const rtm_monitor_t rtm_monitors[RTM_SENSORS_COUNT] = {
 
 static TaskHandle_t vTaskRtmSensors_Handle;
 static sensor_t *rtm_sensor[RTM_SENSORS_COUNT];
-static int32_t rtm_milli[RTM_SENSORS_COUNT];  /* last reading: mV / mA */
+static int32_t rtm_milli[RTM_SENSORS_COUNT];  /* last reading: mV / mA / mC */
 static int8_t rtm_monitor_exp[RTM_SENSORS_COUNT];  /* VOUT_MODE used per monitor */
 
 static bool rtm_scan_on;
@@ -362,7 +366,7 @@ bool rtm_sensors_insert(void)
 
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
     rtm_sensor[i] = sdr_insert_entry_full(TYPE_01,
-                                          (void *)SDR_RTM_FMC_UCD[i],
+                                          (void *)SDR_RTM_UCD[i],
                                           &vTaskRtmSensors_Handle, 0,
                                           CHIP_ID_RTM_UCD,
                                           (uint8_t)(first_num + i),
@@ -436,6 +440,8 @@ void rtm_sensors_dump(void)
       /* the LINEAR16 exponent is per page: print the one that was used */
       log_printk("rtm", "%s %d mV (2^%d)", rtm_monitors[i].name,
                  (int)milli[i], rtm_monitor_exp[i]);
+    } else if (rtm_monitors[i].sensor_type == SENSOR_TYPE_TEMPERATURE) {
+      log_printk("rtm", "%s %d C", rtm_monitors[i].name, (int)(milli[i] / 1000));
     } else {
       log_printk("rtm", "%s %d mA", rtm_monitors[i].name, (int)milli[i]);
     }

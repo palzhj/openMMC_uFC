@@ -13,7 +13,9 @@ uRTM2.3 UCD90124A `0x5B` behind `TCA9548A 0x70 ch5` -> `TCA9548A 0x71 ch7`
 (pages from `uRTMv2.3_with_current_limitation.tifsp`):
 
 The VADJ voltage and current **share one page** (READ_VOUT 0x8B and
-READ_IOUT 0x8C on the same PAGE), so the 8 monitors come from 6 pages:
+READ_IOUT 0x8C on the same PAGE), so the 8 monitors come from 6 pages.  The
+UCD's own temperature (READ_TEMPERATURE_1 0x8D, LINEAR11, the same on every
+page) is published as a ninth sensor, first in the group:
 
 | page | monitors | reads |
 |---|---|---|
@@ -69,10 +71,10 @@ because it shows whether the RTM input rail is actually up (measured
   sensors**: entity `0xC0`, instance `0x00` (one "RTM" group; the FMC2/FMC3
   site lives in the sensor name only).  The AMC's own sensors stay on
   `0xC1`/`0x6C`.
-- **sensor numbers / order**: `0x1B-0x22` (27-34), one per monitor, in this
-  order: `0x1B` FMC2 12V I, `0x1C` FMC3 12V I, `0x1D` FMC2 3V3 I,
-  `0x1E` FMC3 3V3 I, `0x1F` FMC2 VADJ I, `0x20` FMC3 VADJ I, `0x21` FMC2
-  VADJ V, `0x22` FMC3 VADJ V.  That is the same pattern as the AMC's own
+- **sensor numbers / order**: `0x1B-0x23` (27-35): `0x1B` RTM TEMP UCD
+  (the UCD's internal sensor), then `0x1C` FMC2 12V I, `0x1D` FMC3 12V I,
+  `0x1E` FMC2 3V3 I, `0x1F` FMC3 3V3 I, `0x20` FMC2 VADJ I, `0x21` FMC3
+  VADJ I, `0x22` FMC2 VADJ V, `0x23` FMC3 VADJ V.  That is the same pattern as the AMC's own
   FMC0/FMC1 block: currents grouped by rail family across the two sites,
   then the VADJ voltages.  The AMC block itself (1-26) was reordered to
   match: hotswap, 12 V inputs, FPGA/DDR/IO voltage-current pairs, TEMP UCD,
@@ -100,9 +102,10 @@ because it shows whether the RTM input rail is actually up (measured
 - boot log after the RTM 12 V comes on (integer units):
 
   ```
-  rtm : 8 FMC2/FMC3 monitors added (sensors 0x1b-0x22, entity 0xc0/0)
+  rtm : 9 FMC2/FMC3 monitors added (sensors 0x1b-0x23, entity 0xc0/0)
   rtm : UCD 0x5B: VOUT_MODE 2^-12, RTM 12 V on
-  rtm : FMC2 12V I 281 mA      rtm : FMC2 VADJ V 1798 mV
+  rtm : RTM TEMP UCD 21 C       rtm : FMC2 12V I 281 mA
+  rtm : FMC2 VADJ V 1798 mV
   rtm : FMC2 3V3 I 0 mA        rtm : FMC2 VADJ I 31 mA
   rtm : FMC3 12V I 250 mA      rtm : FMC3 VADJ V 1801 mV
   rtm : FMC3 3V3 I 171 mA      rtm : FMC3 VADJ I 0 mA
@@ -117,7 +120,7 @@ because it shows whether the RTM input rail is actually up (measured
   ```
 
 - `ipmitool -t 0x88 sdr list`: 34 sensors, the eight RTM ones at record ID
-  27-34 with sensor number 0x1B-0x22 and entity 0xC0/instance 0x00
+  27-35 with sensor number 0x1B-0x23 and entity 0xC0/instance 0x00
   ("PICMG Rear Transition Module").
 - dynamic removal: removal at ~2 s after the presence drop, the eight records
   vanish from the repository (26 sensors), and a re-insert adds them back with

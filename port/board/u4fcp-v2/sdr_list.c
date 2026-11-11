@@ -1592,13 +1592,13 @@ void amc_sdr_init(void)
   .M_tol = 0x00,                                                               \
   .B = 0x00,                                                                   \
   .B_accuracy = 0x00,                                                          \
-  .Rexp_Bexp = 0xD0,         /* R = -3, B exponent = 0 */                      \
   .sensor_max_reading = 0xFF,                                                  \
   .sensor_min_reading = 0x00,                                                  \
   .reserved1 = 0x00,                                                           \
   .reserved2 = 0x00,                                                           \
   .OEM = 0x00
 
+#define SDR_RTM_TEMP_UCD_ID      "RTM TEMP UCD"
 #define SDR_RTM_FMC2_12V_I_ID    "FMC2 +12V Curr"
 #define SDR_RTM_FMC2_3V3_I_ID    "FMC2 +3.3V Curr"
 #define SDR_RTM_FMC2_VADJ_V_ID   "FMC2 VADJ"
@@ -1612,6 +1612,34 @@ void amc_sdr_init(void)
  * FMC0/FMC1 records above: the RTM FMC sites are reported like the two on the
  * AMC (32 mA/LSB for the 12 V and 3.3 V currents, 64 mA/LSB for VADJ current,
  * 16 mV/LSB for VADJ voltage). */
+
+/* RTM UCD temperature (the UCD90124A's internal sensor), same thresholds as
+ * the AMC's own TEMP UCD record. */
+const SDR_type_01h_t SDR_RTM_TEMP_UCD = {
+  SDR_RTM_MONITOR_PREFIX,
+  .sensor_units_1 = 0x00,
+  .sensor_units_2 = 0x01, /* degrees C */
+  .sensortype = SENSOR_TYPE_TEMPERATURE,
+  .assertion_event_mask = 0x7A95,
+  .deassertion_event_mask = 0x7A80,
+  .M = 5,                          /* 0.5 C per LSB with R = -1 */
+  .Rexp_Bexp = 0xF0,
+  .acc_exp_sensor_dir = 0x00,
+  .analog_flags = 0x03,
+  .pos_thr_hysteresis = 2,
+  .neg_thr_hysteresis = 2,
+  .nominal_reading = (24 << 1),
+  .normal_max = (60 << 1),
+  .normal_min = (9 << 1),
+  .upper_nonrecover_thr = (90 << 1),
+  .upper_critical_thr = (80 << 1),
+  .upper_noncritical_thr = (70 << 1),
+  .lower_nonrecover_thr = (0 << 1),
+  .lower_critical_thr = (3 << 1),
+  .lower_noncritical_thr = (6 << 1),
+  .IDtypelen = 0xc0 | STR_SIZE(SDR_RTM_TEMP_UCD_ID),
+  .IDstring = SDR_RTM_TEMP_UCD_ID
+};
 
 /* FMC 12 V current, as SDR_FMC0_12V_CURR */
 #define SDR_RTM_FMC_12V_I_THRESHOLDS                                           \
@@ -1667,6 +1695,7 @@ void amc_sdr_init(void)
   .sensor_units_1 = 0x80,                                                      \
   .sensor_units_2 = 0x05, /* Amps */                                           \
   .sensortype = SENSOR_TYPE_CURRENT,                                           \
+  .Rexp_Bexp = 0xD0,         /* R = -3, B exponent = 0 */                      \
   .assertion_event_mask = 0x7A80,                                              \
   .deassertion_event_mask = 0x7A80,                                            \
   .M = m,                                                                      \
@@ -1684,6 +1713,7 @@ void amc_sdr_init(void)
   .sensor_units_1 = 0x00,                                                      \
   .sensor_units_2 = 0x04, /* Volts */                                          \
   .sensortype = SENSOR_TYPE_VOLTAGE,                                           \
+  .Rexp_Bexp = 0xD0,         /* R = -3, B exponent = 0 */                      \
   .assertion_event_mask = 0x7A95,                                              \
   .deassertion_event_mask = 0x7A80,                                            \
   .M = 16,                                                                     \
@@ -1729,7 +1759,8 @@ const SDR_type_01h_t SDR_RTM_FMC3_VADJ_I = {
 
 /* Sensor number order (0x20-0x27): this table and rtm_sensors.c's monitor
  * table must stay in the same order. */
-const SDR_type_01h_t * const SDR_RTM_FMC_UCD[RTM_SENSORS_COUNT] = {
+const SDR_type_01h_t * const SDR_RTM_UCD[RTM_SENSORS_COUNT] = {
+  &SDR_RTM_TEMP_UCD,
   &SDR_RTM_FMC2_12V_I,
   &SDR_RTM_FMC3_12V_I,
   &SDR_RTM_FMC2_3V3_I,

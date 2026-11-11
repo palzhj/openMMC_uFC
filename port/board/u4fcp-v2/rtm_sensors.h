@@ -8,18 +8,20 @@
  *
  * Access path: I2C2 -> TCA9548A 0x70 ch5 -> TCA9548A 0x71 ch7 -> 0x5B.
  *
- * The eight monitors (sensor numbers 0x1B-0x22, in this order) come from
- * six PMBus pages, because VADJ voltage and current share one page:
+ * The sensors (numbers 0x1B-0x23, in this order) are the UCD's own
+ * temperature followed by the eight monitors, which come from six PMBus
+ * pages because VADJ voltage and current share one page:
  *
- *   number  monitor         page  PMBus command
- *   0x20    FMC2 12V I       2    READ_IOUT 0x8C (LINEAR11)
- *   0x21    FMC2 3V3 I       4    READ_IOUT 0x8C (LINEAR11)
- *   0x22    FMC2 VADJ V      3    READ_VOUT 0x8B (LINEAR16, VOUT_MODE 0x14)
- *   0x23    FMC2 VADJ I      3    READ_IOUT 0x8C (LINEAR11)
- *   0x24    FMC3 12V I       5    READ_IOUT 0x8C (LINEAR11)
- *   0x25    FMC3 3V3 I       7    READ_IOUT 0x8C (LINEAR11)
- *   0x26    FMC3 VADJ V      6    READ_VOUT 0x8B (LINEAR16)
- *   0x27    FMC3 VADJ I      6    READ_IOUT 0x8C (LINEAR11)
+ *   number  sensor          page  PMBus command
+ *   0x1B    RTM TEMP UCD    any   READ_TEMPERATURE 0x8D (LINEAR11)
+ *   0x1C    FMC2 12V I       2    READ_IOUT 0x8C (LINEAR11)
+ *   0x1D    FMC3 12V I       5    READ_IOUT 0x8C (LINEAR11)
+ *   0x1E    FMC2 3V3 I       4    READ_IOUT 0x8C (LINEAR11)
+ *   0x1F    FMC3 3V3 I       7    READ_IOUT 0x8C (LINEAR11)
+ *   0x20    FMC2 VADJ I      3    READ_IOUT 0x8C (LINEAR11)
+ *   0x21    FMC3 VADJ I      6    READ_IOUT 0x8C (LINEAR11)
+ *   0x22    FMC2 VADJ V      3    READ_VOUT 0x8B (LINEAR16, per page mode)
+ *   0x23    FMC3 VADJ V      6    READ_VOUT 0x8B (LINEAR16, per page mode)
  *
  * @license GPL-3.0+ <http://spdx.org/licenses/GPL-3.0+>
  */
@@ -31,7 +33,7 @@
 
 #include "sdr.h"
 
-#define RTM_SENSORS_COUNT       8
+#define RTM_SENSORS_COUNT       9
 
 /* IPMI sensor numbers have to be unique per IPM controller (Get Sensor
  * Reading addresses by number only).  The AMC's own UCD90320 sensors occupy
@@ -43,7 +45,7 @@
 #define RTM_SENSORS_INSTANCE    0x00
 
 /* SDR records of the group, in sensor-number order (defined in sdr_list.c) */
-extern const SDR_type_01h_t * const SDR_RTM_FMC_UCD[RTM_SENSORS_COUNT];
+extern const SDR_type_01h_t * const SDR_RTM_UCD[RTM_SENSORS_COUNT];
 
 /**
  * @brief Create the RTM monitor task (board bring-up, before the scheduler)
