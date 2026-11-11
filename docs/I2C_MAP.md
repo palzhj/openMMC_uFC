@@ -20,7 +20,8 @@ Source: `u4FCPv2/readme/i2c.png`; channel numbers from the firmware
 
 ## uRTM2.3 — complete tree behind the AMC’s channel 5
 
-Measured with `tools/firmware/u4fcp-v2/rtm_scan.py` (addresses 0x08‑0x77):
+Measured with `tools/firmware/u4fcp-v2/rtm_scan.py` (addresses 0x08‑0x77).
+Last verified: 2026-11-11, re-scan identical to the table below.
 
 | path | devices |
 |---|---|
