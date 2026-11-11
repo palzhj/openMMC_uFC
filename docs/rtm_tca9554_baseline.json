@@ -16,5 +16,11 @@
   "output": 12,
   "polarity": 0,
   "config": 0
+ },
+ "0x3D 70ch5/71ch3/72ch2": {
+  "input": 127,
+  "output": 112,
+  "polarity": 0,
+  "config": 143
  }
 }
