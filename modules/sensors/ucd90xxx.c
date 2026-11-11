@@ -486,15 +486,15 @@ void ucd_read_current(ucd_data_t *data)
  * SDR linearization (M=5, R=-1 -> 0.5 C/LSB) reports the calibrated value
  * and the thresholds keep their physical meaning.
  *
- * 4.5 C: the first value tried (9 C, from a UCD 15.4 C / shelf 24-26 C
+ * 6.5 C: the first value tried (9 C, from a UCD 15.4 C / shelf 24-26 C
  * comparison) over-corrected the temperature of the boards in the crate.
- * Quoted with a fraction on purpose - 2 LSB per degree, so 4.5 C is exactly
- * 9 LSB.
+ * Quoted with a fraction on purpose - 2 LSB per degree, so 6.5 C is exactly
+ * 13 LSB.
  *
  * Override per board with -DUCD_TEMP_OFFSET_C=<n> if a unit differs.
  */
 #ifndef UCD_TEMP_OFFSET_C
-#define UCD_TEMP_OFFSET_C 4.5
+#define UCD_TEMP_OFFSET_C 6.5
 #endif
 
 /**
