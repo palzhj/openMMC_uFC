@@ -22,5 +22,11 @@
   "output": 112,
   "polarity": 0,
   "config": 143
+ },
+ "0x3F 72ch1": {
+  "input": 12,
+  "output": 12,
+  "polarity": 0,
+  "config": 0
  }
 }
