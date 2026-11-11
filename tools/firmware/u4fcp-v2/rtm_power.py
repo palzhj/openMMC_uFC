@@ -25,12 +25,14 @@ def main():
             i = acc.xfer(1, PATH, DEV, bytes([0x8C]), 2)
             t = acc.xfer(1, PATH, DEV, bytes([0x8D]), 2)
             vout = lin(v[1] << 8 | v[0], exp)
-            iout = lin(i[1] << 8 | i[0], exp)
-            temp = lin(t[1] << 8 | t[0], 0)
-            if vout == 0 and iout == 0:
+            # IOUT/TEMPERATURE use the UCD's own coefficients
+            # (MFR_IOUT_COEFF etc. are not read here): print the raw values
+            iraw = i[1] << 8 | i[0]
+            traw = t[1] << 8 | t[0]
+            if vout == 0:
                 continue
-            print("page %2d: VOUT=%7.3f V  IOUT=%7.3f A  TEMP=%5.1f C"
-                  % (page, vout, iout, temp))
+            print("page %2d: VOUT=%7.3f V   IOUT=0x%04x   TEMP=0x%04x"
+                  % (page, vout, iraw, traw))
         except Exception:
             pass
     return 0
