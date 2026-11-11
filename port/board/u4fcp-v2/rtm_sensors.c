@@ -7,7 +7,8 @@
  * The AMC MMC owns the two FMC sites' monitors: this module reads them once
  * per second, converts the readings to IPMI SDR units, and inserts/removes
  * the eight SDR records with the RTM presence (RTM_PS#), so the MCH sees
- * them only while the RTM is plugged.
+ * them only while the RTM is plugged.  The sensor numbers (0x1B-0x22) follow
+ * the AMC's own sensors (0x01-0x1A), so the MCH lists AMC first, RTM last.
  *
  * Units: the PMBus readings are converted to integer milli-volts /
  * milli-amps (no float, the debug printf has no %f).  READ_VOUT is LINEAR16
@@ -321,18 +322,48 @@ bool rtm_sensors_is_inserted(void)
   return rtm_sensor[0] != NULL;
 }
 
+/* First sensor number of the group: RTM_SENSORS_FIRST_NUM unless an AMC
+ * sensor (or a future one) already uses it - then the block moves up by
+ * eight, so the numbers stay unique (IPMI requirement). */
+static uint8_t rtm_sensors_first_free_number(void)
+{
+  uint8_t base = RTM_SENSORS_FIRST_NUM;
+
+  while ((uint16_t)base + RTM_SENSORS_COUNT <= 0xFF) {
+    bool free_block = true;
+
+    for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
+      if (find_sensor_by_number((uint8_t)(base + i)) != NULL) {
+        free_block = false;
+        break;
+      }
+    }
+    if (free_block) {
+      return base;
+    }
+    log_printk("rtm", "sensor numbers 0x%02x-0x%02x already used, moving the RTM group",
+               base, base + RTM_SENSORS_COUNT - 1);
+    base = (uint8_t)(base + RTM_SENSORS_COUNT);
+  }
+  return base;
+}
+
 bool rtm_sensors_insert(void)
 {
+  uint8_t first_num;
+
   if (rtm_sensors_is_inserted()) {
     return false;
   }
+
+  first_num = rtm_sensors_first_free_number();
 
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
     rtm_sensor[i] = sdr_insert_entry_full(TYPE_01,
                                           (void *)SDR_RTM_FMC_UCD[i],
                                           &vTaskRtmSensors_Handle, 0,
                                           CHIP_ID_RTM_UCD,
-                                          RTM_SENSORS_FIRST_NUM + i,
+                                          (uint8_t)(first_num + i),
                                           RTM_SENSORS_INSTANCE);
     /* not available until the first reading of a powered RTM */
     sensor_disable(rtm_sensor[i]);
@@ -346,8 +377,7 @@ bool rtm_sensors_insert(void)
   rtm_dump_tick = xTaskGetTickCount();
 
   log_printk("rtm", "%d FMC2/FMC3 monitors added (sensors 0x%02x-0x%02x, entity 0x%02x/%u)",
-             RTM_SENSORS_COUNT, RTM_SENSORS_FIRST_NUM,
-             RTM_SENSORS_FIRST_NUM + RTM_SENSORS_COUNT - 1,
+             RTM_SENSORS_COUNT, first_num, first_num + RTM_SENSORS_COUNT - 1,
              RTM_SENSORS_ENTITY_ID, RTM_SENSORS_INSTANCE);
   return true;
 }

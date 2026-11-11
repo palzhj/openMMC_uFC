@@ -69,14 +69,19 @@ because it shows whether the RTM input rail is actually up (measured
   sensors**: entity `0xC0`, instance `0x00` (one "RTM" group; the FMC2/FMC3
   site lives in the sensor name only).  The AMC's own sensors stay on
   `0xC1`/`0x6C`.
-- **sensor numbers**: `0x20-0x27`, one per monitor, fixed:
-  `0x20` FMC2 12V I, `0x21` FMC2 3V3 I, `0x22` FMC2 VADJ V, `0x23` FMC2 VADJ I,
-  `0x24` FMC3 12V I, `0x25` FMC3 3V3 I, `0x26` FMC3 VADJ V, `0x27` FMC3 VADJ I.
+- **sensor numbers**: `0x1B-0x22` (27-34), one per monitor, in this order:
+  `0x1B` FMC2 12V I, `0x1C` FMC2 3V3 I, `0x1D` FMC2 VADJ V, `0x1E` FMC2 VADJ I,
+  `0x1F` FMC3 12V I, `0x20` FMC3 3V3 I, `0x21` FMC3 VADJ V, `0x22` FMC3 VADJ I.
   The earlier plan said `0x10-0x17`, but those numbers are already used by the
   AMC's own UCD90320 sensors (verified with `ipmitool sdr list` on AMC12:
   0x10 "FMC1 +12V Curr" ... 0x17 "DDR +1.2VT Curr").  IPMI sensor numbers have
   to be unique per IPM controller and Get Sensor Reading addresses by number
-  only, so the RTM group starts after the AMC's 0x01-0x1A instead.
+  only, so the RTM group follows the AMC's 0x01-0x1A: the MCH lists the AMC
+  sensors first, then the RTM ones, with no gap.  `rtm_sensors_insert()`
+  moves the block up by eight if a number is ever taken (a future AMC sensor
+  cannot silently collide).  The SDR names stay in the AMC's `FMC0/FMC1`
+  style (`FMC2 +12V Curr`, ...) - the entity 0xC0 and the position identify
+  them as the RTM's.
 - **SDR record IDs** are not the sensor numbers: the group is appended to the
   repository (record IDs 27-34 with the current AMC sensor list) and removed
   from the tail again, which keeps the record IDs contiguous for the MCH.
@@ -90,7 +95,7 @@ because it shows whether the RTM input rail is actually up (measured
 - boot log after the RTM 12 V comes on (integer units):
 
   ```
-  rtm : 8 FMC2/FMC3 monitors added (sensors 0x20-0x27, entity 0xc0/0)
+  rtm : 8 FMC2/FMC3 monitors added (sensors 0x1b-0x22, entity 0xc0/0)
   rtm : UCD 0x5B: VOUT_MODE 2^-12, RTM 12 V on
   rtm : FMC2 12V I 281 mA      rtm : FMC2 VADJ V 1798 mV
   rtm : FMC2 3V3 I 0 mA        rtm : FMC2 VADJ I 31 mA
@@ -107,7 +112,7 @@ because it shows whether the RTM input rail is actually up (measured
   ```
 
 - `ipmitool -t 0x88 sdr list`: 34 sensors, the eight RTM ones at record ID
-  27-34 with sensor number 0x20-0x27 and entity 0xC0/instance 0x00
+  27-34 with sensor number 0x1B-0x22 and entity 0xC0/instance 0x00
   ("PICMG Rear Transition Module").
 - dynamic removal: removal at ~2 s after the presence drop, the eight records
   vanish from the repository (26 sensors), and a re-insert adds them back with

@@ -8,8 +8,8 @@
  *
  * Access path: I2C2 -> TCA9548A 0x70 ch5 -> TCA9548A 0x71 ch7 -> 0x5B.
  *
- * The eight monitors (fixed sensor numbers 0x20-0x27, in this order) come
- * from six PMBus pages, because VADJ voltage and current share one page:
+ * The eight monitors (sensor numbers 0x1B-0x22, in this order) come from
+ * six PMBus pages, because VADJ voltage and current share one page:
  *
  *   number  monitor         page  PMBus command
  *   0x20    FMC2 12V I       2    READ_IOUT 0x8C (LINEAR11)
@@ -33,10 +33,12 @@
 
 #define RTM_SENSORS_COUNT       8
 
-/* The AMC's own UCD90320 sensors already occupy 0x01-0x1A, and IPMI sensor
- * numbers have to be unique per IPM controller (Get Sensor Reading addresses
- * by number only), so the RTM group starts after them. */
-#define RTM_SENSORS_FIRST_NUM   0x20
+/* IPMI sensor numbers have to be unique per IPM controller (Get Sensor
+ * Reading addresses by number only).  The AMC's own UCD90320 sensors occupy
+ * 0x01-0x1A, so the RTM group starts right after them - the MCH then lists
+ * the AMC sensors, then the RTM ones, without a gap.  rtm_sensors_insert()
+ * moves the block if a number is ever taken (guards a future AMC sensor). */
+#define RTM_SENSORS_FIRST_NUM   0x1B
 #define RTM_SENSORS_ENTITY_ID   0xC0    /* RTM (one group for both FMC sites) */
 #define RTM_SENSORS_INSTANCE    0x00
 

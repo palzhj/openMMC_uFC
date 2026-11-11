@@ -61,7 +61,8 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       shutdown or reset.  Verified on AMC12 + uRTM2.3: `rtm : RTM detected`
       -> `rtm : RTM 12 V on (handle monitor in 10 s)`.
 - [x] FMC2/FMC3 monitors as AMC-owned RTM sensors (`rtm_sensors.c/.h`,
-      entity 0xC0/0x00, sensor numbers 0x20-0x27, 1 s poll of the uRTM
+      entity 0xC0/0x00, sensor numbers 0x1B-0x22 (right after the AMC's
+      0x01-0x1A, so the MCH lists AMC first, RTM last), 1 s poll of the uRTM
       UCD90124A behind 0x70 ch5 -> 0x71 ch7, SDRs inserted/removed with the
       RTM presence).  Details and the verification evidence:
       `docs/RTM_SENSORS_PLAN.md`.  The boot dump needs the UART console
