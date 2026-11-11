@@ -18,7 +18,11 @@ def main():
     mode = acc.xfer(1, PATH, DEV, bytes([0x20]), 1)[0]
     exp = mode if mode < 0x10 else mode - 0x20
     print("VOUT_MODE=0x%02x -> exponent %d" % (mode, exp))
-    for page in range(12):
+    # page map from uRTMv2.3_with_current_limitation.tifsp (RailDefinitions)
+    rails = {0: "RTM_12V", 1: "MP_3V3", 2: "FMC2_12V_CURR", 3: "FMC2_VADJ",
+             4: "FMC2_3V3_CURR", 5: "FMC3_12V_CURR", 6: "FMC3_VADJ",
+             7: "FMC3_3V3_CURR", 8: "IO_3V3"}
+    for page in sorted(rails):
         try:
             acc.xfer(1, PATH, DEV, bytes([0x00, page]), 0)
             v = acc.xfer(1, PATH, DEV, bytes([0x8B]), 2)
@@ -31,8 +35,8 @@ def main():
             traw = t[1] << 8 | t[0]
             if vout == 0:
                 continue
-            print("page %2d: VOUT=%7.3f V   IOUT=0x%04x   TEMP=0x%04x"
-                  % (page, vout, iraw, traw))
+            print("%-14s page %d: VOUT=%7.3f V  IOUT=0x%04x  TEMP=0x%04x"
+                  % (rails[page], page, vout, iraw, traw))
         except Exception:
             pass
     return 0
