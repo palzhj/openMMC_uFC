@@ -33,10 +33,17 @@ def main():
             # (MFR_IOUT_COEFF etc. are not read here): print the raw values
             iraw = i[1] << 8 | i[0]
             traw = t[1] << 8 | t[0]
+            # MFR_IOUT_COEFF 0xE2: [exp:5 signed | mantissa:11]
+            c = acc.xfer(1, PATH, DEV, bytes([0xE2]), 2)
+            coef = c[1] << 8 | c[0]
+            cexp = (coef >> 11) & 0x1F
+            if cexp & 0x10: cexp -= 0x20
+            # UCD READ_IOUT: zero at 0x8000, linear with the coefficient exponent
+            amps = ((iraw - 0x8000) if iraw >= 0x8000 else iraw) * (2.0 ** cexp) / 64.0
             if vout == 0:
                 continue
-            print("%-14s page %d: VOUT=%7.3f V  IOUT=0x%04x  TEMP=0x%04x"
-                  % (rails[page], page, vout, iraw, traw))
+            print("%-14s page %d: VOUT=%7.3f V  IOUT=%8.3f A (raw 0x%04x, coeff 0x%04x)  TEMP=0x%04x"
+                  % (rails[page], page, vout, amps, iraw, coef, traw))
         except Exception:
             pass
     return 0
