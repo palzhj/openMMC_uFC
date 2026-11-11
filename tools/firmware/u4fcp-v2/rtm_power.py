@@ -13,6 +13,16 @@ def lin(raw, exp):
     v = raw if raw < 0x8000 else raw - 0x10000
     return v * (2.0 ** exp)
 
+def linear11(raw):
+    """PMBus LINEAR11: R = Y*2^X, Y = low 11 bits signed, X = high 5 bits signed."""
+    y = raw & 0x7FF
+    if y & 0x400:
+        y -= 0x800
+    x = raw >> 11
+    if x & 0x10:
+        x -= 0x20
+    return y * (2.0 ** x)
+
 def main():
     acc = FruAccess("192.168.1.41", "0x88", "0x82", "0", i2c_addr=DEV)
     mode = acc.xfer(1, PATH, DEV, bytes([0x20]), 1)[0]
