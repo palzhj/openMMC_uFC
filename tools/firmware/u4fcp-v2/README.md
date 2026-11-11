@@ -110,6 +110,41 @@ What each step does:
    register, so the value survives power cycles; 1.8 V is DAC 0 (factory
    default).
 
+### The FRU template (`fru_template.bin`)
+
+`fru_template.bin` is the 512-byte FRU image that `fru_program.sh` merges with
+the per-unit serial (board + product areas, manufacturing time, and the
+100-byte multirecord area with the module-current/clock/connectivity records).
+It is **generated** — `fru_template.py` edits or rebuilds it without a board:
+
+```bash
+./fru_template.py show fru_template.bin            # decode + checksum check
+./fru_template.py verify fru_template.bin --strict # CI check (exit 0 = valid)
+./fru_template.py gen -o fru_template.bin          # regenerate (see below)
+
+# edit fields, module current (the PICMG record stores 0.1 A units) and date
+./fru_template.py set fru_template.bin -o new.bin \
+    --product version=2.3 --board part_number=u4FCP-v2.3 \
+    --serial U4FCP2-0001 --module-current-ma 6000 --mfg-time "2026-11-11 12:00"
+
+# rebuild from a board's current FRU (fields and records taken from the image)
+./fru_template.py gen -o fru_template.bin --template board.fru --multi-from board.fru
+```
+
+- The field values come from `fru_config.json` (same keys as the programmer
+  uses; `serial` is only the template placeholder — `fru_program.sh` always
+  writes the real one, and the template's manufacturing time is 0).
+- The multirecord bodies (clock configuration, point-to-point connectivity,
+  module current, OEM record) come from `fru_multirecord.json`;
+  `--module-current-ma` / `module_current_ma` override the current byte and its
+  checksum, `--multi-from IMAGE` copies the whole area from an existing image.
+- `set` accepts `--board field=value` / `--product field=value` (the names are
+  listed by `show`), `--serial` for both serials, and `--mfg-time` as minutes
+  since 1996-01-01 or `"YYYY-MM-DD HH:MM"`.
+- Every image is rebuilt through `fru_core.build_image()`, so the common
+  header, the area checksums and all multirecord checksums are recomputed; the
+  unused tail is filled with `0xFF`.
+
 Verify afterwards:
 
 ```bash
