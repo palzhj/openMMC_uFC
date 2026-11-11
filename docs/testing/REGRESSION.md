@@ -35,6 +35,7 @@ J-Link.
 | T5.1 | boundaries | EEPROM 0x01F0/0x0200/0x0280/0x0300/0x1AFF/0x1B00/0x32FF/0xFFFC | automatic | headers `UFCP`/`UFCC` at the expected places |
 | T5.2 | boundaries | FRU 512 B | automatic | 512 B |
 | T5.3 | soak | 600 s polling | automatic | 0 errors, heap constant |
+| T5.4 | sensors | monitoring stress, 240 s (1 session + 4 sessions) | `python3 tools/testing/sensor_stress.py --seconds 240 --workers 4` | 0 MMC completion-code errors, 35 sensors before/after, heap constant; note the crossed-response limitation below |
 
 ## Procedure
 
@@ -50,6 +51,10 @@ sh tools/firmware/u4fcp-v2/jlink_program.sh
 # 3. automatic suite (phases 2,3,4,5 + 5 min soak)
 python3 tools/testing/board_selftest.py --soak 300
 
+# 3b. sensor-monitoring stress (2 min sequential + 2 min with 4 sessions);
+#     writes docs/testing/SENSOR_STRESS-<timestamp>.md
+python3 tools/testing/sensor_stress.py --seconds 240 --workers 4
+
 # 4. watchdog recovery (T1.4/T1.5): rebuild a test image with the feed call
 #    in modules/watchdog.c commented out, flash, count the resets in 10 s,
 #    then restore the source and reflash the production image.
@@ -62,6 +67,21 @@ python3 tools/testing/board_selftest.py --soak 300
 The automatic run writes `docs/testing/TEST_REPORT-<timestamp>.md` (a table of
 all items with the observed values). Keep it next to the release notes; for a
 release, run with `--soak 600` or longer.
+
+## Known limitation: crossed responses with concurrent sessions
+
+`tools/testing/sensor_stress.py` measured 0 crossed readings with one IPMI
+session, but ~0.2-0.4 % of the requests receive *another* session's answer when
+two or more sessions hit the MMC concurrently (the value and state bytes belong
+to a different sensor).  The MMC answers everything correctly, the sensor table
+and heap stay constant, and the failures are only in the response payload.
+
+Likely cause: the IPMB slave receive path (`port/ucontroller/stm32/stm32f1xx/
+stm32_i2c.c`) uses one `recv_msg` buffer filled by the I2C interrupt; a second
+request arriving before the RX task copies the first overwrites it, so the
+request (and its sequence number) is answered with the second request's data.
+A double buffered receive (ISR fills the inactive buffer, marks it ready) should
+remove it - re-run the stress tool to confirm (expect 0 / several thousand).
 
 ## Acceptance
 
