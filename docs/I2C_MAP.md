@@ -4,41 +4,40 @@
 
 ## u4FCP‑v2 — I2C2 bus (PB10/PB11, 100 kHz) behind a TCA9548A `@0x70`
 
-| mux ch | bus | devices | notes |
-|---|---|---|---|
-| **0** | FMC0 | FMC0 EEPROM `0x50` |  |
-| **1** | FMC1 | FMC1 EEPROM `0x51` |  |
-| **2** | clock | **ADN4604 `0x48`**, **Si5345 U85 `0x68`**, **Si5345 U61 `0x69`** | the clocking devices (12 V domain) |
-| **3** | firefly | (not populated) |  |
-| **4** | FPGA | **TCA9554 JTAG `0x39`** | JTAG target select (P4 CON, P5 FMC0, P6 FMC1, P7 RTM) |
-| **5** | **RTM** | the uRTM2.3 (see below) | the RTM bus, powered from the RTM MP3V3 |
-| **6** | DDR4 | (not populated) |  |
-| **7** | power | **FRU EEPROM `0x54`**, **UCD90320 `0x11`**, **TPL0102 `0x56`** | the FRU/clock store, the power sequencer, the FMC VADJ pots |
+Source: `u4FCPv2/readme/i2c.png`; channel numbers from the firmware
+`i2c_mapping.c` (verified on the board).
 
-Notes:
-- the channels 4/2/7 are enabled in `i2c_mapping.c` (`enabled=1`), 0/1/3/5/6 are switched on demand;
-- `0x32 0x20` (generic I²C transfer) reaches every device, e.g. the UCD:
-  `raw 0x32 0x20 0x01 0x01 0x70 0x07 0x11 0x01 0x99 0x01`.
+| mux ch | bus | devices (address) |
+|---|---|---|
+| 0 | FMC0 | EEPROM `0x50` (`7'b1010_000`) |
+| 1 | FMC1 | EEPROM `0x51` (`7'b1010_001`) |
+| 2 | clock | **CLK MUX `0x48`** (`7'b1001_000`, ADN4604), **PLL0 `0x68`** (`7'b1101_000`), **PLL1 `0x69`** (`7'b1101_001`) |
+| 3 | firefly | FireFly transceiver (the diagram draws the FPGA on 3 — firmware uses 4, confirmed by the JTAG read) |
+| 4 | FPGA | FPGA KUP (no I²C address) + **JTAG IO `0x39`** (`7'b0111_001`) |
+| 5 | **RTM** | see the RTM section below |
+| 6 | DDR4 | (empty) |
+| 7 | power | **24C512 `0x54`** (`7'b1010_100`), **PMBus `0x11`** (`7'b001_001`), **potentiometer `0x56`** (`7'b1010_110`) |
 
-## uRTM2.3 — behind the AMC’s channel 5
+## uRTM2.3 — behind the AMC’s channel 5, its own TCA9548A `@0x71`
+
+Source: `u4FCPv2/readme/i2c.png` (RTM side).
 
 | device | address | function |
 |---|---|---|
-| **TCA9548A** | **`0x71`** | the RTM’s own 8‑channel mux (3 V3) |
-| **CAT24C512YI‑GT3** | `0x50` (strap) | the RTM FRU EEPROM (16‑bit addressing, 64 KB) |
-| **STM32F103CBT6** | — | the RTM’s MMC (openMMC `urtm-v2` port), configures the RTM clocks |
-| **Si5345B‑D‑GM** | `0x68`/`0x69` | the RTM’s clock PLL (via the RTM mux) |
-| **PCA9554** | `0x27`‑ish (strap TBD) | RTM LEDs + hotswap handle (`RTM_GPIO_HOTSWAP_HANDLE` 0, RED 5, GREEN 6, BLUE 7) |
-| **INA210 / LTM4671 / LTM4632** | PMBus (TBD) | RTM current monitors and power modules |
+| **TCA9548A** | **`0x71`** (`7'b1110_001`) | the RTM’s 8‑channel mux |
+| → ch0 | EEPROM `0x52` (`7'b1010_010`) | FMC2 EEPROM |
+| → ch1 | EEPROM `0x53` (`7'b1010_011`) | FMC3 EEPROM |
+| → ch2 | **CLK MUX `0x49`** (`7'b1001_001`), **PLL2 `0x6A`** (`7'b1101_010`) | RTM clocking |
+| → ch3 | **IIC MUX `0x72`** (`7'b1110_010`) | the RTM FPGA bus: **ReDriverIO `0x3F`** (`7'b0111_111`), **JTAG IO `0x3D`** (`7'b0111_101`), ReDriver ×2 `7'b1111_x10`/`7'b1110_1x0` |
+| → ch4 | FireFly transceiver |  |
+| → ch5 | FireFly transceiver |  |
+| → ch6 | DDR3 |  |
+| → ch7 | **24C512 `0x55`** (`7'b1010_101`), **PMBus `0x5B`** (`7'b1011_011`), **potentiometer `0x57`** (`7'b1010_111`) | RTM power/FMC |
 
-Read example through the AMC (once the RTM MP3V3 is enabled):
+The AMC’s RTM channel also carries the RTM’s **IO `0x3E`** (`7'b0111_110`), the
+**FMC IO `0x3E`** and the **RTM MCU** (no I²C address, it is the AMC’s peer
+controller).
 
-```
-raw 0x32 0x20 0x01 0x01 0x70 0x05 0x50 0x02 0x00 0x00 0x10
-  → bus I2C2 · mux (0x70, ch5) · dev 0x50 · addr 0x0000 · 16 bytes
-```
-
-The RTM addresses marked TBD need the uRTM2.3 schematic straps transcribed
-(CAT24C512 A0‑A2, PCA9554 A0‑A2).  The RTM bus only responds when
+Addresses are the 7‑bit values drawn on the block diagram.  The RTM bus only responds when
 `RTM_MP_3V3` (UCD `GPO_RTM_MP_EN`) is enabled — currently not done by the
 AMC firmware.
