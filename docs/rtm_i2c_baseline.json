@@ -1,0 +1,34 @@
+{
+ "0x71 ch2/0x49": {
+  "name": "CLK MUX",
+  "regs": "00000000000000000000000000000000ffbf000000000000003f000000000000"
+ },
+ "0x71 ch2/0x6A": {
+  "name": "PLL2",
+  "regs": "000b000000000000000000300000000000000000000000002900a622a622a722"
+ },
+ "0x71 ch3/0x72": {
+  "name": "FPGA mux",
+  "regs": "0000000000000000080808080808080810101010101010101818181818181818"
+ },
+ "0x71 ch7/0x55": {
+  "name": "24C512 FRU",
+  "regs": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+ },
+ "0x72 ch0/0x76": {
+  "name": "ReDriver B",
+  "regs": "2000007d7d7d7d000000ffffffffffffffffffffffffffffffffffffffffffff"
+ },
+ "0x72 ch0/0x7E": {
+  "name": "ReDriver A",
+  "regs": "2000007d7d7d7d000000ffffffffffffffffffffffffffffffffffffffffffff"
+ },
+ "0x72 ch1/0x76": {
+  "name": "ReDriver B",
+  "regs": "2000007d7d7d7d000000ffffffffffffffffffffffffffffffffffffffffffff"
+ },
+ "0x72 ch1/0x7E": {
+  "name": "ReDriver A",
+  "regs": "2000007d7d7d7d000000ffffffffffffffffffffffffffffffffffffffffffff"
+ }
+}
