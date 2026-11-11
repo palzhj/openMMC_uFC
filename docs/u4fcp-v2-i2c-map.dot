@@ -22,7 +22,7 @@ digraph i2c {
 
   subgraph cluster_rtm {
     label="uRTM2.3";
-    rtmmux [label="TCA9548A 0x70\n(RTM mux)"];
+    rtmmux [label="TCA9548A 0x71\n(RTM mux)"];
     fru [label="CAT24C512 0x50\nRTM FRU"];
     mmc [label="STM32F103CBT6\nRTM MMC"];
     pll [label="Si5345B 0x68/0x69\nRTM clock"];
