@@ -1469,34 +1469,43 @@ void amc_sdr_init(void)
 
   /* UCD90320 sensors*/
 #ifdef MODULE_UCD90XXX
-  /* AMC & RTM Voltage/Current/Temperature */
+  /* Module input rails: AMC 12 V, then the RTM feed current */
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_12V, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_VADJ, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_VADJ, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_1V8, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V85, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V9A, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_1V2A, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_DDR_1V2T, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_DDR_1V2B, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_IO_3V3, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_RTM_12V_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
 
-  sdr_insert_entry(TYPE_01, (void *)&SDR_RTM_12V_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0 );
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_12V_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_VADJ_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_P3V3_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_12V_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_VADJ_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_P3V3_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
-  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V85_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  /* FPGA rails: voltage/current pair per rail */
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_1V8, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_1V8_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V85, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V85_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V9A, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_0V9A_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_1V2A, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_FPGA_1V2A_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+
+  /* DDR rails: voltage/current pair per rail */
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_DDR_1V2T, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_DDR_1V2T_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_DDR_1V2B, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_DDR_1V2B_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+
+  /* IO rail */
+  sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_IO_3V3, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
   sdr_insert_entry(TYPE_01, (void *)&SDR_AMC_IO_3V3_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
 
+  /* UCD90320 temperature */
   sdr_insert_entry(TYPE_01, (void *)&SDR_UCD_TEMP, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0 );
+
+  /* FMC rails: the currents grouped by rail family (FMC0/FMC1), then the
+   * VADJ voltages - same pattern as the RTM FMC2/FMC3 block that follows. */
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_12V_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_12V_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_P3V3_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_P3V3_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_VADJ_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_VADJ_CURR, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC0_VADJ, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
+  sdr_insert_entry(TYPE_01, (void *)&SDR_FMC1_VADJ, &vTaskUCD_Handle, 0, CHIP_ID_PMBUS_0);
 #endif
 
   /* INA3221 sensors */
@@ -1722,11 +1731,11 @@ const SDR_type_01h_t SDR_RTM_FMC3_VADJ_I = {
  * table must stay in the same order. */
 const SDR_type_01h_t * const SDR_RTM_FMC_UCD[RTM_SENSORS_COUNT] = {
   &SDR_RTM_FMC2_12V_I,
-  &SDR_RTM_FMC2_3V3_I,
-  &SDR_RTM_FMC2_VADJ_V,
-  &SDR_RTM_FMC2_VADJ_I,
   &SDR_RTM_FMC3_12V_I,
+  &SDR_RTM_FMC2_3V3_I,
   &SDR_RTM_FMC3_3V3_I,
-  &SDR_RTM_FMC3_VADJ_V,
-  &SDR_RTM_FMC3_VADJ_I
+  &SDR_RTM_FMC2_VADJ_I,
+  &SDR_RTM_FMC3_VADJ_I,
+  &SDR_RTM_FMC2_VADJ_V,
+  &SDR_RTM_FMC3_VADJ_V
 };

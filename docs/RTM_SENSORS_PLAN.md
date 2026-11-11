@@ -69,9 +69,14 @@ because it shows whether the RTM input rail is actually up (measured
   sensors**: entity `0xC0`, instance `0x00` (one "RTM" group; the FMC2/FMC3
   site lives in the sensor name only).  The AMC's own sensors stay on
   `0xC1`/`0x6C`.
-- **sensor numbers**: `0x1B-0x22` (27-34), one per monitor, in this order:
-  `0x1B` FMC2 12V I, `0x1C` FMC2 3V3 I, `0x1D` FMC2 VADJ V, `0x1E` FMC2 VADJ I,
-  `0x1F` FMC3 12V I, `0x20` FMC3 3V3 I, `0x21` FMC3 VADJ V, `0x22` FMC3 VADJ I.
+- **sensor numbers / order**: `0x1B-0x22` (27-34), one per monitor, in this
+  order: `0x1B` FMC2 12V I, `0x1C` FMC3 12V I, `0x1D` FMC2 3V3 I,
+  `0x1E` FMC3 3V3 I, `0x1F` FMC2 VADJ I, `0x20` FMC3 VADJ I, `0x21` FMC2
+  VADJ V, `0x22` FMC3 VADJ V.  That is the same pattern as the AMC's own
+  FMC0/FMC1 block: currents grouped by rail family across the two sites,
+  then the VADJ voltages.  The AMC block itself (1-26) was reordered to
+  match: hotswap, 12 V inputs, FPGA/DDR/IO voltage-current pairs, TEMP UCD,
+  FMC currents (12 V, 3V3, VADJ), FMC VADJ voltages.
   The earlier plan said `0x10-0x17`, but those numbers are already used by the
   AMC's own UCD90320 sensors (verified with `ipmitool sdr list` on AMC12:
   0x10 "FMC1 +12V Curr" ... 0x17 "DDR +1.2VT Curr").  IPMI sensor numbers have
