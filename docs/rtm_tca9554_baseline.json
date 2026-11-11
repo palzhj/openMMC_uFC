@@ -1,32 +1,80 @@
 {
- "0x3C RTM bus": {
+ "RTM IO (RTM bus)": {
+  "dev": "0x3C",
   "input": 75,
   "output": 11,
   "polarity": 0,
-  "config": 240
+  "config": 240,
+  "dirs_P7_P0": "IIIIOOOO",
+  "outputs_high": [
+   7,
+   6,
+   4
+  ],
+  "inputs_high": [
+   1
+  ]
  },
- "0x3E RTM bus": {
+ "FMC IO (RTM bus)": {
+  "dev": "0x3E",
   "input": 243,
   "output": 255,
   "polarity": 0,
-  "config": 255
+  "config": 255,
+  "dirs_P7_P0": "IIIIIIII",
+  "outputs_high": [],
+  "inputs_high": [
+   7,
+   6,
+   3,
+   2,
+   1,
+   0
+  ]
  },
- "0x3F 72ch0": {
-  "input": 12,
-  "output": 12,
-  "polarity": 0,
-  "config": 0
- },
- "0x3D 70ch5/71ch3/72ch2": {
+ "JTAG IO (72ch2)": {
+  "dev": "0x3D",
   "input": 127,
   "output": 112,
   "polarity": 0,
-  "config": 143
+  "config": 143,
+  "dirs_P7_P0": "IOOOIIII",
+  "outputs_high": [
+   3,
+   2,
+   1
+  ],
+  "inputs_high": [
+   7,
+   6,
+   5,
+   4
+  ]
  },
- "0x3F 72ch1": {
+ "ReDriverIO A (72ch0)": {
+  "dev": "0x3F",
   "input": 12,
   "output": 12,
   "polarity": 0,
-  "config": 0
+  "config": 0,
+  "dirs_P7_P0": "OOOOOOOO",
+  "outputs_high": [
+   5,
+   4
+  ],
+  "inputs_high": []
+ },
+ "ReDriverIO B (72ch1)": {
+  "dev": "0x3F",
+  "input": 12,
+  "output": 12,
+  "polarity": 0,
+  "config": 0,
+  "dirs_P7_P0": "OOOOOOOO",
+  "outputs_high": [
+   5,
+   4
+  ],
+  "inputs_high": []
  }
 }

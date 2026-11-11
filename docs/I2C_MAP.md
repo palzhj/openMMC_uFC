@@ -47,3 +47,19 @@ Read example (RTM FRU):
 ```
 raw 0x32 0x20 0x01 0x02 0x70 0x05 0x71 0x07 0x55 0x02 0x00 0x00 0x10
 ```
+
+## uRTM2.3 TCA9554 expanders — complete record
+
+All five expanders with their register map (`0x00` input, `0x01` output,
+`0x02` polarity, `0x03` config: bit = 1 → input).
+
+| device | name | input | output | polarity | config | P7…P0 |
+|---|---|---|---|---|---|---|
+| `0x3C` | RTM IO (RTM bus) | `4b` | `0b` | `00` | `f0` | `IIIIOOOO` |
+| `0x3E` | FMC IO (RTM bus) | `f3` | `ff` | `00` | `ff` | `IIIIIIII` |
+| `0x3D` | JTAG IO (72ch2) | `7f` | `70` | `00` | `8f` | `IOOOIIII` |
+| `0x3F` | ReDriverIO A (72ch0) | `0c` | `0c` | `00` | `00` | `OOOOOOOO` |
+| `0x3F` | ReDriverIO B (72ch1) | `0c` | `0c` | `00` | `00` | `OOOOOOOO` |
+
+Re-read them anytime with `tools/firmware/u4fcp-v2/rtm_dump.py`
+(extend its tree with the `0x3F` entries for ch0/ch1).
