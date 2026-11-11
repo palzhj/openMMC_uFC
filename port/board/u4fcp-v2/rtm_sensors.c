@@ -41,6 +41,14 @@
 #define RTM_UCD_REG_READ_VOUT   0x8B
 #define RTM_UCD_REG_READ_IOUT   0x8C
 
+/* VOUT_MODE (0x20) is per PMBus page: the 12 V pages use 0x16 (x2^-10),
+ * the 3.3 V / VADJ pages 0x14 (x2^-12). */
+#define RTM_UCD_LINEAR16_DEFAULT_EXP   (-12)
+
+/* page 0 is the RTM 12 V input rail (0.164 divider, x2^-10), not one of the
+ * eight FMC monitors */
+#define RTM_UCD_PAGE_12V        0
+
 #define RTM_UCD_TIMEOUT_TICKS   20      /* 20 ms to win the bus */
 #define RTM_SENSORS_PERIOD_MS   1000
 #define RTM_SENSORS_TASK_STACK  192     /* words: only the boot dump uses printf */
@@ -77,6 +85,7 @@ static const rtm_monitor_t rtm_monitors[RTM_SENSORS_COUNT] = {
 static TaskHandle_t vTaskRtmSensors_Handle;
 static sensor_t *rtm_sensor[RTM_SENSORS_COUNT];
 static int32_t rtm_milli[RTM_SENSORS_COUNT];  /* last reading: mV / mA */
+static int8_t rtm_monitor_exp[RTM_SENSORS_COUNT];  /* VOUT_MODE used per monitor */
 
 static bool rtm_scan_on;
 static uint8_t rtm_absent_polls;
@@ -210,27 +219,19 @@ static bool rtm_ucd_read_word(uint8_t i2c_interface, uint8_t i2c_address,
 
 /* Read the eight monitors in one bus session.  Returns false as soon as the
  * RTM path NACKs; the caller then keeps the last readings. */
-static bool rtm_ucd_read_monitors(int32_t *milli, int8_t *vout_exp)
+static bool rtm_ucd_read_monitors(int32_t *milli)
 {
   uint8_t i2c_interface = 0;
   uint8_t i2c_address = 0;
   uint8_t page = 0xFF;
   uint8_t mode = 0;
   uint16_t raw;
+  int8_t page_exp = RTM_UCD_LINEAR16_DEFAULT_EXP;
   bool ok = false;
 
   if (!rtm_ucd_take(&i2c_interface, &i2c_address)) {
     rtm_fail_step = 1;   /* no bus / no ACK from 0x70 ch5 or 0x71 ch7 */
     return false;
-  }
-
-  /* VOUT_MODE is a single byte, device wide (the locked configuration is
-   * 0x14 = x2^-12) */
-  if (rtm_ucd_read_byte(i2c_interface, i2c_address, RTM_UCD_REG_VOUT_MODE, &mode)) {
-    *vout_exp = (int8_t)(mode & 0x1F);
-    if (*vout_exp & 0x10) {
-      *vout_exp -= 0x20;
-    }
   }
 
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
@@ -241,17 +242,69 @@ static bool rtm_ucd_read_monitors(int32_t *milli, int8_t *vout_exp)
         goto out;
       }
       page = rtm_monitors[i].page;
+
+      /* VOUT_MODE follows the selected page, read it once per page change */
+      page_exp = RTM_UCD_LINEAR16_DEFAULT_EXP;
+      if (rtm_ucd_read_byte(i2c_interface, i2c_address,
+                            RTM_UCD_REG_VOUT_MODE, &mode)) {
+        page_exp = (int8_t)(mode & 0x1F);
+        if (page_exp & 0x10) {
+          page_exp -= 0x20;
+        }
+      }
     }
     if (!rtm_ucd_read_word(i2c_interface, i2c_address,
                            rtm_monitors[i].reg, &raw)) {
       rtm_fail_step = 10 + i;   /* register read */
       goto out;
     }
+    rtm_monitor_exp[i] = page_exp;
     milli[i] = (rtm_monitors[i].reg == RTM_UCD_REG_READ_VOUT)
-               ? linear16_milli(raw, *vout_exp)
+               ? linear16_milli(raw, page_exp)
                : linear11_milli(raw);
   }
 
+  ok = true;
+
+out:
+  i2c_give(i2c_interface);
+  return ok;
+}
+
+/* Read the RTM 12 V input rail (page 0, x2^-10, 0.164 divider).  It is not
+ * one of the eight SDR sensors, but it tells whether the RTM input is up. */
+static bool rtm_ucd_read_rail_12v(int32_t *milli)
+{
+  uint8_t i2c_interface = 0;
+  uint8_t i2c_address = 0;
+  uint8_t mode = 0;
+  uint16_t raw;
+  int8_t exp = RTM_UCD_LINEAR16_DEFAULT_EXP;
+  bool ok = false;
+
+  if (!rtm_ucd_take(&i2c_interface, &i2c_address)) {
+    rtm_fail_step = 1;
+    return false;
+  }
+
+  if (!rtm_ucd_write_reg(i2c_interface, i2c_address,
+                         RTM_UCD_REG_PAGE, RTM_UCD_PAGE_12V)) {
+    rtm_fail_step = 3;
+    goto out;
+  }
+  if (rtm_ucd_read_byte(i2c_interface, i2c_address,
+                        RTM_UCD_REG_VOUT_MODE, &mode)) {
+    exp = (int8_t)(mode & 0x1F);
+    if (exp & 0x10) {
+      exp -= 0x20;
+    }
+  }
+  if (!rtm_ucd_read_word(i2c_interface, i2c_address,
+                         RTM_UCD_REG_READ_VOUT, &raw)) {
+    rtm_fail_step = 10;
+    goto out;
+  }
+  *milli = linear16_milli(raw, exp);
   ok = true;
 
 out:
@@ -326,24 +379,31 @@ void rtm_sensors_remove(void)
 void rtm_sensors_dump(void)
 {
   int32_t milli[RTM_SENSORS_COUNT] = { 0 };
-  int8_t vout_exp = -12;
+  int32_t rail_12v = 0;
 
   if (!rtm_present()) {
     log_printk("rtm", "no RTM, no FMC2/FMC3 monitors to read");
     return;
   }
 
-  if (!rtm_ucd_read_monitors(milli, &vout_exp)) {
+  if (!rtm_ucd_read_monitors(milli)) {
     log_printk("rtm", "UCD 0x5B not answering (0x70 ch5 -> 0x71 ch7)");
     return;
   }
 
-  log_printk("rtm", "UCD 0x5B: VOUT_MODE 2^%d, RTM 12 V %s",
-             vout_exp, rtm_12v_is_on() ? "on" : "off");
+  if (rtm_ucd_read_rail_12v(&rail_12v)) {
+    log_printk("rtm", "UCD 0x5B: RTM 12 V input %d mV, RTM 12 V %s",
+               (int)rail_12v, rtm_12v_is_on() ? "on" : "off");
+  } else {
+    log_printk("rtm", "UCD 0x5B: RTM 12 V input not readable, RTM 12 V %s",
+               rtm_12v_is_on() ? "on" : "off");
+  }
 
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
     if (rtm_monitors[i].sensor_type == SENSOR_TYPE_VOLTAGE) {
-      log_printk("rtm", "%s %d mV", rtm_monitors[i].name, (int)milli[i]);
+      /* the LINEAR16 exponent is per page: print the one that was used */
+      log_printk("rtm", "%s %d mV (2^%d)", rtm_monitors[i].name,
+                 (int)milli[i], rtm_monitor_exp[i]);
     } else {
       log_printk("rtm", "%s %d mA", rtm_monitors[i].name, (int)milli[i]);
     }
@@ -416,13 +476,11 @@ static void vTaskRtmSensors(void *Parameters)
 
       if (rtm_12v_is_on()) {
         int32_t milli[RTM_SENSORS_COUNT];
-        int8_t vout_exp = -12;
         bool ok;
 
         /* one immediate retry: a single NACK on the shared I2C2 bus (the AMC
          * UCD is polled from another task) must not hide the monitors */
-        ok = rtm_ucd_read_monitors(milli, &vout_exp) ||
-             rtm_ucd_read_monitors(milli, &vout_exp);
+        ok = rtm_ucd_read_monitors(milli) || rtm_ucd_read_monitors(milli);
 
         if (ok) {
           rtm_fail_count = 0;

@@ -24,9 +24,17 @@ READ_IOUT 0x8C on the same PAGE), so the 8 monitors come from 6 pages:
 | 6 | **FMC3 VADJ voltage + current** | 0x8B + 0x8C |
 | 7 | FMC3 3V3 current | 0x8C LINEAR11 |
 
-READ_VOUT is LINEAR16 with `VOUT_MODE` 0x14 (x2^-12, read at every poll and
-used for the conversion); READ_IOUT/READ_TEMPERATURE are LINEAR11
-(R = Y * 2^X, Y = low 11 bits signed, X = high 5 bits signed).
+`VOUT_MODE` (0x20) is **per page**, not device wide (0x16 = x2^-10 on the
+12 V pages 0/2/5, 0x14 = x2^-12 on the 3.3 V / VADJ pages 1/3/4/6/7/8).  It
+has to be re-read after every page select and used for that page's READ_VOUT
+- reading it once and applying it to all pages decodes the 12 V pages 4x too
+low (page 0 then shows 3.07 V instead of 12.28 V).  READ_IOUT/READ_TEMPERATURE
+are LINEAR11 (R = Y * 2^X, Y = low 11 bits signed, X = high 5 bits signed).
+
+Page 0 is the RTM 12 V input itself (VOUT_COMMAND 12.000 V, 0.164 divider,
+x2^-10); it is not one of the eight SDR sensors but the boot dump prints it,
+because it shows whether the RTM input rail is actually up (measured
+12.27-12.29 V with the RTM powered).
 
 ## Firmware pieces
 
@@ -91,6 +99,13 @@ used for the conversion); READ_IOUT/READ_TEMPERATURE are LINEAR11
   ```
 
   every value matches a direct read of the UCD pages (`rtm_power.py`).
+- boot log with the rail check and the per-page exponent:
+
+  ```
+  rtm : UCD 0x5B: RTM 12 V input 12287 mV, RTM 12 V on
+  rtm : FMC2 VADJ V 1801 mV (2^-12)
+  ```
+
 - `ipmitool -t 0x88 sdr list`: 34 sensors, the eight RTM ones at record ID
   27-34 with sensor number 0x20-0x27 and entity 0xC0/instance 0x00
   ("PICMG Rear Transition Module").
@@ -99,12 +114,23 @@ used for the conversion); READ_IOUT/READ_TEMPERATURE are LINEAR11
   record IDs 27-34 and fresh readings.  Exercised with a bench build
   (`-DRTM_SENSORS_SELFTEST`, not part of the production image) that pretends
   the handle was opened for 30 s; a physical unplug test is still open.
+- `tools/firmware/u4fcp-v2/rtm_power.py` decodes every page with its own
+  `VOUT_MODE` and confirms the same values (12.27 V, 0.297/0.266/0.172 A,
+  1.80 V).  It verifies the page against `VOUT_MODE` + `VOUT_COMMAND` and
+  retries: the MMC polls the same UCD once per second, and a host read that
+  spans several IPMI I2C-transfer commands can be interrupted by a page
+  switch of the polling task (the firmware itself holds the I2C2 semaphore
+  for its whole poll, so its readings are consistent).
 - MCH (NAT-MCH 2.23.6) `show_sensorinfo 16` lists the group with entity
   0xC0/0x00 and the right values; while the sensors are removed it keeps the
   (cached) rows and reports "could not read sensor" (completion code 0xC9)
   until it re-reads the module SDR.
 
 ## Open points
+
+- The RTM 12 V input rail is only in the boot dump.  Adding it as a ninth
+  sensor (number 0x28, entity 0xC0/0) would be a two-line change if the MCH
+  should alarm on the RTM input voltage.
 
 - **MCH SDR cache**: the NAT-MCH keeps the module's SDR rows until it re-reads
   the module repository (e.g. after a slot re-activation), so after an RTM
