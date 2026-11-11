@@ -140,6 +140,12 @@ and starts with `pwr : payload restart (MMC uptime N s, no MMC reset)`.
   board (or the board is unpowered); wire VTref + GND, power‑cycle the J‑Link
   USB and retry. Two J‑Links attached at once is the classic trap: the probe
   may talk to the wrong one.
+- `jlink_program.sh` / `flash-jlink.sh` now judge the run by the J‑Link output
+  (`Cortex-M3 identified` + no `Cannot connect`/`failed to …` line), because
+  JLinkExe itself returns 0 for several failure modes. A run against an
+  unpowered/disconnected target prints `ERROR: J-Link programming FAILED
+  (no usable target)`, the relevant output and the VTref/one-probe hints, and
+  exits **1** (so `program.sh` stops before the IPMI steps).
 - FRU written but the MCH still shows the factory values — the MMC reads the
   FRU **once at boot**; reboot it after `fru_program.sh`.
 - MCH power warning `requested power … exceeds backplane limit` — the FRU's

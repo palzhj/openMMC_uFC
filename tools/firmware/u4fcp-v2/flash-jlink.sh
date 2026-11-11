@@ -27,5 +27,18 @@ q
 SCRIPT
 
 echo "flashing $DIR/newboot.bin (0x08000000) + $DIR/openMMC.bin (0x08002000) via J-Link"
-JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript "$TMP"
-rm -f "$TMP"
+# JLinkExe returns 0 in several failure modes; verify the connection in the log.
+LOG=$(mktemp /tmp/u4fcp-v2-flash.XXXXXX.log)
+RC=0
+JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript "$TMP" > "$LOG" 2>&1 || RC=$?
+if [ "$RC" -ne 0 ] || ! grep -q "Cortex-M3 identified" "$LOG" \
+   || grep -qiE "(cannot connect to target|failed to connect|no target connected|could not connect|target voltage too low|error while (writing|verifying)|failed to (write|verify))" "$LOG"; then
+    echo "ERROR: J-Link flashing FAILED (no usable target)" >&2
+    grep -iE "error|cannot|no target|could not|failed|voltage|VTref|cortex|connect" "$LOG" \
+        | grep -v "exit on Error" | head -15 >&2 || true
+    echo "full log: $LOG" >&2
+    rm -f "$TMP"
+    exit 1
+fi
+tail -3 "$LOG"
+rm -f "$TMP" "$LOG"

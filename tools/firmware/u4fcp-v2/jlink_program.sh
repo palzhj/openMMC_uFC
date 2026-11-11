@@ -75,6 +75,28 @@ SCRIPT
 echo "=== u4FCP-v2 J-Link programming"
 echo "    images: $ROOT"
 echo "    newboot.bin -> 0x08000000, openMMC.bin -> 0x08002000, fw_info cleared"
-JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript "$JLINK" | tail -4
-rm -f "$JLINK"
+
+# JLinkExe returns 0 in several failure modes (wrong device, unpowered target),
+# so judge the run by the output as well.
+LOG=$(mktemp /tmp/u4fcp-jlink.XXXXXX.log)
+RC=0
+JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript "$JLINK" > "$LOG" 2>&1 || RC=$?
+
+if [ "$RC" -ne 0 ] || ! grep -q "Cortex-M3 identified" "$LOG" \
+   || grep -qiE "(cannot connect to target|failed to connect|no target connected|could not connect|target voltage too low|error while (writing|verifying)|failed to (write|verify))" "$LOG"; then
+    echo "=== ERROR: J-Link programming FAILED (no usable target)" >&2
+    echo "--- relevant output ---" >&2
+    grep -iE "error|cannot|no target|could not|failed|voltage|VTref|cortex|connect" "$LOG" \
+        | grep -v "exit on Error" | head -15 >&2 || true
+    echo "--- full log: $LOG ---" >&2
+    echo "Hints:" >&2
+    echo "  * board powered and the SWD header connected (VTref 3.3 V)" >&2
+    echo "  * only one J-Link attached (a second one can answer instead)" >&2
+    echo "  * 'Target voltage too low' = VTref not wired / board unpowered" >&2
+    rm -f "$JLINK"
+    exit 1
+fi
+
+tail -6 "$LOG"
+rm -f "$JLINK" "$LOG"
 [ "$DO_RUN" = 1 ] && echo "=== done, board reset and running"
