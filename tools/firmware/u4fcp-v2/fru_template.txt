@@ -1,0 +1,35 @@
+# u4FCP-v2 FRU template -- edit this file and rebuild the image with
+#   ./fru_template.py gen -o fru_template.bin
+# (a starting point can be written from any image with
+#  ./fru_template.py dump fru_template.bin -o fru_template.txt)
+# Values may contain spaces; '#' or ';' starts a comment.
+
+[board]
+manufacturer     = IHEP
+product_name     = u4FCP-v2
+serial           = SL02
+part_number      = u4FCP-v2
+fru_file_id      = u4fcp-v2.fru
+
+[product]
+manufacturer     = IHEP
+product_name     = u4FCP
+part_number      = u4FCP-v2
+version          = 2.2
+serial           = SL02
+asset_tag        = IHEP
+fru_file_id      = u4fcp-v2.fru
+
+[fru]
+# manufacturing time: minutes since 1996-01-01 or "YYYY-MM-DD HH:MM"; 0 = unset (the programmer sets it)
+mfg_time         = 0
+# AMC module current requirement (stored in 100 mA steps)
+module_current_ma = 8000
+
+[multirecord]
+# record id = record body (hex); the 5-byte header, the length and
+# both checksums are generated, the last record gets the EOL bit
+0x16             = 5a 31 00 16 00 50
+0x2d             = 5a 31 00 2d 00 ff 02 05 00 00 01 00 02 00 00 e1 f5 05 c0 9e e6 05 40 23 05 06 01 01 00 01 00 00 00 40 59 73 07 a0 d2 71 07 e0 df 74 07
+0x19             = 5a 31 00 19 00 00 80 01 a4 98 f3 00 5f 10 00 fd
+0x30             = 5a 31 00 30 01 03 5a 31 00 88 77 66 55

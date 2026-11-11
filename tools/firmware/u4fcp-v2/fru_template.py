@@ -8,7 +8,12 @@ template itself, without a board:
     fru_template.py show [FILE]                 # decode and check the image
     fru_template.py verify FILE                 # exit 0 if the image is valid
     fru_template.py set FILE -o OUT ...         # edit fields / mfg time / current
-    fru_template.py gen -o OUT --config fru_config.json ...
+    fru_template.py gen -o OUT                  # build it from fru_template.txt
+    fru_template.py dump IMAGE -o OUT.txt       # write the text blueprint
+
+The editable blueprint is fru_template.txt (sections [board], [product], [fru]
+and [multirecord], see that file); ``dump`` writes one from an existing image,
+so the round trip dump -> gen reproduces the image byte for byte.
 
 The image is always rebuilt with fru_core.build_image(), so the common header,
 the board/product area checksums and every multirecord checksum are recomputed
@@ -27,7 +32,7 @@ Layout of the current template (512-byte writable area):
 
 usage examples:
 
-    # what is in the template / where is the stray byte
+    # what is in the template (fields, multirecord records, checksums)
     ./fru_template.py show fru_template.bin
 
     # bump the product version and the part number, write a new template
@@ -38,9 +43,12 @@ usage examples:
     ./fru_template.py set fru_template.bin --in-place \\
         --module-current-ma 6000 --mfg-time "2026-11-11 12:00"
 
-    # regenerate the checked-in template from fru_config.json +
-    # fru_multirecord.json (deterministic, no input image needed)
+    # regenerate the checked-in template from fru_template.txt (deterministic)
     ./fru_template.py gen -o fru_template.bin
+
+    # write the text blueprint from an image, edit it, rebuild
+    ./fru_template.py dump fru_template.bin -o my_template.txt
+    ./fru_template.py gen --text my_template.txt -o my_template.bin
 
     # rebuild it from a board's current FRU (fields from --template, records
     # from --multi-from)
@@ -65,8 +73,7 @@ from fru_core import (  # noqa: E402
 )
 
 DEFAULT_TEMPLATE = os.path.join(HERE, "fru_template.bin")
-DEFAULT_CONFIG = os.path.join(HERE, "fru_config.json")
-DEFAULT_MULTI = os.path.join(HERE, "fru_multirecord.json")
+DEFAULT_TEXT = os.path.join(HERE, "fru_template.txt")
 
 DEFAULT_SIZE = 512              # u4FCP-v2 FRU area in the CAT24C512
 
@@ -160,27 +167,146 @@ def parse_assignment(text, allowed, what):
     return name, value
 
 
-def build_multi(spec, module_current=None):
-    """Encode the multirecord area from the record bodies of fru_multirecord.json.
+TEXT_SECTIONS = ("board", "product", "fru", "multirecord")
+TEXT_COMMENT_RE = __import__("re").compile(r"(?:^|\s)[#;]")
+
+
+def load_text(path):
+    """Parse the editable blueprint file.
+
+    [board] / [product]   field = value        (the FRU info area fields)
+    [fru]                 mfg_time            minutes since 1996-01-01 or
+                                              "YYYY-MM-DD HH:MM" (0 = unset)
+                          module_current_ma   AMC module current requirement
+    [multirecord]         <record id> = hex   record body, header generated
+
+    Returns {"board": {...}, "product": {...}, "mfg_time": ...,
+             "module_current_ma": ..., "records": [(id, bytes), ...]}.
+    """
+    out = {"board": {}, "product": {}, "mfg_time": None,
+           "module_current_ma": None, "records": []}
+    section = None
+    seen = set()
+
+    def fail(lineno, message):
+        raise ValueError("%s:%d: %s" % (path, lineno, message))
+
+    with open(path, encoding="utf-8") as handle:
+        for lineno, raw in enumerate(handle, 1):
+            line = TEXT_COMMENT_RE.split(raw.rstrip("\n"), maxsplit=1)[0].strip()
+            if not line:
+                continue
+            if line.startswith("[") and line.endswith("]"):
+                section = line[1:-1].strip().lower()
+                if section not in TEXT_SECTIONS:
+                    fail(lineno, "unknown section [%s] (use one of %s)"
+                         % (section, ", ".join(TEXT_SECTIONS)))
+                continue
+            if section is None:
+                fail(lineno, "value outside a section")
+            if "=" not in line:
+                fail(lineno, "expected 'key = value'")
+            key, value = (part.strip() for part in line.split("=", 1))
+            if not key:
+                fail(lineno, "empty key")
+            ident = (section, key.lower())
+            if ident in seen:
+                fail(lineno, "duplicate key %r in [%s]" % (key, section))
+            seen.add(ident)
+
+            if section in ("board", "product"):
+                allowed = FIELD_NAMES_BOARD if section == "board" else FIELD_NAMES_PRODUCT
+                if key.lower() not in allowed:
+                    fail(lineno, "unknown %s field %r (allowed: %s)"
+                         % (section, key, ", ".join(allowed)))
+                out[section][key.lower()] = value
+            elif section == "fru":
+                if key.lower() == "mfg_time":
+                    out["mfg_time"] = int(value) if value.isdigit() \
+                        else mfg_str_to_minutes(value)
+                elif key.lower() == "module_current_ma":
+                    out["module_current_ma"] = int(value)
+                elif key.lower() == "serial":
+                    out["board"]["serial"] = value
+                    out["product"]["serial"] = value
+                else:
+                    fail(lineno, "unknown [fru] key %r (allowed: mfg_time, "
+                                 "module_current_ma, serial)" % key)
+            else:
+                try:
+                    rid = int(key, 0)
+                except ValueError:
+                    fail(lineno, "record id %r is not a number (use 0x16)" % key)
+                try:
+                    body = bytes.fromhex(value.replace(" ", "").replace("\t", ""))
+                except ValueError:
+                    fail(lineno, "record body is not hex: %r" % value[:24])
+                if rid in [r[0] for r in out["records"]]:
+                    fail(lineno, "duplicate record id 0x%02x" % rid)
+                out["records"].append((rid, body))
+    return out
+
+
+def dump_text(board, product, mfg_time, module_current_ma, multi):
+    """Render the blueprint text for an image (the inverse of load_text)."""
+    lines = [
+        "# u4FCP-v2 FRU template -- edit this file and rebuild the image with",
+        "#   ./fru_template.py gen -o fru_template.bin",
+        "# (a starting point can be written from any image with",
+        "#  ./fru_template.py dump fru_template.bin -o fru_template.txt)",
+        "# Values may contain spaces; '#' or ';' starts a comment.",
+        "",
+        "[board]",
+    ]
+    for name in FIELD_NAMES_BOARD:
+        lines.append("%-16s = %s" % (name, board.get(name, "")))
+    lines += ["", "[product]"]
+    for name in FIELD_NAMES_PRODUCT:
+        lines.append("%-16s = %s" % (name, product.get(name, "")))
+    lines += ["", "[fru]",
+              "# manufacturing time: minutes since 1996-01-01 or "
+              '"YYYY-MM-DD HH:MM"; 0 = unset (the programmer sets it)',
+              "%-16s = %s" % ("mfg_time", mfg_time if mfg_time is not None else 0)]
+    if module_current_ma is not None:
+        lines.append("# AMC module current requirement (stored in 100 mA steps)")
+        lines.append("%-16s = %d" % ("module_current_ma", module_current_ma))
+    lines += ["", "[multirecord]",
+              "# record id = record body (hex); the 5-byte header, the length and",
+              "# both checksums are generated, the last record gets the EOL bit"]
+    pos = 0
+    while pos + 5 <= len(multi):
+        rid = multi[pos + 5 + 3] if len(multi) > pos + 5 + 3 else 0
+        ln = multi[pos + 2]
+        body = multi[pos + 5:pos + 5 + ln]
+        lines.append("%-16s = %s" % ("0x%02x" % rid, " ".join("%02x" % b for b in body)))
+        pos += 5 + ln
+        if multi[pos - 5 - ln + 1] & 0x80:
+            break
+    return "\n".join(lines) + "\n"
+
+
+def build_multi_records(records, module_current=None):
+    """Encode the multirecord area from [(record id, body), ...].
 
     Each record gets its 5-byte header (type 0xc0, format 0x02, length, record
     checksum, header checksum); the last one carries the end-of-list bit.
     """
-    records = spec.get("records") or []
     if not records:
-        raise ValueError("%s: no records" % "multirecord file")
+        raise ValueError("no multirecord records (empty [multirecord] section)")
     blob = bytearray()
-    for index, rec in enumerate(records):
-        body = bytearray(bytes.fromhex(rec["body"].replace(" ", "")))
+    for index, (rid, body) in enumerate(records):
+        body = bytearray(body)
         if not body:
-            raise ValueError("multirecord record %d: empty body" % index)
-        if len(body) > 0xFF:
-            raise ValueError("multirecord record %d: body too long" % index)
-        rid = body[3] if len(body) >= 4 and body[0:3] == b"\x5A\x31\x00" else None
+            raise ValueError("multirecord record 0x%02x: empty body" % rid)
+        if rid is not None and len(body) >= 4 and (body[3] & 0xFF) != (rid & 0xFF):
+            raise ValueError("multirecord record 0x%02x: body says id 0x%02x "
+                             "(record id and body disagree)" % (rid, body[3]))
         if rid == MODULE_CURRENT_ID:
+            if len(body) < 6:
+                raise ValueError("module current record is too short")
             if module_current is None:
-                module_current = body[5] if len(body) >= 6 else 0
-            body[5] = module_current
+                module_current = body[5]
+            body[5] = module_current & 0xFF
         fmt = 0x02 | (0x80 if index == len(records) - 1 else 0x00)
         rcks = (-sum(body)) & 0xFF
         hcks = (-(ARD_AREA_TYPE + fmt + len(body) + rcks)) & 0xFF
@@ -450,26 +576,26 @@ def cmd_set(args):
 
 
 def cmd_gen(args):
-    """Build a complete template from a field source and a multirecord source."""
+    """Build a complete template from the text blueprint (or an image)."""
+    blueprint = {"board": {}, "product": {}, "mfg_time": None,
+                 "module_current_ma": None, "records": []}
+    if args.text:
+        blueprint = load_text(args.text)
+
+    board = dict(blueprint["board"])
+    product = dict(blueprint["product"])
+    mfg = blueprint["mfg_time"]
+    current = None
+    if blueprint["module_current_ma"] is not None:
+        current = max(0, min(255, int(blueprint["module_current_ma"]) // 100))
+
     skeleton_raw = b""
-    board, product = {}, {}
     if args.template:
+        # an image is the more specific source: it wins over the blueprint
         skeleton_raw, skeleton = read_image(args.template)
         board = area_fields(skeleton["board_area"])
         product = area_fields(skeleton["product_area"])
-
-    cfg = {}
-    if args.config:
-        with open(args.config) as f:
-            cfg = json.load(f)
-        # an image (--template) is the more specific source: the config only
-        # fills the fields the image does not define
-        for name, values in (("board", board), ("product", product)):
-            for key, value in (cfg.get(name) or {}).items():
-                if args.template:
-                    values.setdefault(key, value)
-                else:
-                    values[key] = value
+        mfg = skeleton["board"].get("mfg_time", 0)
 
     for name in FIELD_NAMES_BOARD:
         board.setdefault(name, "")
@@ -477,21 +603,12 @@ def cmd_gen(args):
         product.setdefault(name, "")
 
     if args.mfg_time is not None:
-        mfg = args.mfg_time
-        board["mfg_time"] = int(mfg) if str(mfg).isdigit() else mfg_str_to_minutes(mfg)
-    elif args.template:
-        board["mfg_time"] = skeleton["board"].get("mfg_time", 0)
-    else:
-        board["mfg_time"] = 0          # the template is not a programmed board
+        text = args.mfg_time
+        mfg = int(text) if str(text).isdigit() else mfg_str_to_minutes(text)
+    board["mfg_time"] = 0 if mfg is None else int(mfg)
 
-    # module current: --module-current-ma > the source image > the config
-    current = None
     if args.module_current_ma is not None:
-        current = int(args.module_current_ma) // 100          # 0.1 A units
-    elif not args.multi_from and cfg.get("module_current_ma") is not None:
-        current = int(cfg["module_current_ma"]) // 100
-    if current is not None:
-        current = max(0, min(255, current))
+        current = max(0, min(255, int(args.module_current_ma) // 100))
 
     if args.no_multi:
         if current is not None:
@@ -501,8 +618,7 @@ def cmd_gen(args):
     elif args.multi_from:
         multi = read_image(args.multi_from)[1].get("multi") or b""
     else:
-        with open(args.multi) as f:
-            multi = build_multi(json.load(f), current)
+        multi = build_multi_records(blueprint["records"], current)
 
     parsed = parsed_from_scratch(multi)
     if multi and current is not None and parsed["module_current"] is None:
@@ -520,6 +636,24 @@ def cmd_gen(args):
     with open(args.output, "wb") as f:
         f.write(image)
     report_written(args.output, image, board, product, current)
+    return 0
+
+
+def cmd_dump(args):
+    """Write the text blueprint of an image (load_text() can read it back)."""
+    raw, parsed = read_image(args.file)
+    board = area_fields(parsed["board_area"])
+    product = area_fields(parsed["product_area"])
+    module = parsed.get("module_current")
+    text = dump_text(board, product, parsed["board"].get("mfg_time"),
+                     (module or {}).get("current", 0) * 100,
+                     parsed.get("multi") or b"")
+    if args.output:
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(text)
+        print("written %s (%d bytes of blueprint)" % (args.output, len(text)))
+    else:
+        sys.stdout.write(text)
     return 0
 
 
@@ -543,8 +677,14 @@ def main(argv=None):
                         help="also fail when the unused tail is not all 0xFF")
     verify.set_defaults(func=cmd_verify)
 
+    dump = sub.add_parser("dump", help="write the editable blueprint of an image")
+    dump.add_argument("file", nargs="?", default=DEFAULT_TEMPLATE)
+    dump.add_argument("-o", "--output", help="output text file (default: stdout)")
+    dump.set_defaults(func=cmd_dump)
+
     for name, func, text in (("set", cmd_set, "edit fields of an image"),
-                             ("gen", cmd_gen, "generate an image from a config")):
+                             ("gen", cmd_gen,
+                              "generate an image from the text blueprint")):
         p = sub.add_parser(name, help=text)
         if name == "set":
             p.add_argument("file", nargs="?", default=DEFAULT_TEMPLATE)
@@ -561,24 +701,20 @@ def main(argv=None):
             p.add_argument("--in-place", action="store_true", help="overwrite FILE")
         else:
             p.add_argument("-o", "--output", required=True, help="output file")
+            p.add_argument("--text", metavar="FILE",
+                           help="editable blueprint with the fields and the "
+                                "record bodies (default: %s)" % DEFAULT_TEXT)
             p.add_argument("--template", metavar="IMAGE",
                            help="take the field values from an existing image "
-                                "instead of --config")
-            p.add_argument("--multi", metavar="FILE",
-                           help="record bodies JSON (default: %s)"
-                           % DEFAULT_MULTI)
+                                "instead of the blueprint")
             p.add_argument("--multi-from", metavar="IMAGE",
                            help="take the multirecord area from an existing "
-                                "image instead of --multi (e.g. one pulled from "
-                                "a board)")
-            p.add_argument("--config", help="JSON field values (default: %s)"
-                           % DEFAULT_CONFIG)
+                                "image instead of the blueprint")
             p.add_argument("--no-multi", action="store_true",
                            help="drop the multirecord area")
             p.add_argument("--module-current-ma", type=int,
                            help="PICMG module current requirement (mA)")
-            p.set_defaults(template=None, config=DEFAULT_CONFIG,
-                           multi=DEFAULT_MULTI)
+            p.set_defaults(template=None, text=DEFAULT_TEXT)
         p.add_argument("--mfg-time", help='"YYYY-MM-DD HH:MM" or minutes since 1996-01-01')
         p.add_argument("--size", type=int, help="image size (default: keep the input size)")
         p.add_argument("--dry-run", action="store_true", help="do not write the file")

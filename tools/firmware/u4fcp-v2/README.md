@@ -115,35 +115,48 @@ What each step does:
 `fru_template.bin` is the 512-byte FRU image that `fru_program.sh` merges with
 the per-unit serial (board + product areas, manufacturing time, and the
 100-byte multirecord area with the module-current/clock/connectivity records).
-It is **generated** — `fru_template.py` edits or rebuilds it without a board:
+
+It is **generated from the editable text file `fru_template.txt`** — edit the
+[board] / [product] fields or the record bodies there and rebuild:
 
 ```bash
-./fru_template.py show fru_template.bin            # decode + checksum check
-./fru_template.py verify fru_template.bin --strict # CI check (exit 0 = valid)
-./fru_template.py gen -o fru_template.bin          # regenerate (see below)
+./fru_template.py gen -o fru_template.bin            # build from fru_template.txt
+./fru_template.py show fru_template.bin              # decode + checksum check
+./fru_template.py verify fru_template.bin --strict   # CI check (exit 0 = valid)
 
-# edit fields, module current (the PICMG record stores 0.1 A units) and date
-./fru_template.py set fru_template.bin -o new.bin \
-    --product version=2.3 --board part_number=u4FCP-v2.3 \
-    --serial U4FCP2-0001 --module-current-ma 6000 --mfg-time "2026-11-11 12:00"
+# start from an existing image instead of the checked-in text file
+./fru_template.py dump fru_template.bin -o my.txt    # write the text blueprint
+$EDITOR my.txt
+./fru_template.py gen --text my.txt -o my.bin
 
-# rebuild from a board's current FRU (fields and records taken from the image)
+# rebuild from a board's current FRU (fields, and records with --multi-from)
 ./fru_template.py gen -o fru_template.bin --template board.fru --multi-from board.fru
 ```
 
-- The field values come from `fru_config.json` (same keys as the programmer
-  uses; `serial` is only the template placeholder — `fru_program.sh` always
-  writes the real one, and the template's manufacturing time is 0).
-- The multirecord bodies (clock configuration, point-to-point connectivity,
-  module current, OEM record) come from `fru_multirecord.json`;
-  `--module-current-ma` / `module_current_ma` override the current byte and its
-  checksum, `--multi-from IMAGE` copies the whole area from an existing image.
-- `set` accepts `--board field=value` / `--product field=value` (the names are
-  listed by `show`), `--serial` for both serials, and `--mfg-time` as minutes
-  since 1996-01-01 or `"YYYY-MM-DD HH:MM"`.
-- Every image is rebuilt through `fru_core.build_image()`, so the common
-  header, the area checksums and all multirecord checksums are recomputed; the
-  unused tail is filled with `0xFF`.
+`fru_template.txt` format (one `key = value` per line, `#`/`;` starts a
+comment, section names are fixed):
+
+```
+[board]      manufacturer, product_name, serial, part_number, fru_file_id
+[product]    manufacturer, product_name, part_number, version, serial,
+             asset_tag, fru_file_id
+[fru]        mfg_time (minutes since 1996-01-01 or "YYYY-MM-DD HH:MM", 0 =
+             unset) and module_current_ma (the PICMG record stores 100 mA
+             steps); the programmer always overwrites mfg_time/serial
+[multirecord] <record id> = <body hex>   (0x16 module current, 0x2d clock,
+             0x19 point-to-point, 0x30 OEM; the 5-byte header, the length and
+             both checksums are generated, the last record gets the EOL bit)
+```
+
+`fru_config.json` is still the field-value file `program_fru.py` uses when
+programming a board — keep the two in sync when the board data changes.
+`--module-current-ma` overrides the current byte (and its checksum) on the
+command line; `set` still does one-off edits of an existing image
+(`--board field=value`, `--product field=value`, `--serial`, `--mfg-time`,
+`--module-current-ma`).  Every image is rebuilt through
+`fru_core.build_image()`, so the common header and all checksums are
+recomputed and the unused tail is filled with `0xFF`.  `dump` → `gen` is a
+byte-exact round trip.
 
 Verify afterwards:
 
