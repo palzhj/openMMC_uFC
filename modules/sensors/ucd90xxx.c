@@ -480,17 +480,21 @@ void ucd_read_current(ucd_data_t *data)
 /**
  * Calibration of the UCD90320's *internal* temperature sensor.
  *
- * The embedded sensor reads about 9 C below the board temperature (measured
- * against the crate's LM75 sensors: UCD 15.4 C while the shelf sits at
- * 24-26 C; TI has no PMBus calibration for the internal sensor, E5h/E6h only
- * affect the external READ_TEMPERATURE_2). The offset is added to the raw
- * SDR reading, so the SDR linearization (M=5, R=-1 -> 0.5 C/LSB) reports the
- * calibrated value and the thresholds keep their physical meaning.
+ * The embedded sensor reads below the board temperature (TI has no PMBus
+ * calibration for the internal sensor, E5h/E6h only affect the external
+ * READ_TEMPERATURE_2).  The offset is added to the raw SDR reading, so the
+ * SDR linearization (M=5, R=-1 -> 0.5 C/LSB) reports the calibrated value
+ * and the thresholds keep their physical meaning.
+ *
+ * 4.5 C: the first value tried (9 C, from a UCD 15.4 C / shelf 24-26 C
+ * comparison) over-corrected the temperature of the boards in the crate.
+ * Quoted with a fraction on purpose - 2 LSB per degree, so 4.5 C is exactly
+ * 9 LSB.
  *
  * Override per board with -DUCD_TEMP_OFFSET_C=<n> if a unit differs.
  */
 #ifndef UCD_TEMP_OFFSET_C
-#define UCD_TEMP_OFFSET_C 9
+#define UCD_TEMP_OFFSET_C 4.5
 #endif
 
 /**
