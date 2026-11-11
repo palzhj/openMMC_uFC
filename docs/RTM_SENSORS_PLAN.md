@@ -8,14 +8,17 @@ own MMC (openMMC `urtm-v2`) is not used for this.
 uRTM2.3 UCD90124A `0x5B` behind `TCA9548A 0x70 ch5` -> `TCA9548A 0x71 ch7`
 (pages from `uRTMv2.3_with_current_limitation.tifsp`):
 
-| page | monitor | kind | READ | format |
-|---|---|---|---|---|
-| 2 | FMC2 12 V | current | 0x8C | LINEAR11 |
-| 3 | FMC2 VADJ | voltage | 0x8B | LINEAR16 (VOUT_MODE) |
-| 4 | FMC2 3V3 | current | 0x8C | LINEAR11 |
-| 5 | FMC3 12 V | current | 0x8C | LINEAR11 |
-| 6 | FMC3 VADJ | voltage | 0x8B | LINEAR16 |
-| 7 | FMC3 3V3 | current | 0x8C | LINEAR11 |
+The VADJ voltage and current **share one page** (READ_VOUT 0x8B and
+READ_IOUT 0x8C on the same PAGE), so the 8 monitors come from 6 pages:
+
+| page | monitors | reads |
+|---|---|---|
+| 2 | FMC2 12 V current | 0x8C LINEAR11 |
+| 3 | **FMC2 VADJ voltage + current** | 0x8B LINEAR16 + 0x8C LINEAR11 |
+| 4 | FMC2 3V3 current | 0x8C LINEAR11 |
+| 5 | FMC3 12 V current | 0x8C LINEAR11 |
+| 6 | **FMC3 VADJ voltage + current** | 0x8B + 0x8C |
+| 7 | FMC3 3V3 current | 0x8C LINEAR11 |
 
 VADJ currents (the 7th/8th monitor) need the corresponding current‑sense
 pages confirmed in the Fusion project (IOUT_CAL_GAIN 556/476 mΩ rails).
@@ -40,5 +43,4 @@ pages confirmed in the Fusion project (IOUT_CAL_GAIN 556/476 mΩ rails).
 
 - entity ID / instance for the FMC2/FMC3 sensors (must not collide with the
   AMC's FMC0/FMC1);
-- the VADJ current pages (7th/8th monitor);
 - the SDR delete API (only insert exists today).
