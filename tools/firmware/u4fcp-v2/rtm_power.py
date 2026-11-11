@@ -29,9 +29,13 @@ def main():
     exp = mode if mode < 0x10 else mode - 0x20
     print("VOUT_MODE=0x%02x -> exponent %d" % (mode, exp))
     # page map from uRTMv2.3_with_current_limitation.tifsp (RailDefinitions)
-    rails = {0: "RTM_12V", 1: "MP_3V3", 2: "FMC2_12V_CURR", 3: "FMC2_VADJ",
-             4: "FMC2_3V3_CURR", 5: "FMC3_12V_CURR", 6: "FMC3_VADJ",
-             7: "FMC3_3V3_CURR", 8: "IO_3V3"}
+    # VOUT_SCALE_MONITOR (0x2A) from the Fusion project: the fraction of the
+    # rail voltage present at the monitor pin (12 V rails 0.164, 3.3/1.8 V 0.5)
+    rails = {0: ("RTM_12V", 0.164), 1: ("MP_3V3", 0.5),
+             2: ("FMC2_12V_CURR", 0.164), 3: ("FMC2_VADJ", 0.5),
+             4: ("FMC2_3V3_CURR", 0.5), 5: ("FMC3_12V_CURR", 0.164),
+             6: ("FMC3_VADJ", 0.5), 7: ("FMC3_3V3_CURR", 0.5),
+             8: ("IO_3V3", 0.5)}
     for page in sorted(rails):
         try:
             acc.xfer(1, PATH, DEV, bytes([0x00, page]), 0)
@@ -47,8 +51,9 @@ def main():
             degc = linear11(traw)
             if vout == 0:
                 continue
-            print("%-14s page %d: VOUT=%7.3f V  IOUT=%8.3f A  TEMP=%5.1f C"
-                  % (rails[page], page, vout, amps, degc))
+            name, scale = rails[page]
+            print("%-14s page %d: VOUT=%7.3f V (pin=%.3f V x1/%.3f)  IOUT=%7.3f A  TEMP=%5.1f C"
+                  % (name, page, vout, vout * scale, scale, amps, degc))
         except Exception as e:
             print('  page %d: %s' % (page, str(e)[-50:]))
     return 0
