@@ -39,8 +39,14 @@ pages confirmed in the Fusion project (IOUT_CAL_GAIN 556/476 mΩ rails).
 5. MCH side: after the insert/remove the SDR repository must be re‑read
    (module re‑insert / MCH SDR reload) — the MCH caches the SDR.
 
+## Decided
+
+- **entityID / instance**: `0xC0` (RTM module) with instance `0x02` for FMC2
+  and `0x03` for FMC3; the AMC's own sensors stay on `0xC1`/`0x00`.
+- **sensor numbers**: reserve `0x10-0x17` (FMC2) and `0x18-0x1F` (FMC3) so a
+  re-insert after a handle cycle keeps the same IDs (no MCH ghost sensors).
+
 ## Open points
 
-- entity ID / instance for the FMC2/FMC3 sensors (must not collide with the
-  AMC's FMC0/FMC1);
+ 
 - the SDR delete API (only insert exists today).
