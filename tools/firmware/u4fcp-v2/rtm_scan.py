@@ -19,6 +19,16 @@ def main():
             print("  0x%02X %-8s ACK %s" % (dev, name, v.hex()))
         except Exception:
             print("  0x%02X %-8s NACK" % (dev, name))
+    print("== behind the RTM FPGA mux 0x72 (0x71 ch3 -> 0x72 ch0..2) ==")
+    for ch in range(3):
+        found = []
+        for dev in range(0x08, 0x78):
+            try:
+                acc.xfer(1, [(0x70, 5), (0x71, 3), (0x72, ch)], dev, bytes([0]), 1)
+                found.append("0x%02X" % dev)
+            except Exception:
+                pass
+        print("  0x72 ch%d: %s" % (ch, " ".join(found) or "(nothing)"))
     for ch in range(8):
         for dev, name in KNOWN.get(ch, []):
             try:
