@@ -41,10 +41,13 @@ pages confirmed in the Fusion project (IOUT_CAL_GAIN 556/476 mΩ rails).
 
 ## Decided
 
-- **entityID / instance**: `0xC0` (RTM module) with instance `0x02` for FMC2
-  and `0x03` for FMC3; the AMC's own sensors stay on `0xC1`/`0x00`.
-- **sensor numbers**: reserve `0x10-0x17` (FMC2) and `0x18-0x1F` (FMC3) so a
-  re-insert after a handle cycle keeps the same IDs (no MCH ghost sensors).
+- **entityID / instance**: all eight monitors are **merged as the RTM's
+  sensors**: entity `0xC0`, instance `0x00` (one "RTM" group; the FMC2/FMC3
+  site lives in the sensor name only).  The AMC's own sensors stay on
+  `0xC1`/`0x00`.
+- **sensor numbers**: `0x10-0x17`, one per monitor, fixed:
+  `0x10` FMC2 12V I, `0x11` FMC2 3V3 I, `0x12` FMC2 VADJ V, `0x13` FMC2 VADJ I,
+  `0x14` FMC3 12V I, `0x15` FMC3 3V3 I, `0x16` FMC3 VADJ V, `0x17` FMC3 VADJ I.
 
 ## Open points
 
