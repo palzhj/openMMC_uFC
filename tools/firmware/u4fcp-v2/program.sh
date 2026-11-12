@@ -12,15 +12,17 @@
 #   5. with --rtm: write the uRTM's own FRU EEPROM (0x55 behind 0x70 ch5 ->
 #      0x71 ch7) using the same serial number
 #
-# The serial number is the only argument you have to give.
+# Every parameter is an option; put --sn <serial> last.
 #
-# usage: ./program.sh <serial> [options]
+# usage: ./program.sh [options] --sn <serial>
 #
+#   --sn SERIAL         serial number of the board (board and product areas);
+#                       the only required parameter, use it last
 #   --slot N            AMC slot of the board (target = 0x70+2*N)  default 12
 #   --mch IP            MCH / BMC address                          default 192.168.1.41
 #   --bus B             IPMB-L bus of the MCH bridge               default 0
 #   --template FILE     FRU template image        default fru_template.bin (here)
-#   --mfg-time STR      manufacturing time in the FRU              default now
+#   --mfg-time STR      force a FRU manufacturing time (default: keep the template's)
 #   --clk-preset FILE   clock preset image       default clk-preset.bin (here)
 #   --clock-store FILE  restore a clock store (program_clock.py --dump)
 #   --rtm               also program the uRTM FRU, same serial as the AMC
@@ -31,20 +33,18 @@
 #   --no-flash / --no-fru / --no-clk / --no-vadj   skip a step
 #
 # Examples:
-#   ./program.sh U4FCP2-0001                       # build + flash + FRU + clock + VADJ
-#   ./program.sh U4FCP2-0001 --slot 3 --mch 10.0.0.5
-#   ./program.sh U4FCP2-0001 --no-flash            # FRU/VADJ only (board in a crate)
-#   ./program.sh U4FCP2-0001 --rtm                 # + the uRTM's FRU (same SN)
-#   ./program.sh U4FCP2-0001 --dry-run             # just build the FRU image
+#   ./program.sh --sn U4FCP2-0001                      # build + flash + FRU + clock + VADJ
+#   ./program.sh --slot 3 --mch 10.0.0.5 --sn U4FCP2-0001
+#   ./program.sh --no-flash --sn U4FCP2-0001           # FRU/VADJ only (board in a crate)
+#   ./program.sh --rtm --sn U4FCP2-0001                # + the uRTM's FRU (same SN)
+#   ./program.sh --dry-run --sn U4FCP2-0001            # just build the FRU image
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../../.." && pwd)
 BUILD_DIR=${BUILD_DIR:-$REPO/.hw2/u4fcp}
 
-SERIAL=${1:-}
-[ -n "$SERIAL" ] || { echo "usage: $0 <serial> [options]" >&2; exit 1; }
-shift
+SERIAL=""
 
 SLOT=12
 MCH=192.168.1.41
@@ -66,6 +66,7 @@ DRY_RUN=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --sn)          SERIAL=$2; shift 2 ;;
         --slot)        SLOT=$2; shift 2 ;;
         --mch)         MCH=$2; shift 2 ;;
         --bus)         BUS=$2; shift 2 ;;
@@ -84,10 +85,17 @@ while [ $# -gt 0 ]; do
         --no-fru)      DO_FRU=0; shift ;;
         --no-clk)      DO_CLK=0; shift ;;
         --no-vadj)     DO_VADJ=0; shift ;;
-        -h|--help)     sed -n '2,40p' "$0"; exit 0 ;;
-        *) echo "unknown option: $1" >&2; exit 1 ;;
+        -h|--help)     sed -n '2,44p' "$0"; exit 0 ;;
+        -*)            echo "unknown option: $1" >&2; exit 1 ;;
+        *)             # tolerate the serial as a bare argument, but --sn is the norm
+                       [ -z "$SERIAL" ] || { echo "serial given twice: $1" >&2; exit 1; }
+                       SERIAL=$1; shift ;;
     esac
 done
+
+[ -n "$SERIAL" ] || { echo "missing --sn <serial>" >&2
+                      echo "usage: $0 [options] --sn <serial>" >&2
+                      exit 1; }
 
 if [ "$DO_BUILD" = 1 ]; then
     REV=$(git -C "$REPO" describe --tags --always 2>/dev/null || echo "unknown revision")

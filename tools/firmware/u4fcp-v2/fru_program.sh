@@ -5,8 +5,9 @@
 # The board must be reachable through the MCH bridge: either already running
 # in a crate, or flashed with jlink_program.sh and inserted.
 #
-# usage: ./fru_program.sh <serial> [options]
+# usage: ./fru_program.sh [options] --sn <serial>
 #
+#   --sn SERIAL         serial number of the board, use it last
 #   --slot N            AMC slot of the board (target = 0x70+2*N)   default 12
 #   --mch IP            MCH / BMC address                           default 192.168.1.41
 #   --bus B             IPMB-L bus of the MCH bridge                default 0
@@ -19,9 +20,7 @@
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-SERIAL=${1:-}
-[ -n "$SERIAL" ] || { echo "usage: $0 <serial> [options]" >&2; exit 1; }
-shift
+SERIAL=""
 
 SLOT=12
 MCH=192.168.1.41
@@ -34,6 +33,7 @@ WAIT=1
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --sn)          SERIAL=$2; shift 2 ;;
         --slot)        SLOT=$2; shift 2 ;;
         --mch)         MCH=$2; shift 2 ;;
         --bus)         BUS=$2; shift 2 ;;
@@ -42,10 +42,15 @@ while [ $# -gt 0 ]; do
         --clock-store) CLOCK_STORE=$2; shift 2 ;;
         --dry-run)     DRY_RUN=1; shift ;;
         --no-wait)     WAIT=0; shift ;;
-        -h|--help)     sed -n '2,22p' "$0"; exit 0 ;;
-        *) echo "unknown option: $1" >&2; exit 1 ;;
+        -h|--help)     sed -n '2,24p' "$0"; exit 0 ;;
+        -*)            echo "unknown option: $1" >&2; exit 1 ;;
+        *)             [ -z "$SERIAL" ] || { echo "serial given twice: $1" >&2; exit 1; }
+                       SERIAL=$1; shift ;;
     esac
 done
+
+[ -n "$SERIAL" ] || { echo "missing --sn <serial>" >&2
+                      echo "usage: $0 [options] --sn <serial>" >&2; exit 1; }
 
 TARGET=$(printf '0x%02x' $((0x70 + 2 * SLOT)))
 echo "=== u4FCP-v2 FRU programming: serial $SERIAL, AMC$SLOT (IPMB $TARGET), MCH $MCH"

@@ -50,21 +50,22 @@ firmware from the current commit**, flashes it, writes the FRU and sets the
 VADJ, so the serial number is the only argument you have to give:
 
 ```bash
-./program.sh U4FCP2-0001                     # build + flash latest + FRU + clock + VADJ
-./program.sh U4FCP2-0001 --template fru_template_TAO_4.9A.bin
-./program.sh U4FCP2-0001 --no-flash          # board already in the crate
-./program.sh U4FCP2-0001 --rtm               # + the uRTM's FRU, same serial
-./program.sh U4FCP2-0001 --dry-run           # prepare the FRU image only
+# every parameter is an option, the serial number comes last as --sn
+./program.sh --sn U4FCP2-0001                      # build + flash + FRU + clock + VADJ
+./program.sh --slot 3 --template fru_template_TAO_4.9A.bin --sn U4FCP2-0001
+./program.sh --no-flash --sn U4FCP2-0001           # board already in the crate
+./program.sh --rtm --sn U4FCP2-0001                # + the uRTM's FRU, same serial
+./program.sh --dry-run --sn U4FCP2-0001            # prepare the FRU image only
 ```
 
 | script | does |
 |---|---|
 | `jlink_program.sh` | newboot + application over SWD, `fw_info` cleared |
-| `fru_program.sh <serial>` | FRU with the unique serial |
+| `fru_program.sh --sn <serial>` | FRU with the unique serial |
 | `clk_program.sh` | write/capture the clock configuration preset |
 | `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
-| `program.sh <serial>` | build the latest firmware + flash + FRU + clock preset + VADJ |
-| `program.sh <serial> --rtm` | the same, plus the **uRTM FRU** (`fru_template_rtm.bin`) with the same serial, written through `0x70 ch5 -> 0x71 ch7` into the uRTM's 24C512 at `0x55` |
+| `program.sh --sn <serial>` | build the latest firmware + flash + FRU + clock preset + VADJ |
+| `program.sh --rtm --sn <serial>` | the same, plus the **uRTM FRU** (`fru_template_rtm.bin`) with the same serial, written through `0x70 ch5 -> 0x71 ch7` into the uRTM's 24C512 at `0x55` |
 | `rtm_fru.py` | read / verify / write that uRTM FRU (`--dump FILE`, `--write TEMPLATE --serial SN`) |
 
 ```bash
@@ -72,14 +73,14 @@ VADJ, so the serial number is the only argument you have to give:
 ./jlink_program.sh
 
 # 2. insert the board in the crate, handle latched; write the FRU
-./fru_program.sh U4FCP2-0001                     # AMC12 by default
-./fru_program.sh U4FCP2-0001 --slot 2 --mch 192.168.1.41
+./fru_program.sh --sn U4FCP2-0001                     # AMC12 by default
+./fru_program.sh --slot 2 --mch 192.168.1.41 --sn U4FCP2-0001
 
 # 3. clock configuration preset (clk-preset.bin next to this script)
 ./clk_program.sh --apply --slot 2                # write + apply now
 
 # 3b. uRTM FRU, same serial as the AMC (uRTM's own 24C512 at 0x55)
-./program.sh U4FCP2-0001 --rtm --no-flash
+./program.sh --rtm --no-flash --sn U4FCP2-0001
 
 # 4. FMC VADJ (factory default 1.8 V, stored in the TPL0102 EEPROM)
 ./vadj_program.sh --read --slot 2

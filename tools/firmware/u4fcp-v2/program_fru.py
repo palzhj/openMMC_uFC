@@ -11,7 +11,7 @@ production flow wants it.
 The image is written to the FRU EEPROM (CAT24C512 at 0x54) through the MMC's
 IPMI EEPROM access commands, then read back and verified.
 
-usage: program_fru.py SERIAL [options]
+usage: program_fru.py [options] --sn SERIAL
 
   --mch IP          MCH / BMC address            (default 192.168.1.41)
   --slot N          AMC slot (target = 0x70+2*N) (default 12)
@@ -68,7 +68,10 @@ def build_from_template(template_path, serial, mfg_time=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("serial")
+    ap.add_argument("serial", nargs="?", default=None,
+                    help="serial number (same as --sn; use --sn and put it last)")
+    ap.add_argument("--sn", default=None, metavar="SERIAL",
+                    help="serial number for the board and product areas")
     ap.add_argument("--mch", default="192.168.1.41")
     ap.add_argument("--slot", type=int, default=12)
     ap.add_argument("--bus", default="0")
@@ -79,7 +82,9 @@ def main():
     ap.add_argument("--no-verify", action="store_true")
     args = ap.parse_args()
 
-    serial = args.serial.strip()
+    serial = (args.sn or args.serial or "").strip()
+    if not serial:
+        ap.error("missing serial number: use --sn SERIAL (put it last)")
     if not serial:
         sys.exit("serial number must not be empty")
     if len(serial) > 62:
