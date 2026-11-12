@@ -100,12 +100,13 @@ What each step does:
    so the bootloader boots the application instead of a stale staging image;
    the board resets and runs immediately.
 2. **fru_program.sh** — waits for the MMC at `0x70 + 2*slot` through the MCH
-   bridge, builds the FRU from `fru_template.bin` + `fru_config.json`
-   (header, board/product areas, 100‑byte multi‑record area with the
-   point‑to‑point/clock/module‑current records), sets the board **and**
-   product serial to the argument, the manufacturing time to now and the
-   module current to `module_current_ma/100` (8 A), writes the 512‑byte image
-   into the CAT24C512 at `0x54`, then reads it back and verifies the serials
+   bridge, loads `fru_template.bin` (header, board/product areas, 100‑byte
+   multi‑record area with the point‑to‑point/clock/module‑current records) and
+   changes **only the serial number** — board and product — leaving every
+   other field, the manufacturing time and the multi‑record area as they are
+   in the template (`--mfg-time` forces a different time if a flow needs it),
+   writes the 512‑byte image into the CAT24C512 at `0x54`, then reads it back
+   and verifies the serials
    and checksums.
    The MMC serves the FRU from the EEPROM (`FRU_USE_COMPILED` OFF); after the
    write **reboot the MMC** (power cycle the slot or a J-Link reset) so the
@@ -157,14 +158,16 @@ comment, section names are fixed):
              asset_tag, fru_file_id
 [fru]        mfg_time (minutes since 1996-01-01 or "YYYY-MM-DD HH:MM", 0 =
              unset) and module_current_ma (the PICMG record stores 100 mA
-             steps); the programmer always overwrites mfg_time/serial
+             steps); the programmer replaces only the serial
 [multirecord] <record id> = <body hex>   (0x16 module current, 0x2d clock,
              0x19 point-to-point, 0x30 OEM; the 5-byte header, the length and
              both checksums are generated, the last record gets the EOL bit)
 ```
 
-`fru_config.json` is still the field-value file `program_fru.py` uses when
-programming a board — keep the two in sync when the board data changes.
+The template image is the single source of truth: `program_fru.py` copies
+`fru_template.bin` and replaces only the serial number, so the board data
+(manufacturer, names, part numbers, version, asset tag, module current,
+manufacturing time) comes from that file alone.
 `--module-current-ma` overrides the current byte (and its checksum) on the
 command line; `set` still does one-off edits of an existing image
 (`--board field=value`, `--product field=value`, `--serial`, `--mfg-time`,
@@ -218,9 +221,12 @@ and starts with `pwr : payload restart (MMC uptime N s, no MMC reset)`.
 - MCH current/voltage display off by a factor — the MCH caches the SDR
   records; re‑read them by re‑inserting the module (or restarting the MCH).
 
-`fru_config.json` holds the FRU field values (manufacturer, names, part
-numbers, version, asset tag, module current); edit it once for the product.
-The manufacturing time can be forced with `--mfg-time "2026-11-10 01:30"`.
+The FRU field values (manufacturer, names, part numbers, version, asset tag,
+module current) live in `fru_template.bin` — rebuild it with
+`fru_template.py gen` after editing the text blueprint, or use
+`fru_template.py set` for one‑off changes.  Programming a board only replaces
+the serial number; the manufacturing time can be forced with
+`--mfg-time "2026-11-10 01:30"` (the template's value is kept otherwise).
 
 Note: the FRU and clock‑store steps need the board reachable through the
 MCH's IPMB‑L — for a bare bench board without an MCH, flash over SWD and

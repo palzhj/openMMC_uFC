@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Program the production FRU (unique serial number) into a u4FCP-v2 MMC.
 
-The FRU image is built from fru_template.bin (header + board/product areas +
-the 100-byte multi-record area with the point-to-point/clock/module-current
-records), with the board and product serials replaced by the argument and the
-manufacturing time set to now (or --mfg-time).
+The script loads the default FRU image (fru_template.bin: header + board and
+product areas + the 100-byte multi-record area with the point-to-point, clock
+and module-current records) and changes **only the serial number** - every
+other field, the manufacturing time and the multi-record area stay exactly as
+they are in the template.  --mfg-time overrides the manufacturing time when a
+production flow wants it.
 
 The image is written to the FRU EEPROM (CAT24C512 at 0x54) through the MMC's
 IPMI EEPROM access commands, then read back and verified.
@@ -16,27 +18,51 @@ usage: program_fru.py SERIAL [options]
   --bus B           IPMB-L bus of the MCH bridge (default 0)
   --target ADDR     override the target IPMB address (default: from --slot)
   --template FILE   FRU template image           (default fru_template.bin)
-  --config FILE     field values JSON            (default fru_config.json)
-  --mfg-time STR    manufacturing time ("YYYY-MM-DD HH:MM" or minutes) (default now)
+  --mfg-time STR    also set the manufacturing time ("YYYY-MM-DD HH:MM" or
+                    minutes); the template's value is kept by default
   --dry-run         only build the image, print a summary, do not write
   --no-verify       skip the read-back verification
 """
 import argparse
 import datetime
-import json
 import os
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "..", "uFC_toolbox")))
-from fru_core import (FruAccess, build_image, image_for_eeprom, parse_fru,  # noqa: E402
-                      mfg_minutes_to_str, mfg_str_to_minutes)
+from fru_core import (FruAccess, parse_fru,  # noqa: E402
+                      mfg_minutes_to_str)
+
+import fru_template  # noqa: E402
 
 
 def now_minutes():
     delta = datetime.datetime.now() - datetime.datetime(1996, 1, 1)
     return int(delta.total_seconds() // 60)
+
+
+def build_from_template(template_path, serial, mfg_time=None):
+    """Load the template and change only the serial (fru_template.py set).
+
+    Returns the 512-byte EEPROM image; everything except the board/product
+    serial (and the manufacturing time when mfg_time is given) is untouched,
+    including the multi-record area.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "fru.bin")
+        ns = argparse.Namespace(file=template_path, board=[], product=[],
+                                serial=serial, module_current_ma=None,
+                                output=out, in_place=False,
+                                mfg_time=mfg_time, size=512, dry_run=False)
+        fru_template.cmd_set(ns)
+        if os.path.exists(out):
+            return open(out, "rb").read()
+        # "no changes requested": the serial already matches the template, so
+        # the template itself is the image to program
+        raw = open(template_path, "rb").read()[:512]
+        return raw + b"\xff" * (512 - len(raw))
 
 
 def main():
@@ -48,7 +74,6 @@ def main():
     ap.add_argument("--bus", default="0")
     ap.add_argument("--target", default=None)
     ap.add_argument("--template", default=os.path.join(HERE, "fru_template.bin"))
-    ap.add_argument("--config", default=os.path.join(HERE, "fru_config.json"))
     ap.add_argument("--mfg-time", default=None)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-verify", action="store_true")
@@ -60,27 +85,11 @@ def main():
     if len(serial) > 62:
         sys.exit("serial number is too long (max 62 chars)")
 
-    template = open(args.template, "rb").read()
-    parsed = parse_fru(template)
-    cfg = json.load(open(args.config))
-
-    if args.mfg_time:
-        mfg = args.mfg_time if not args.mfg_time.isdigit() else int(args.mfg_time)
-    else:
-        mfg = now_minutes()
-
-    values = {
-        "board": dict(cfg.get("board", {}), serial=serial, mfg_time=mfg),
-        "product": dict(cfg.get("product", {}), serial=serial),
-    }
-    if "module_current_ma" in cfg:
-        # the FRU 'module current' record stores 100 mA units
-        values["module_current"] = int(cfg["module_current_ma"]) // 100
-
-    image = build_image(parsed, values, limit=512)
-    image = image_for_eeprom(image, 512)
-    print("FRU image: %d bytes, serial %r, mfg %s"
-          % (len(image), serial, mfg_minutes_to_str(mfg) if isinstance(mfg, int) else mfg))
+    image = build_from_template(args.template, serial, args.mfg_time)
+    parsed = parse_fru(image)
+    print("FRU image: %d bytes from %s, serial %r, mfg %s"
+          % (len(image), os.path.basename(args.template), serial,
+             mfg_minutes_to_str(parsed["board"].get("mfg_time", 0))))
 
     if args.dry_run:
         out = "/tmp/u4fcp-fru-%s.bin" % serial.replace("/", "_")
