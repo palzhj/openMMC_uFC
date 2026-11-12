@@ -103,9 +103,10 @@ What each step does:
 2. **fru_program.sh** — waits for the MMC at `0x70 + 2*slot` through the MCH
    bridge, loads `fru_template.bin` (header, board/product areas, 100‑byte
    multi‑record area with the point‑to‑point/clock/module‑current records) and
-   changes **only the serial number** — board and product — leaving every
-   other field, the manufacturing time and the multi‑record area as they are
-   in the template (`--mfg-time` forces a different time if a flow needs it),
+   changes the **serial number** (board and product) and stamps the
+   **manufacturing time with the moment the script runs** (UTC, `--mfg-time`
+   forces another time), leaving every other field and the multi‑record area
+   as they are in the template,
    writes the 512‑byte image into the CAT24C512 at `0x54`, then reads it back
    and verifies the serials
    and checksums.
@@ -166,9 +167,9 @@ comment, section names are fixed):
 ```
 
 The template image is the single source of truth: `program_fru.py` copies
-`fru_template.bin` and replaces only the serial number, so the board data
-(manufacturer, names, part numbers, version, asset tag, module current,
-manufacturing time) comes from that file alone.
+`fru_template.bin`, replaces the serial number and stamps the manufacturing
+time with "now" (UTC), so the rest of the board data (manufacturer, names, part
+numbers, version, asset tag, module current) comes from that file alone.
 `--module-current-ma` overrides the current byte (and its checksum) on the
 command line; `set` still does one-off edits of an existing image
 (`--board field=value`, `--product field=value`, `--serial`, `--mfg-time`,
@@ -225,9 +226,9 @@ and starts with `pwr : payload restart (MMC uptime N s, no MMC reset)`.
 The FRU field values (manufacturer, names, part numbers, version, asset tag,
 module current) live in `fru_template.bin` — rebuild it with
 `fru_template.py gen` after editing the text blueprint, or use
-`fru_template.py set` for one‑off changes.  Programming a board only replaces
-the serial number; the manufacturing time can be forced with
-`--mfg-time "2026-11-10 01:30"` (the template's value is kept otherwise).
+`fru_template.py set` for one‑off changes.  Programming a board replaces the
+serial number and sets the manufacturing time to the time the script runs
+(UTC); `--mfg-time "2026-11-10 01:30"` forces another time.
 
 Note: the FRU and clock‑store steps need the board reachable through the
 MCH's IPMB‑L — for a bare bench board without an MCH, flash over SWD and

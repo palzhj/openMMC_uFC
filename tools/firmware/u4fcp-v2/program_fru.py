@@ -3,10 +3,10 @@
 
 The script loads the default FRU image (fru_template.bin: header + board and
 product areas + the 100-byte multi-record area with the point-to-point, clock
-and module-current records) and changes **only the serial number** - every
-other field, the manufacturing time and the multi-record area stay exactly as
-they are in the template.  --mfg-time overrides the manufacturing time when a
-production flow wants it.
+and module-current records), puts the serial number into the board and product
+areas and stamps the manufacturing time with "now" (the moment the script
+runs, as a production flow wants); every other field and the multi-record area
+stay exactly as they are in the template.  --mfg-time forces a different time.
 
 The image is written to the FRU EEPROM (CAT24C512 at 0x54) through the MMC's
 IPMI EEPROM access commands, then read back and verified.
@@ -18,8 +18,8 @@ usage: program_fru.py [options] --sn SERIAL
   --bus B           IPMB-L bus of the MCH bridge (default 0)
   --target ADDR     override the target IPMB address (default: from --slot)
   --template FILE   FRU template image           (default fru_template.bin)
-  --mfg-time STR    also set the manufacturing time ("YYYY-MM-DD HH:MM" or
-                    minutes); the template's value is kept by default
+  --mfg-time STR    manufacturing time ("YYYY-MM-DD HH:MM" or minutes);
+                    default: the time the script runs
   --dry-run         only build the image, print a summary, do not write
   --no-verify       skip the read-back verification
 """
@@ -39,8 +39,9 @@ import fru_template  # noqa: E402
 
 
 def now_minutes():
-    delta = datetime.datetime.now() - datetime.datetime(1996, 1, 1)
-    return int(delta.total_seconds() // 60)
+    """Minutes since 1996-01-01 00:00 UTC, i.e. the FRU manufacturing time."""
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return int((now - datetime.datetime(1996, 1, 1)).total_seconds() // 60)
 
 
 def build_from_template(template_path, serial, mfg_time=None):
@@ -50,6 +51,8 @@ def build_from_template(template_path, serial, mfg_time=None):
     serial (and the manufacturing time when mfg_time is given) is untouched,
     including the multi-record area.
     """
+    if mfg_time is None:                 # no explicit time: stamp "now"
+        mfg_time = now_minutes()
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "fru.bin")
         ns = argparse.Namespace(file=template_path, board=[], product=[],
@@ -92,7 +95,7 @@ def main():
 
     image = build_from_template(args.template, serial, args.mfg_time)
     parsed = parse_fru(image)
-    print("FRU image: %d bytes from %s, serial %r, mfg %s"
+    print("FRU image: %d bytes from %s, serial %r, mfg %s UTC"
           % (len(image), os.path.basename(args.template), serial,
              mfg_minutes_to_str(parsed["board"].get("mfg_time", 0))))
 

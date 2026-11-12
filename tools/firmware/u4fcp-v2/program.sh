@@ -22,7 +22,7 @@
 #   --mch IP            MCH / BMC address                          default 192.168.1.41
 #   --bus B             IPMB-L bus of the MCH bridge               default 0
 #   --template FILE     FRU template image        default fru_template.bin (here)
-#   --mfg-time STR      force a FRU manufacturing time (default: keep the template's)
+#   --mfg-time STR      FRU manufacturing time (default: when the script runs)
 #   --clk-preset FILE   clock preset image       default clk-preset.bin (here)
 #   --clock-store FILE  restore a clock store (program_clock.py --dump)
 #   --rtm               also program the uRTM FRU, same serial as the AMC
