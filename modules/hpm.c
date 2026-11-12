@@ -27,6 +27,7 @@
 #include "led.h"
 #include "payload.h"
 #include "port.h"
+#include "GitSHA1.h"
 
 /* Local Variables */
 
@@ -58,6 +59,7 @@ t_ipmc_capabilities ipmc_cap = {
 /* Components properties */
 t_component hpm_components[HPM_MAX_COMPONENTS] = {
     [HPM_BOOTLOADER_COMPONENT_ID] = {
+        .description = "Bootloader",
         .properties = {
             .flags = {
                 .reserved = 0x00,
@@ -75,6 +77,7 @@ t_component hpm_components[HPM_MAX_COMPONENTS] = {
         .hpm_activate_firmware_f = bootloader_hpm_activate_firmware
     },
     [HPM_IPMC_COMPONENT_ID] = {
+        .description = "MMC",
         .properties = {
             .flags = {
                 .reserved = 0x00,
@@ -92,6 +95,7 @@ t_component hpm_components[HPM_MAX_COMPONENTS] = {
         .hpm_activate_firmware_f = ipmc_hpm_activate_firmware
     },
     [HPM_PAYLOAD_COMPONENT_ID] = {
+        .description = "Payload",
         .properties = {
             .flags = {
                 .reserved = 0x00,
@@ -114,9 +118,8 @@ t_component hpm_components[HPM_MAX_COMPONENTS] = {
 
 void hpm_init( void )
 {
-    memcpy(hpm_components[HPM_BOOTLOADER_COMPONENT_ID].description, "Bootloader", sizeof("Bootloader"));
-    memcpy(hpm_components[HPM_IPMC_COMPONENT_ID].description, "MMC", sizeof("MMC"));
-    memcpy(hpm_components[HPM_PAYLOAD_COMPONENT_ID].description, "Payload", sizeof("Payload"));
+    /* The component table (including the description strings) is fully
+     * initialised at compile time; nothing to do here. */
 }
 
 /* HPM.1 requests carry the PICMG IANA (5A 31 00) before the command data;
@@ -149,6 +152,65 @@ IPMI_HANDLER(ipmi_picmg_get_upgrade_capabilities, NETFN_GRPEXT, IPMI_PICMG_CMD_H
     /* This is not a long-duration command, so we don't need to update neither cmd_in_progress nor last_cmd_cc variables */
 }
 
+/* The build stamps are baked in by CMake (modules/GitSHA1.c.in):
+ *   g_GIT_TAG  = "v1.7.0-3-g155ac55"   g_GIT_SHA1 = "155ac5...f2d2"
+ * HPM.1 encodes a firmware version in six bytes: major, minor, aux0..3.  Use
+ * the tag's MAJOR.MINOR.PATCH for the first three and the first three SHA1
+ * bytes as the build fingerprint, so an HPM tool can tell two builds apart. */
+static uint8_t hpm_dec(const char **s)
+{
+    uint8_t value = 0;
+
+    while (**s >= '0' && **s <= '9') {
+        value = value * 10 + (**s - '0');
+        (*s)++;
+    }
+    return value;
+}
+
+static uint8_t hpm_hex(char c)
+{
+    if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
+    if (c >= 'a' && c <= 'f') return (uint8_t)(c - 'a' + 10);
+    if (c >= 'A' && c <= 'F') return (uint8_t)(c - 'A' + 10);
+    return 0;
+}
+
+static void hpm_fw_version(uint8_t comp_id, uint8_t rev[6])
+{
+    const char *tag = g_GIT_TAG;
+    const char *sha = g_GIT_SHA1;
+    uint8_t i;
+
+    memset(rev, 0, 6);
+
+    /* The MMC and the first-stage bootloader are flashed from the same build;
+     * the payload's (FPGA) HPM version is not known to this controller. */
+    if (comp_id == HPM_PAYLOAD_COMPONENT_ID) {
+        return;
+    }
+    if (tag[0] != 'v') {
+        return;                     /* no version information baked in */
+    }
+
+    tag++;
+    rev[0] = hpm_dec(&tag);         /* major */
+    if (*tag != '.') {
+        memset(rev, 0, 6);
+        return;
+    }
+    tag++;
+    rev[1] = hpm_dec(&tag);         /* minor */
+    if (*tag == '.') {
+        tag++;
+        rev[2] = hpm_dec(&tag);     /* patch -> aux0 */
+    }
+
+    for (i = 0; i < 3; i++) {       /* aux1..3: SHA1 prefix */
+        rev[3 + i] = (uint8_t)((hpm_hex(sha[2 * i]) << 4) | hpm_hex(sha[2 * i + 1]));
+    }
+}
+
 IPMI_HANDLER(ipmi_picmg_get_component_properties, NETFN_GRPEXT, IPMI_PICMG_CMD_HPM_GET_COMPONENT_PROPERTIES, ipmi_msg *req, ipmi_msg* rsp)
 {
     uint8_t len = rsp->data_len = 0;
@@ -175,43 +237,25 @@ IPMI_HANDLER(ipmi_picmg_get_component_properties, NETFN_GRPEXT, IPMI_PICMG_CMD_H
         rsp->data[len++] = hpm_components[comp_id].properties.byte;
         rsp->completion_code = IPMI_CC_OK;
         break;
-    case 0x01:
-        /* Firmware current version */
-        /* TODO: Read fw revision from flash */
-        rsp->data[len++] = (0x7F & FW_REV_MAJOR);
-        rsp->data[len++] = FW_REV_MINOR;
-        rsp->data[len++] = FW_REV_AUX_0;
-        rsp->data[len++] = FW_REV_AUX_1;
-        rsp->data[len++] = FW_REV_AUX_2;
-        rsp->data[len++] = FW_REV_AUX_3;
+    case 0x01:      /* Current firmware version */
+    case 0x03:      /* Rollback firmware version (no separate image is kept) */
+    case 0x04:      /* Deferred upgrade firmware version (none is kept) */
+    {
+        uint8_t rev[6];
+        uint8_t i;
+
+        hpm_fw_version(comp_id, rev);
+        rev[0] &= 0x7F;             /* HPM.1: bit 7 of the major byte is reserved */
+        for (i = 0; i < 6; i++) {
+            rsp->data[len++] = rev[i];
+        }
         rsp->completion_code = IPMI_CC_OK;
         break;
+    }
     case 0x02:
         /* Description string */
         memcpy( &rsp->data[len], &hpm_components[comp_id].description[0], 12 );
         len += 12;
-        rsp->completion_code = IPMI_CC_OK;
-        break;
-    case 0x03:
-        /* Rollback Firmware version */
-        /* TODO: Read fw revision from flash */
-        rsp->data[len++] = (0x7F & FW_REV_MAJOR);
-        rsp->data[len++] = FW_REV_MINOR;
-        rsp->data[len++] = FW_REV_AUX_0;
-        rsp->data[len++] = FW_REV_AUX_1;
-        rsp->data[len++] = FW_REV_AUX_2;
-        rsp->data[len++] = FW_REV_AUX_3;
-        rsp->completion_code = IPMI_CC_OK;
-        break;
-    case 0x04:
-        /* Deferred upgrade Firmware version */
-        /* TODO: Read fw revision from flash */
-        rsp->data[len++] = (0x7F & FW_REV_MAJOR);
-        rsp->data[len++] = FW_REV_MINOR;
-        rsp->data[len++] = FW_REV_AUX_0;
-        rsp->data[len++] = FW_REV_AUX_1;
-        rsp->data[len++] = FW_REV_AUX_2;
-        rsp->data[len++] = FW_REV_AUX_3;
         rsp->completion_code = IPMI_CC_OK;
         break;
     default:
