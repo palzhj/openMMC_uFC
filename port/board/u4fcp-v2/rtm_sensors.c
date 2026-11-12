@@ -101,6 +101,14 @@ static uint8_t rtm_fail_step;       /* last failing step, for the log */
 static bool rtm_dump_pending;
 static TickType_t rtm_dump_tick;
 
+/* The group exists while the uRTM is up: it runs from the 12 V the AMC
+ * switches, so RTM_INT_B (attention) is low whenever it is off, booting or
+ * has its handle open. */
+static bool rtm_attached(void)
+{
+  return rtm_alive();
+}
+
 /* ------------------------------------------------------------------ */
 /* PMBus format conversion                                             */
 /* ------------------------------------------------------------------ */
@@ -405,7 +413,8 @@ void rtm_sensors_remove(void)
   rtm_absent_polls = 0;
   rtm_dump_pending = false;
 
-  log_printk("rtm", "RTM removed, FMC2/FMC3 monitors removed from the SDR");
+  log_printk("rtm", "RTM %s, FMC2/FMC3 monitors removed from the SDR",
+             rtm_present() ? "not running" : "unplugged");
 }
 
 /* ------------------------------------------------------------------ */
@@ -417,8 +426,9 @@ void rtm_sensors_dump(void)
   int32_t milli[RTM_SENSORS_COUNT] = { 0 };
   int32_t rail_12v = 0;
 
-  if (!rtm_present()) {
-    log_printk("rtm", "no RTM, no FMC2/FMC3 monitors to read");
+  if (!rtm_attached()) {
+    log_printk("rtm", "no RTM (%s), no FMC2/FMC3 monitors to read",
+               rtm_present() ? "not running (handle open or off)" : "unplugged");
     return;
   }
 
@@ -499,7 +509,7 @@ static void vTaskRtmSensors(void *Parameters)
   (void)Parameters;
 
   for (;;) {
-    bool present = rtm_present();
+    bool present = rtm_attached();
 
 #ifdef RTM_SENSORS_SELFTEST
     present = present && rtm_present_selftest();
@@ -593,10 +603,10 @@ void rtm_sensors_init(void)
     log_printk("rtm", "no heap for the RTM sensor task");
   }
 
-  /* Insert before the scheduler starts when the RTM is already plugged, so
-   * the MCH sees the sensors from its first SDR read (the task handles the
+  /* Insert before the scheduler starts when the RTM is already up, so the
+   * MCH sees the sensors from its first SDR read (the task handles the
    * insert/remove for everything after that). */
-  if (rtm_present()) {
+  if (rtm_attached()) {
     rtm_sensors_insert();
   }
 }

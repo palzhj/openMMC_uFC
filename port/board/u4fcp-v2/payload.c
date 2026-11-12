@@ -658,8 +658,15 @@ void vTaskPayload(void *pvParameters)
 #ifndef RTM_CONFIG_DELAY_MS
 #define RTM_CONFIG_DELAY_MS  10000
 #endif
+/* The uRTM has no management power of its own (it runs from the 12 V this
+ * task switches), so after a cut the module has to be powered again before
+ * the AMC can tell whether the handle was closed: retry that slowly. */
+#ifndef RTM_RETRY_MS
+#define RTM_RETRY_MS  20000
+#endif
   uint8_t FPGA_prom_timer = 0;
   uint8_t FPGA_prom_done = 0;
+  TickType_t rtm_retry_tick = 0;
 
   uint8_t QUIESCED_req = 0;
   EventBits_t current_evt;
@@ -743,6 +750,48 @@ void vTaskPayload(void *pvParameters)
     PP_good = 1;
     DCDC_good = 1;
 #endif
+
+    /* RTM 12 V / RTM_HANDLE monitor, independent of the payload sub-state.
+     * The uRTM has no management power of its own (it runs from this rail)
+     * and pulls RTM_INT_B low while it boots and while its MCU configures
+     * the RTM clocks.  The handle is therefore only judged after
+     * RTM_CONFIG_DELAY_MS (rtm_handle_removed()): if it is still low then,
+     * the handle was opened -> cut the 12 V. */
+    if (state == PAYLOAD_STATE_RTM_SETUP || state == PAYLOAD_STATE_CLK_SETUP ||
+        state == PAYLOAD_STATE_FPGA_SETUP || state == PAYLOAD_FPGA_ON)
+    {
+      if (rtm_12v_is_on())
+      {
+        if (rtm_handle_removed())
+        {
+          log_printk("rtm", "RTM handle opened, 12 V off (retry in %u s)",
+                     RTM_RETRY_MS / 1000);
+          rtm_disable_12v();
+          rtm_retry_tick = xTaskGetTickCount() + pdMS_TO_TICKS(RTM_RETRY_MS);
+        }
+        else if (rtm_overcurrent_check() != MMC_OK)
+        {
+          log_printk("rtm", "RTM power fault, 12 V off (retry in %u s)",
+                     RTM_RETRY_MS / 1000);
+          rtm_disable_12v();
+          rtm_retry_tick = xTaskGetTickCount() + pdMS_TO_TICKS(RTM_RETRY_MS);
+        }
+      }
+      else if (state != PAYLOAD_STATE_RTM_SETUP && rtm_present() &&
+               (int32_t)(xTaskGetTickCount() - rtm_retry_tick) >= 0)
+      {
+        /* plugged again (or the retry is due): power it - the handle line
+         * only settles after the RTM MCU configured its clocks */
+        if (rtm_enable_12v() == MMC_OK)
+        {
+          log_printk("rtm", "RTM 12 V on (retry)");
+        }
+        else
+        {
+          rtm_retry_tick = xTaskGetTickCount() + pdMS_TO_TICKS(RTM_RETRY_MS);
+        }
+      }
+    }
 
     switch (state)
     {
@@ -872,25 +921,7 @@ void vTaskPayload(void *pvParameters)
         new_state = PAYLOAD_SWITCHING_OFF;
         break;
       }
-      /* RTM handle / fault monitor (rtm.c): the handle is only interpreted
-       * after the RTM controller configured its clocks. */
-      if (rtm_handle_removed())
-      {
-        log_printk("rtm", "RTM removed, 12 V off");
-        rtm_disable_12v();
-      }
-      else if (rtm_12v_is_on() && (rtm_overcurrent_check() != MMC_OK))
-      {
-        log_printk("rtm", "RTM power fault, 12 V off");
-        rtm_disable_12v();
-      }
-      else if (!rtm_12v_is_on() && rtm_present())
-      {
-        /* the handle was closed again (RTM re-inserted): re-power the RTM
-         * without touching the AMC payload */
-        log_printk("rtm", "RTM handle closed again, re-powering");
-        rtm_enable_12v();
-      }
+      /* the RTM 12 V / handle / fault policy runs in the loop monitor above */
       break;
 
     case PAYLOAD_SWITCHING_OFF:

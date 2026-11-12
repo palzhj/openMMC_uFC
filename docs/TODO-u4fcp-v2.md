@@ -55,11 +55,23 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
   two-level mux path to the uRTM UCD90124A).
 
 - [x] AMC-side RTM control in `port/board/u4fcp-v2/rtm.c`: presence from
-      RTM_PS# (PA8), 12 V after `RTM_TURNON_DELAY_MS` (3 s), handle monitor
-      only after `RTM_CONFIG_DELAY_MS` (10 s) so the RTM controller can
-      configure its clocks, 12 V cut on handle removal / RTM fault / payload
-      shutdown or reset.  Verified on AMC12 + uRTM2.3: `rtm : RTM detected`
-      -> `rtm : RTM 12 V on (handle monitor in 10 s)`.
+      RTM_PS# (PA8), 12 V after `RTM_TURNON_DELAY_MS` (3 s), 12 V cut on
+      handle removal / RTM fault / payload shutdown or reset.  The startup
+      deliberately ignores the RTM handle until the module is up, because the
+      uRTM's MCU pulls a large current from MP3V3 through the FPGA before it
+      is configured (the AMC shuts the RTM's MP3V3 down on overcurrent).
+- [x] **RTM_HANDLE** comes from **RTM_INT_B (PA3, active low)**, monitored
+      only after `RTM_CONFIG_DELAY_MS` (10 s) - i.e. after the uRTM's MCU has
+      configured the RTM clocks and gone silent.  Measured on AMC12: RTM_PS#
+      (PA8) stays low while the handle is open (it only says "plugged"),
+      RTM_INT_B goes 1 -> 0 when the handle is opened, and it is also low
+      while the RTM is unpowered/booting, so the line is only valid after the
+      configuration window.  Opening the handle removes the FMC2/FMC3 sensors
+      and cuts the RTM 12 V (2 s confirm); the RTM is re-powered every
+      `RTM_RETRY_MS` (20 s) while it stays plugged, because the uRTM has no
+      management power of its own and the handle cannot be read while it is
+      off.  Verified on AMC12 + uRTM2.3 (35 -> 26 sensors and 12 V -> 0 A on
+      open, back on close).
 - [x] FMC2/FMC3 monitors as AMC-owned RTM sensors (`rtm_sensors.c/.h`,
       entity 0xC0/0x00, sensor numbers 0x1B-0x23 (right after the AMC's
       0x01-0x1A, so the MCH lists AMC first, RTM last): the UCD temperature
