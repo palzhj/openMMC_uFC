@@ -50,7 +50,7 @@ firmware from the current commit**, flashes it, writes the FRU and sets the
 VADJ, so the serial number is the only argument you have to give:
 
 ```bash
-./program.sh U4FCP2-0001                     # build + flash latest + FRU + VADJ
+./program.sh U4FCP2-0001                     # build + flash latest + FRU + clock + VADJ
 ./program.sh U4FCP2-0001 --template fru_template_TAO_4.9A.bin
 ./program.sh U4FCP2-0001 --no-flash          # board already in the crate
 ./program.sh U4FCP2-0001 --dry-run           # prepare the FRU image only

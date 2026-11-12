@@ -6,7 +6,9 @@
 #      SWD (jlink_program.sh, fw_info cleared)
 #   2. write the FRU EEPROM with the given serial number (manufacturing time
 #      "now" unless told otherwise)
-#   3. set FMC0/FMC1 VADJ to 1.8 V and persist it in the TPL0102 EEPROM
+#   3. write the clock preset (ADN4604 + Si5345 setup, clk-preset.bin) into the
+#      MMC EEPROM and apply it
+#   4. set FMC0/FMC1 VADJ to 1.8 V and persist it in the TPL0102 EEPROM
 #
 # The serial number is the only argument you have to give.
 #
@@ -17,14 +19,15 @@
 #   --bus B             IPMB-L bus of the MCH bridge               default 0
 #   --template FILE     FRU template image        default fru_template.bin (here)
 #   --mfg-time STR      manufacturing time in the FRU              default now
+#   --clk-preset FILE   clock preset image       default clk-preset.bin (here)
 #   --clock-store FILE  restore a clock store (program_clock.py --dump)
 #   --bin-dir DIR       flash these images instead of building
 #   --no-build          do not build, reuse the existing build tree
 #   --dry-run           prepare the FRU image only (no flash, no write)
-#   --no-flash / --no-fru / --no-vadj   skip a step
+#   --no-flash / --no-fru / --no-clk / --no-vadj   skip a step
 #
 # Examples:
-#   ./program.sh U4FCP2-0001                       # build + flash + FRU + VADJ
+#   ./program.sh U4FCP2-0001                       # build + flash + FRU + clock + VADJ
 #   ./program.sh U4FCP2-0001 --slot 3 --mch 10.0.0.5
 #   ./program.sh U4FCP2-0001 --no-flash            # FRU/VADJ only (board in a crate)
 #   ./program.sh U4FCP2-0001 --dry-run             # just build the FRU image
@@ -42,6 +45,7 @@ SLOT=12
 MCH=192.168.1.41
 BUS=0
 TEMPLATE="$HERE/fru_template.bin"
+CLK_PRESET="$HERE/clk-preset.bin"
 MFG_TIME=""
 CLOCK_STORE=""
 VADJ=1.8
@@ -49,6 +53,7 @@ BIN_DIR=""
 DO_BUILD=1
 DO_FLASH=1
 DO_FRU=1
+DO_CLK=1
 DO_VADJ=1
 DRY_RUN=0
 
@@ -58,16 +63,18 @@ while [ $# -gt 0 ]; do
         --mch)         MCH=$2; shift 2 ;;
         --bus)         BUS=$2; shift 2 ;;
         --template)    TEMPLATE=$2; shift 2 ;;
+        --clk-preset)  CLK_PRESET=$2; shift 2 ;;
         --mfg-time)    MFG_TIME=$2; shift 2 ;;
         --clock-store) CLOCK_STORE=$2; shift 2 ;;
         --vadj)        VADJ=$2; shift 2 ;;
         --bin-dir)     BIN_DIR=$2; DO_BUILD=0; shift 2 ;;
         --no-build)    DO_BUILD=0; shift ;;
-        --dry-run)     DRY_RUN=1; DO_FLASH=0; DO_VADJ=0; shift ;;
+        --dry-run)     DRY_RUN=1; DO_FLASH=0; DO_CLK=0; DO_VADJ=0; shift ;;
         --no-flash)    DO_FLASH=0; shift ;;
         --no-fru)      DO_FRU=0; shift ;;
+        --no-clk)      DO_CLK=0; shift ;;
         --no-vadj)     DO_VADJ=0; shift ;;
-        -h|--help)     sed -n '2,33p' "$0"; exit 0 ;;
+        -h|--help)     sed -n '2,37p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -87,6 +94,7 @@ echo "=== u4FCP-v2 programming: serial $SERIAL, AMC$SLOT, MCH $MCH"
 echo "    images       : $OUT"
 [ -n "$FW_VERSION" ] && echo "    firmware     : $FW_VERSION"
 [ "$DO_FRU" = 1 ] && echo "    FRU template : $TEMPLATE"
+[ "$DO_CLK" = 1 ] && echo "    clock preset : $CLK_PRESET"
 
 if [ "$DO_FLASH" = 1 ]; then
     echo "--- flashing (newboot + application over SWD)"
@@ -100,6 +108,11 @@ if [ "$DO_FRU" = 1 ]; then
     [ -n "$CLOCK_STORE" ] && set -- "$@" --clock-store "$CLOCK_STORE"
     [ "$DRY_RUN" = 1 ] && set -- "$@" --dry-run
     "$HERE/fru_program.sh" "$@"
+fi
+
+if [ "$DO_CLK" = 1 ]; then
+    echo "--- clock preset ($CLK_PRESET)"
+    "$HERE/clk_program.sh" "$CLK_PRESET" --apply --slot "$SLOT" --mch "$MCH" --bus "$BUS"
 fi
 
 if [ "$DO_VADJ" = 1 ]; then
