@@ -57,7 +57,6 @@
 
 /* An opened handle bounces: the group is only dropped after the RTM stayed
  * absent for this many polls. */
-#define RTM_SENSORS_ABSENT_POLLS  2
 
 /* Consecutive failed poll cycles before the monitors are marked unavailable */
 #define RTM_SENSORS_FAIL_LIMIT     3
@@ -95,9 +94,11 @@ static int32_t rtm_milli[RTM_SENSORS_COUNT];  /* last reading: mV / mA / mC */
 static int8_t rtm_monitor_exp[RTM_SENSORS_COUNT];  /* VOUT_MODE used per monitor */
 
 static bool rtm_scan_on;
-static uint8_t rtm_absent_polls;
 static uint8_t rtm_fail_count;      /* consecutive failed poll cycles */
 static uint8_t rtm_fail_step;       /* last failing step, for the log */
+/* IPMI Get Sensor Reading, reading-state byte bit 5: reading/state unavailable */
+#define RTM_SENSOR_STATE_UNAVAILABLE 0x20
+
 static bool rtm_dump_pending;
 static TickType_t rtm_dump_tick;
 
@@ -107,6 +108,20 @@ static TickType_t rtm_dump_tick;
 static bool rtm_attached(void)
 {
   return rtm_alive();
+}
+
+/* Keep the SDR records and report the sensors as "reading unavailable".
+ * Deleting the records is what made the MCH print "could not read sensor!":
+ * the MCH caches the module SDRs and only re-reads them on a hotswap/device
+ * activation, so a disappeared record is a 0xC9 on every one of its scans. */
+static void rtm_sensors_set_unavailable(void)
+{
+  for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
+    sensor_disable(rtm_sensor[i]);
+    rtm_sensor[i]->readout_value = 0;
+    rtm_sensor[i]->state = RTM_SENSOR_STATE_UNAVAILABLE;
+  }
+  rtm_scan_on = false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -385,7 +400,6 @@ bool rtm_sensors_insert(void)
   }
 
   rtm_scan_on = false;
-  rtm_absent_polls = 0;
   rtm_fail_count = 0;
   rtm_dump_pending = true;
   rtm_dump_tick = xTaskGetTickCount();
@@ -410,7 +424,6 @@ void rtm_sensors_remove(void)
   }
 
   rtm_scan_on = false;
-  rtm_absent_polls = 0;
   rtm_dump_pending = false;
 
   log_printk("rtm", "RTM %s, FMC2/FMC3 monitors removed from the SDR",
@@ -509,20 +522,23 @@ static void vTaskRtmSensors(void *Parameters)
   (void)Parameters;
 
   for (;;) {
-    bool present = rtm_attached();
+    bool plugged = rtm_present();
+    bool running = rtm_attached();
 
 #ifdef RTM_SENSORS_SELFTEST
-    present = present && rtm_present_selftest();
+    running = running && rtm_present_selftest();
 #endif
 
-    if (present) {
-      rtm_absent_polls = 0;
+    /* The records are created as soon as the RTM is plugged and then kept for
+     * the whole session: the MCH caches them and a deleted record turns every
+     * of its scans into a "could not read sensor" error.  When the RTM is not
+     * running the sensors report "reading unavailable" instead. */
+    if (plugged && !rtm_sensors_is_inserted()) {
+      rtm_sensors_insert();
+    }
 
-      if (!rtm_sensors_is_inserted()) {
-        rtm_sensors_insert();
-      }
-
-      if (rtm_12v_is_on()) {
+    if (rtm_sensors_is_inserted()) {
+      if (running && rtm_12v_is_on()) {
         int32_t milli[RTM_SENSORS_COUNT];
         bool ok;
 
@@ -551,23 +567,17 @@ static void vTaskRtmSensors(void *Parameters)
             rtm_fail_count++;
           }
           /* the UCD keeps NACKing: report the monitors as not available
-           * instead of leaving stale readings in the MCH (rtm_scan_on is
-           * cleared so this is logged once per outage) */
+           * instead of leaving stale readings in the MCH */
           if (rtm_fail_count >= RTM_SENSORS_FAIL_LIMIT && rtm_scan_on) {
-            for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
-              sensor_disable(rtm_sensor[i]);
-            }
-            rtm_scan_on = false;
+            rtm_sensors_set_unavailable();
             log_printk("rtm", "UCD 0x5B not answering (step %u), monitors unavailable",
                        rtm_fail_step);
           }
         }
       } else if (rtm_scan_on) {
-        /* the RTM 12 V went away: keep the SDRs, stop scanning (no events) */
-        for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
-          sensor_disable(rtm_sensor[i]);
-        }
-        rtm_scan_on = false;
+        rtm_sensors_set_unavailable();
+        log_printk("rtm", "RTM %s, monitors unavailable (SDRs kept)",
+                   plugged ? "not running" : "unplugged");
       }
 
       if (rtm_dump_pending &&
@@ -575,11 +585,6 @@ static void vTaskRtmSensors(void *Parameters)
         /* the RTM never powered its FMC rails: dump what the MP side shows */
         rtm_sensors_dump();
         rtm_dump_pending = false;
-      }
-    } else if (rtm_absent_polls < RTM_SENSORS_ABSENT_POLLS) {
-      rtm_absent_polls++;
-      if (rtm_absent_polls >= RTM_SENSORS_ABSENT_POLLS) {
-        rtm_sensors_remove();
       }
     }
 
@@ -594,7 +599,6 @@ void rtm_sensors_init(void)
     rtm_milli[i] = 0;
   }
   rtm_scan_on = false;
-  rtm_absent_polls = 0;
   rtm_dump_pending = false;
 
   if (xTaskCreate(vTaskRtmSensors, "RTM Sensors", RTM_SENSORS_TASK_STACK,

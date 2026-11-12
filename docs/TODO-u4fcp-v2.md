@@ -60,6 +60,15 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       deliberately ignores the RTM handle until the module is up, because the
       uRTM's MCU pulls a large current from MP3V3 through the FPGA before it
       is configured (the AMC shuts the RTM's MP3V3 down on overcurrent).
+- [x] The nine FMC2/FMC3 SDR records are **kept for the whole session** once
+      the RTM has been seen plugged; when it is not running they report
+      "reading unavailable" (scanning disabled, reading 0) instead of being
+      deleted.  Deleting them made the MCH print `could not read sensor!`
+      (0xC9): NAT-MCH caches the module SDRs and only re-reads them at a FRU
+      activation (`shutdown <id>` + `fru_start <id>`) or an MCH cold reset -
+      there is no rescan command (`sdrrep_dbg` only sets log levels).
+      Verified: RTM off -> `show_sensorinfo 16` shows all 10 RTM rows with
+      **0 error lines** and 0 values; RTM back -> live values again.
 - [x] **RTM_HANDLE** comes from **RTM_INT_B (PA3, active low)**, monitored
       only after `RTM_CONFIG_DELAY_MS` (10 s) - i.e. after the uRTM's MCU has
       configured the RTM clocks and gone silent.  Measured on AMC12: RTM_PS#
