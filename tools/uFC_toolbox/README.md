@@ -54,8 +54,14 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
 # Linux: Tkinter is a separate package on most distributions
 sudo apt install python3-tk ipmitool
 
-python3 tools/uFC_toolbox/fru_gui_tk.py --mch 192.168.1.41 --target 0x7e --bus 7
+python3 tools/uFC_toolbox/fru_gui_tk.py --mch 192.168.1.41 --slot 12
 ```
+
+`--slot N` (1..12, default 12) is the AMC slot of the target module; the app
+derives the addressing from it — transit `0x82`, target `0x70 + 2*N`
+(AMC12 -> `0x88`), bus `0` — exactly like the AMC selector in the header.
+`--target ADDR` still overrides the derived address, and without `--slot` the
+slot remembered from the last session is used.
 
 Windows: install Python from python.org (Tkinter is included) and put
 `ipmitool.exe` in `PATH` or next to the executable.

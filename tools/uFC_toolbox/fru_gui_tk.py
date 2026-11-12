@@ -85,7 +85,8 @@ class Tooltip:
 
 
 class FruEditor(tk.Tk):
-    def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128):
+    def __init__(self, mch, target, bus, transit, eeprom_size=256, fru_limit=128,
+                 slot=None):
         super().__init__()
         self.title(APP_TITLE)
         self.geometry("1120x1040")
@@ -107,6 +108,9 @@ class FruEditor(tk.Tk):
         self.size_var.trace_add("write", lambda *_: self._update_address())
         self.i2c_var.trace_add("write", lambda *_: self._update_address())
         self._restore_settings()
+        if slot is not None:
+            # an explicit --slot wins over the slot remembered in the settings
+            self.amc_var.set("AMC%d" % slot)
         self._on_amc_change()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._status("Ready — firmware must be built with -DEEPROM_ACCESS=ON", "idle")
@@ -2729,14 +2733,26 @@ def read_firmware_version(acc, component=1):
 def main():
     ap = argparse.ArgumentParser(description="uFC FRU desktop editor")
     ap.add_argument("--mch", default="192.168.1.41")
-    ap.add_argument("--target", default="0x7e")
+    ap.add_argument("--slot", type=int, default=None, metavar="N",
+                    help="AMC slot of the target module: target = 0x70 + 2*N, "
+                         "transit 0x82, bus 0 (default 12, i.e. target 0x88; "
+                         "the slot remembered from the last session is used "
+                         "unless this option is given)")
+    ap.add_argument("--target", default=None,
+                    help="IPMB address of the target, overrides --slot "
+                         "(default 0x70 + 2*slot)")
     ap.add_argument("--bus", default="7")
     ap.add_argument("--transit", default="0x82")
     ap.add_argument("--eeprom-size", type=int, default=256, help="EEPROM size in bytes (default 256)")
     ap.add_argument("--fru-limit", type=int, default=128, help="writable FRU bytes (default 128)")
     args = ap.parse_args()
-    app = FruEditor(args.mch, args.target, args.bus, args.transit,
-                    eeprom_size=args.eeprom_size, fru_limit=args.fru_limit)
+    slot = 12 if args.slot is None else args.slot
+    if not 1 <= slot <= 12:
+        ap.error("--slot must be 1..12")
+    target = args.target or ("0x%02x" % (0x70 + 2 * slot))
+    app = FruEditor(args.mch, target, args.bus, args.transit,
+                    eeprom_size=args.eeprom_size, fru_limit=args.fru_limit,
+                    slot=args.slot if args.target is None else None)
     app.mainloop()
 
 
