@@ -69,13 +69,16 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       there is no rescan command (`sdrrep_dbg` only sets log levels).
       Verified: RTM off -> `show_sensorinfo 16` shows all 10 RTM rows with
       **0 error lines** and 0 values; RTM back -> live values again.
-- [x] The yellow **FMC VADJ PG LEDs** (`LED_VADJ_PG0/1`) are UCD90320
-      LGPO10/LGPO11 (Pin_ID 65/66, balls M1/M2) wired net -> 330R -> LED ->
-      GND, i.e. the pin must be driven **high**.  No firmware ever drove them
-      (the power-on default leaves them as inputs, GPIO_CONFIG 0x08 = 0x08),
-      so they were dark.  `payload_vadj_pg_leds()` now drives them high while
-      both FMC VADJ channels measure inside the PGOOD window (1.66-1.94 V,
-      three samples of agreement) and low otherwise; verified on AMC12.
+- [ ] The yellow **FMC VADJ PG LEDs** (`LED_VADJ_PG0/1`, UCD90320
+      LGPO10/LGPO11, Pin_ID 65/66, balls M1/M2) are driven by the **UCD's own
+      logic** (Logic GPO), not by the MMC - wiring is net -> 330R -> LED ->
+      GND (pin high = lit).  The MMC must not configure those pins with
+      `ucd_set_gpio()`: a GPIO_CONFIG write with Enable=1 takes them over from
+      the UCD logic.  Currently they are dark because the UCD reports
+      `GPIO_CONFIG 0x08` (Enable=0, input, no logic driving) - the UCD's stored
+      configuration needs checking against the Fusion project
+      (`u4FCPv2/template/u4FCPv2/POWER/*.tifsp`); nothing in this firmware
+      drives them (verified over the whole history).
 - [x] **RTM_HANDLE** comes from **RTM_INT_B (PA3, active low)**, monitored
       only after `RTM_CONFIG_DELAY_MS` (10 s) - i.e. after the uRTM's MCU has
       configured the RTM clocks and gone silent.  Measured on AMC12: RTM_PS#

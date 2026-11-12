@@ -621,89 +621,6 @@ static void payload_sensors_scan(bool enable)
   }
 }
 
-/* FMC VADJ power-good window in SDR units (the VADJ channels are M=16, R=-3,
- * i.e. 16 mV/LSB; 1.8 V nominal).  Used for the yellow VADJ PG LEDs. */
-#ifndef VADJ_PG_MIN
-#define VADJ_PG_MIN  104        /* 1.66 V */
-#endif
-#ifndef VADJ_PG_MAX
-#define VADJ_PG_MAX  121        /* 1.94 V */
-#endif
-
-/**
- * @brief Readout of the UCD channel on the given PMBus page.
- *
- * ucd_data[] is filled in SDR order, so the UCD_AMC_ANALOG_IN ids (which are
- * PMBus page numbers, see ucd_set_power()) cannot be used as indexes here:
- * walk the table and match the sensor's page.
- */
-static uint8_t payload_ucd_readout_by_page(uint8_t page, uint8_t type)
-{
-  for (uint8_t i = 0; i < SDR_CH_COUNT; i++)
-  {
-    SDR_type_01h_t *sdr;
-
-    if (ucd_data[i].sensor == NULL)
-    {
-      continue;
-    }
-    sdr = (SDR_type_01h_t *)ucd_data[i].sensor->sdr;
-    /* a page can carry two sensors (VADJ voltage and VADJ current) */
-    if (sdr != NULL && sdr->OEM == page && sdr->sensortype == type)
-    {
-      return ucd_data[i].sensor->readout_value;
-    }
-  }
-  return 0;
-}
-
-/**
- * @brief Drives the yellow FMC VADJ PG LEDs (UCD90320 LGPO10/11).
- *
- * Schematic: UCD pin -> 330R -> LED anode -> cathode -> GND, so the pin has to
- * be driven HIGH to light the LED; the power-on default leaves it as an input
- * (GPIO_CONFIG 0x08), which is why the LEDs were dark.  The PGOOD window is
- * taken from the UCD's own VADJ measurements (3 samples of agreement, so a
- * single corrupted reading does not make the LED flicker).
- */
-static void payload_vadj_pg_leds(bool rails_on)
-{
-  static int8_t shown = -1;   /* -1 unknown, 0 dark, 1 lit */
-  static uint8_t agree;
-  uint8_t v0 = 0, v1 = 0;
-  bool good = false;
-
-  if (rails_on)
-  {
-    v0 = payload_ucd_readout_by_page(UCD_FMC0_VADJ_ID, SENSOR_TYPE_VOLTAGE);
-    v1 = payload_ucd_readout_by_page(UCD_FMC1_VADJ_ID, SENSOR_TYPE_VOLTAGE);
-
-    good = (v0 >= VADJ_PG_MIN) && (v0 <= VADJ_PG_MAX) &&
-           (v1 >= VADJ_PG_MIN) && (v1 <= VADJ_PG_MAX);
-  }
-
-  if (shown < 0)
-  {
-    agree = 3;                          /* apply the first result at once */
-  }
-  else if ((int)good == shown)
-  {
-    agree = 0;
-    return;
-  }
-  else if (++agree < 3)
-  {
-    return;
-  }
-
-  ucd_set_gpio(&ucd_data[0], UCD_GPO_LED_FMC0_VADJ_PG_ID, good ? 1 : 0);
-  ucd_set_gpio(&ucd_data[0], UCD_GPO_LED_FMC1_VADJ_PG_ID, good ? 1 : 0);
-  log_printk("vadj", "FMC VADJ PG LEDs %s (FMC0 %u mV, FMC1 %u mV)",
-             good ? "lit" : "dark", (unsigned)(v0 * 16), (unsigned)(v1 * 16));
-  shown = good;
-  agree = 0;
-}
-
 void vTaskPayload(void *pvParameters)
 {
 #ifdef MODULE_VIO_TPL0102
@@ -741,7 +658,6 @@ void vTaskPayload(void *pvParameters)
 #ifndef RTM_CONFIG_DELAY_MS
 #define RTM_CONFIG_DELAY_MS  10000
 #endif
-
   uint8_t FPGA_prom_timer = 0;
   uint8_t FPGA_prom_done = 0;
 
@@ -827,13 +743,6 @@ void vTaskPayload(void *pvParameters)
     PP_good = 1;
     DCDC_good = 1;
 #endif
-
-    /* Yellow FMC VADJ PG LEDs: lit while both VADJ rails measure inside the
-     * PGOOD window, dark as soon as the payload starts switching off. */
-    payload_vadj_pg_leds(state != PAYLOAD_NO_POWER &&
-                         state != PAYLOAD_POWER_GOOD_WAIT &&
-                         state != PAYLOAD_SWITCHING_OFF &&
-                         state != PAYLOAD_QUIESCED);
 
     /* RTM 12 V / RTM_HANDLE monitor, independent of the payload sub-state.
      * The uRTM has no management power of its own (it runs from this rail)
