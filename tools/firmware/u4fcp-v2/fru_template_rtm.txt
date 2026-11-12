@@ -1,0 +1,24 @@
+# uRTM2.3 FRU template -- edit this file and rebuild the image with
+#   ./fru_template.py gen --text fru_template_rtm.txt -o fru_template_rtm.bin --no-multi
+#
+# The fields follow port/board/urtm-v2/rtm_user_fru.h (the uRTM MMC's compiled
+# defaults).  The serial is replaced at programming time by program.sh --rtm,
+# which uses the same serial as the AMC.
+[board]
+manufacturer     = IHEP
+product_name     = FMC Carrier for RTM
+serial           = RA00
+part_number      = TAO
+fru_file_id      = RTMFRU
+
+[product]
+manufacturer     = Jie Zhang
+product_name     = uRTM
+part_number      = RTM
+version          = 2.3
+serial           = RA00
+asset_tag        = Generic FRU
+fru_file_id      = RTMFRU
+
+[fru]
+mfg_time         = 15254640     # 2026-01-16 22:00 UTC, as in rtm_user_fru.h

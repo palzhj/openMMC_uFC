@@ -53,6 +53,7 @@ VADJ, so the serial number is the only argument you have to give:
 ./program.sh U4FCP2-0001                     # build + flash latest + FRU + clock + VADJ
 ./program.sh U4FCP2-0001 --template fru_template_TAO_4.9A.bin
 ./program.sh U4FCP2-0001 --no-flash          # board already in the crate
+./program.sh U4FCP2-0001 --rtm               # + the uRTM's FRU, same serial
 ./program.sh U4FCP2-0001 --dry-run           # prepare the FRU image only
 ```
 
@@ -62,7 +63,9 @@ VADJ, so the serial number is the only argument you have to give:
 | `fru_program.sh <serial>` | FRU with the unique serial |
 | `clk_program.sh` | write/capture the clock configuration preset |
 | `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
-| `program.sh <serial>` | build the latest firmware + flash + FRU + VADJ (+ clock preset) |
+| `program.sh <serial>` | build the latest firmware + flash + FRU + clock preset + VADJ |
+| `program.sh <serial> --rtm` | the same, plus the **uRTM FRU** (`fru_template_rtm.bin`) with the same serial, written through `0x70 ch5 -> 0x71 ch7` into the uRTM's 24C512 at `0x55` |
+| `rtm_fru.py` | read / verify / write that uRTM FRU (`--dump FILE`, `--write TEMPLATE --serial SN`) |
 
 ```bash
 # 1. flash (bench or crate, single J-Link!)
@@ -74,6 +77,9 @@ VADJ, so the serial number is the only argument you have to give:
 
 # 3. clock configuration preset (clk-preset.bin next to this script)
 ./clk_program.sh --apply --slot 2                # write + apply now
+
+# 3b. uRTM FRU, same serial as the AMC (uRTM's own 24C512 at 0x55)
+./program.sh U4FCP2-0001 --rtm --no-flash
 
 # 4. FMC VADJ (factory default 1.8 V, stored in the TPL0102 EEPROM)
 ./vadj_program.sh --read --slot 2
