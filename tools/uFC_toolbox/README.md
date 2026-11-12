@@ -26,6 +26,13 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
 - One **FRU fields** tab with both the board and product areas, plus a **Raw EEPROM** tab
 - The FRU tab carries its own toolbar: **Read FRU**, **Write FRU**,
   **Save image…**, **Load image to EEPROM** (the header stays a title bar)
+- The **OTA update** tab has a **Read firmware version** button next to
+  *Check target*: it asks the selected component (0 bootloader · 1 MMC ·
+  2 payload) through IPMI — HPM.1 component properties (selector 1, current
+  version) plus the OEM `0x32/0x02` GET_GIT_HASH for the full 20-byte git
+  SHA1 — and shows `component · version · sha1` in the status line, the log and
+  a dialog, so the build can be identified with
+  `git describe --tags --always <sha1>`
 - **Manufacturing time is shown and edited as a UTC date** (`YYYY-MM-DD HH:MM`);
   the app converts it to/from the FRU 24-bit value (minutes since 1996-01-01).
   A **Now** button fills the current UTC time.

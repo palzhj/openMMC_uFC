@@ -1640,6 +1640,8 @@ class FruEditor(tk.Tk):
         ttk.Label(row2, text="(0 bootloader · 1 MMC · 2 payload)",
                   style="Hint.TLabel").pack(side="left")
         ttk.Button(row2, text="Check target", command=self._ota_check).pack(side="left", padx=(16, 0))
+        ttk.Button(row2, text="Read firmware version",
+                   command=self.read_firmware_version).pack(side="left", padx=(8, 0))
 
         row3 = ttk.Frame(parent)
         row3.pack(fill="x", pady=(0, 4))
@@ -2541,6 +2543,60 @@ class FruEditor(tk.Tk):
             self.log("ERROR: %s" % e)
             messagebox.showerror(APP_TITLE, "Read failed:\n%s" % e)
 
+    def read_firmware_version(self):
+        """Show the firmware version of the selected OTA component (HPM + git SHA1)."""
+        try:
+            component = int(self.ota_comp.get().strip() or "1")
+            if not 0 <= component <= 7:
+                raise ValueError("component must be 0..7")
+        except (ValueError, AttributeError):
+            component = 1
+
+        try:
+            acc = self._access()
+        except Exception as e:
+            self._status("Firmware version read failed", "error")
+            self.log("ERROR: %s" % e)
+            messagebox.showerror(APP_TITLE, "Firmware version read failed:\n%s" % e)
+            return
+
+        try:
+            version, sha1 = read_firmware_version(acc, component)
+        except Exception as e:
+            self._status("Firmware version read failed", "error")
+            self.log("ERROR: %s" % e)
+            messagebox.showerror(APP_TITLE, "Firmware version read failed:\n%s" % e)
+            return
+
+        if version is None and sha1 is None:
+            self._status("no firmware version reported by the MMC", "error")
+            self.log("The MMC did not report a firmware version "
+                     "(older build without the HPM/OEM version support).")
+            messagebox.showwarning(
+                APP_TITLE, "The MMC did not report a firmware version.\n\n"
+                "Older builds have neither the HPM component version nor the\n"
+                "OEM GET_GIT_HASH command - update the firmware to read it.")
+            return
+
+        if version == "0.0.0":
+            version = None
+        who = {0: "Bootloader", 1: "MMC", 2: "Payload"}.get(component,
+                                                              "Component %d" % component)
+        short = ("%s…%s" % (sha1[:8], sha1[-4:])) if sha1 else "unknown"
+        self._status("%s firmware %s  ·  sha1 %s" % (who, version or "unknown", short), "ok")
+        self.log("%s firmware %s%s" % (who, version or "unknown",
+                                        ("  ·  sha1 " + sha1) if sha1 else ""))
+        messagebox.showinfo(
+            APP_TITLE,
+            "%s firmware version\n\n"
+            "component : %d\n"
+            "version   : %s\n"
+            "sha1      : %s\n%s"
+            % (who, component, version or "not reported", sha1 or "not reported",
+               "\nThe sha1 identifies the build: "
+               "git describe --tags --always <sha1> in the firmware repo."
+               if sha1 else ""))
+
     def write_fru(self):
         if self.raw is None:
             messagebox.showwarning(APP_TITLE, "Read the FRU first.")
@@ -2632,6 +2688,42 @@ class FruEditor(tk.Tk):
             self._status("Load failed", "error")
             self.log("ERROR: %s" % e)
             messagebox.showerror(APP_TITLE, "Load failed:\n%s" % e)
+
+
+def read_firmware_version(acc, component=1):
+    """Firmware version of the running MMC, over IPMI.
+
+    Two sources are combined:
+
+      * HPM.1 Get Component Properties (netfn 0x2C, cmd 0x2F, component 1 =
+        MMC, selector 1 = current version): six bytes major.minor.aux0..3,
+        where aux0 is the patch level and aux1..3 the first SHA1 bytes;
+      * OEM command 0x32 / 0x02 (GET_GIT_HASH): the full 20-byte git SHA1.
+
+    Returns (version_string_or_None, sha1_hex_or_None).
+    """
+    version = None
+    try:
+        resp = acc.raw("0x2c", "0x2f", "0x5a", "0x%02x" % component, "0x01")
+        if len(resp) >= 7:
+            version = "%d.%d.%d" % (resp[1] & 0x7F, resp[2], resp[3])
+        else:
+            version = None
+    except Exception:
+        version = None
+
+    sha1 = None
+    # The OEM hash describes the MMC (and bootloader) image this controller
+    # runs; other components (the payload FPGA) have their own images.
+    if component in (0, 1):
+        try:
+            digest = acc.raw("0x32", "0x02")
+            if len(digest) == 20:
+                sha1 = bytes(digest).hex()
+        except Exception:
+            sha1 = None
+
+    return version, sha1
 
 
 def main():
