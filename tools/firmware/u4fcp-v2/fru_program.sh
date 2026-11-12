@@ -10,8 +10,10 @@
 #   --slot N            AMC slot of the board (target = 0x70+2*N)   default 12
 #   --mch IP            MCH / BMC address                           default 192.168.1.41
 #   --bus B             IPMB-L bus of the MCH bridge                default 0
+#   --template FILE     FRU template image (default fru_template.bin)
 #   --mfg-time STR      manufacturing time (default: now)
 #   --clock-store FILE  clock store image captured with program_clock.py --dump
+#   --dry-run           build the FRU image and print it, do not write it
 #   --no-wait           do not wait for the MMC (assume it answers)
 #
 set -eu
@@ -26,6 +28,8 @@ MCH=192.168.1.41
 BUS=0
 MFG_TIME=""
 CLOCK_STORE=""
+TEMPLATE=""
+DRY_RUN=0
 WAIT=1
 
 while [ $# -gt 0 ]; do
@@ -33,8 +37,10 @@ while [ $# -gt 0 ]; do
         --slot)        SLOT=$2; shift 2 ;;
         --mch)         MCH=$2; shift 2 ;;
         --bus)         BUS=$2; shift 2 ;;
+        --template)    TEMPLATE=$2; shift 2 ;;
         --mfg-time)    MFG_TIME=$2; shift 2 ;;
         --clock-store) CLOCK_STORE=$2; shift 2 ;;
+        --dry-run)     DRY_RUN=1; shift ;;
         --no-wait)     WAIT=0; shift ;;
         -h|--help)     sed -n '2,22p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 1 ;;
@@ -61,6 +67,8 @@ fi
 
 echo "--- writing the FRU"
 set -- "$SERIAL" --mch "$MCH" --slot "$SLOT" --bus "$BUS"
+[ -n "$TEMPLATE" ] && set -- "$@" --template "$TEMPLATE"
+[ "$DRY_RUN" = 1 ] && set -- "$@" --dry-run
 [ -n "$MFG_TIME" ] && set -- "$@" --mfg-time "$MFG_TIME"
 python3 "$HERE/program_fru.py" "$@"
 

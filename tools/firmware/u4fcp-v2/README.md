@@ -45,7 +45,16 @@ Prerequisites:
   bus `0` — `ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x88 -b 0 …`;
 - the images built (see above).
 
-The bring-up is four steps; `program.sh` runs them in one go.
+The bring-up is four steps; `program.sh` runs them in one go.  It **builds the
+firmware from the current commit**, flashes it, writes the FRU and sets the
+VADJ, so the serial number is the only argument you have to give:
+
+```bash
+./program.sh U4FCP2-0001                     # build + flash latest + FRU + VADJ
+./program.sh U4FCP2-0001 --template fru_template_TAO_4.9A.bin
+./program.sh U4FCP2-0001 --no-flash          # board already in the crate
+./program.sh U4FCP2-0001 --dry-run           # prepare the FRU image only
+```
 
 | script | does |
 |---|---|
@@ -53,7 +62,7 @@ The bring-up is four steps; `program.sh` runs them in one go.
 | `fru_program.sh <serial>` | FRU with the unique serial |
 | `clk_program.sh` | write/capture the clock configuration preset |
 | `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
-| `program.sh <serial>` | flash + FRU + VADJ (+ clock preset) |
+| `program.sh <serial>` | build the latest firmware + flash + FRU + VADJ (+ clock preset) |
 
 ```bash
 # 1. flash (bench or crate, single J-Link!)
