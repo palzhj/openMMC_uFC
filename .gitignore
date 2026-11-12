@@ -42,3 +42,7 @@ tools/uFC_toolbox/__pycache__/
 # clock configuration preset (small binary, part of the production data)
 !tools/clocking/*-clk-preset.bin
 !tools/firmware/u4fcp-v2/clk-preset.bin
+
+# ---- python bytecode ----
+__pycache__/
+*.pyc
