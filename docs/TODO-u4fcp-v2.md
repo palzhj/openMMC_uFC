@@ -67,11 +67,14 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       RTM_INT_B goes 1 -> 0 when the handle is opened, and it is also low
       while the RTM is unpowered/booting, so the line is only valid after the
       configuration window.  Opening the handle removes the FMC2/FMC3 sensors
-      and cuts the RTM 12 V (2 s confirm); the RTM is re-powered every
-      `RTM_RETRY_MS` (20 s) while it stays plugged, because the uRTM has no
-      management power of its own and the handle cannot be read while it is
-      off.  Verified on AMC12 + uRTM2.3 (35 -> 26 sensors and 12 V -> 0 A on
-      open, back on close).
+      and cuts the RTM 12 V (2 s confirm); the RTM then stays **unpowered**
+      (no automatic re-power: the uRTM has no management power of its own and
+      the handle cannot be read while it is off).  Power is only given again
+      on the next payload power cycle, whose `PAYLOAD_POWER_GOOD_WAIT` state
+      checks RTM_PS# and powers the RTM if it is plugged.  Verified on AMC12 +
+      uRTM2.3: pull -> 35 -> 26 sensors and 12 V -> 0 A, no retry; power cycle
+      -> `RTM detected` -> 12 V on -> sensors and dump return after the
+      configuration window.
 - [x] FMC2/FMC3 monitors as AMC-owned RTM sensors (`rtm_sensors.c/.h`,
       entity 0xC0/0x00, sensor numbers 0x1B-0x23 (right after the AMC's
       0x01-0x1A, so the MCH lists AMC first, RTM last): the UCD temperature
