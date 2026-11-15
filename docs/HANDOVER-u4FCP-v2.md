@@ -347,10 +347,19 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   `0xFB`.  Bit 3 (`0x08`) is the pin level: high while `OPERATION` page 1 is
   `0x80`, low for `0x00`/`0x40`.  UCD pin indices: `0-23` MAR1-24, `24-54`
   EN1-31, `55-70` LGPO1-16, `71-78` DMON1-8.
-- If EN3 toggles but the rail stays at 0 A, the fault is **downstream of the
-  UCD** — U70 (TPS24750RUV: `EN` pin 33, `GATE` 25, `OV` 1, `FLTb` 30, `IMON` 2,
-  `OUT` 6-13/19/20, sense resistor R254/R82 2 mΩ) or the module's own power
-  path — not the MMC.
+- **The rail itself can be checked from the host**: `DMON7` (pin 78) is wired
+  to the hotswap's `PGb` (`RTM_12V0_nPG`) but is *not assigned* in the UCD
+  project, so it reads 0 by default.  Enable it as an input first
+  (`raw 0x32 0x20 … 0xFA 0x4E 0x00` then `0xFB 0x08 0x00`), then read `0xFB`:
+  bit 3 = 1 while `OPERATION` page 1 is 0x00 and **0 (power good) while it is
+  0x80** — measured on AMC6, 2026-11-15.  That proves the 12 V reaches the
+  connector without a DMM.
+- If EN3 toggles and `PGb` reports good but the rail current stays at 0 A, the
+  MMC's job is done: the module is not drawing.  Suspects are then the
+  module's own power path (TPS2121 source select, LTM4671 `RUN_3V3` chain,
+  LattePanda power button).  For the u4FCP side the parts are U70
+  (TPS24750RUV: `EN` 33, `GATE` 25, `OV` 1, `FLTb` 30, `IMON` 2, `OUT`
+  6-13/19/20, sense R254/R82 2 mΩ).
 - Remote cross-check that the module really draws nothing: `show_pm` on the MCH
   console gives the per-slot current.  AMC6 with the LattePanda carrier and
   AMC1 without any RTM both sit at **4.9 A**, so the RTM contributes ~0 even
