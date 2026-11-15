@@ -306,6 +306,14 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
 2. **The 12 V follows RTM_PS#** (PA8, low = plugged).  The RTM manager powers
    it as soon as the payload rails are up (`rtm_payload_up(true)`) and on every
    RTM_PS# high→low edge; the payload state machine has no RTM state.
+   **`RTM_MP3V3_EN` (LGPO14 → FPF2109 → `MP_RTM`) is kept LOW at all times** and
+   must never be raised: the uRTM v2 mishandles `RTM_MODE` and, before its FPGA
+   is powered and configured, draws a large current from MP3V3 - enough to trip
+   the AMC's MP3V3 over-current protection and shut the RTM down.  The classic
+   "management power first" bring-up is therefore abandoned: the RTM gets its
+   12 V `RTM_TURNON_DELAY_MS` (3 s) after RTM_PS# went low and brings up its own
+   management side (the LattePanda carrier's EEPROM/expander are on its 12 V
+   side and answer with the pin low).
    Delay: `RTM_TURNON_DELAY_MS` = 3 s for every RTM (uRTM inrush protection).
    Unplugging cuts the 12 V.  `RTM_RES` (PA2) is asserted while the module is
    unpowered and released once the rail is up — an RTM that is never released

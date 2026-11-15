@@ -137,11 +137,15 @@ static void rtm_power_on(void)
 {
   uint8_t op = 0;
 
-  /* RTM_MP3V3_EN (LGPO14 -> FPF2109 -> MP_RTM) is kept LOW on this board:
-   * the module brings up its own management side from the 12 V it gets here
-   * (measured on the LattePanda carrier: its EEPROM answers with this pin
-   * driven low and stops only when the 12 V goes away), and MP_RTM is not to
-   * be sourced by the AMC. */
+  /* RTM_MP3V3_EN (LGPO14 -> FPF2109 -> MP_RTM) is held LOW on purpose and
+   * must never be raised.  The uRTM v2 mishandles the RTM_MODE signal: before
+   * its FPGA is powered and configured it pulls a large current from MP3V3,
+   * which trips the AMC's MP3V3 over-current protection and shuts the RTM's
+   * management power down.  The classic "management power first" bring-up is
+   * therefore abandoned: the RTM gets its 12 V a few seconds after RTM_PS#
+   * went low (RTM_TURNON_DELAY_MS) and brings up its own management side.
+   * The LattePanda carrier behaves the same way - its EEPROM/expander are
+   * powered from its own 12 V side and answer with this pin low. */
   ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
 
   /* A UCD latches a page off when it declares a fault on it: OPERATION = 0x80
@@ -167,8 +171,10 @@ static void rtm_power_on(void)
 
 static void rtm_power_off(void)
 {
-  /* RTM_MP3V3_EN stays low at all times, also while no module is powered:
-   * this runs on every manager pass, so the pin is driven low from boot. */
+  /* RTM_MP3V3_EN stays low at all times, also while no module is powered
+   * (see rtm_power_on(): the uRTM v2 would trip the AMC's MP3V3 over-current
+   * protection).  This runs on every manager pass, so the pin is driven low
+   * from boot. */
   ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
 
   if (!rtm_12v_on) {
