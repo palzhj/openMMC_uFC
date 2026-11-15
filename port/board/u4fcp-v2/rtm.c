@@ -7,13 +7,12 @@
  *
  *   - a module plugged in (RTM_PS#, PA8, low) gets its 12 V as soon as the
  *     AMC payload rails are up, no matter what the module is;
- *   - the rail is held back for RTM_TURNON_DELAY_MS: the uRTM's controller
- *     configures the RTM clocks before its FPGA draws the inrush, and an
- *     unidentified module cannot be told apart from it;
- *   - the RTM bus is not touched during RTM_FRU_SETTLE_MS after the rail came
- *     up (the module brings up its own MCU, and an unpowered I2C slave clamps
- *     SDA/SCL through its ESD diodes - which wedges the whole I2C2 bus,
- *     including the UCD writes that switch the rail on);
+ *   - the rail comes up RTM_TURNON_DELAY_MS (1 s) after RTM_PS# went low;
+ *   - the RTM bus is not touched during RTM_FRU_SETTLE_MS (5 s) after the rail
+ *     came up: that is the time the module's own MCU needs to finish its I2C
+ *     configuration (and an unpowered I2C slave would clamp SDA/SCL through its
+ *     ESD diodes, wedging the whole I2C2 bus - including the UCD writes that
+ *     switch the rail on);
  *   - the FRU at 0x55 is then read a bounded number of times.  Only a uRTM
  *     v2.3 gets the FMC2/FMC3 SDR records and the handle / fault monitor;
  *     anything else (another board, or no answer at all) stays powered but is
@@ -44,7 +43,10 @@ extern ucd_data_t ucd_data[SDR_CH_COUNT];
 
 /* AMC-side RTM timings */
 #define RTM_PERIOD_MS            1000    /* task period, also the monitor rate */
-#define RTM_TURNON_DELAY_MS      3000    /* 12 V after RTM_PS# went low */
+/* 12 V one second after RTM_PS# went low.  The module's own MCU then needs
+ * about 5 s to finish its I2C configuration before its FRU answers - that is
+ * RTM_SETTLE_MS below, not part of this delay. */
+#define RTM_TURNON_DELAY_MS      1000    /* 12 V after RTM_PS# went low */
 #define RTM_SETTLE_MS            5000    /* module MCU start-up after the 12 V */
 #define RTM_PROBE_INTERVAL_MS    1000    /* between FRU identification tries */
 #define RTM_PROBE_TRIES          3       /* tries before the module is left alone */

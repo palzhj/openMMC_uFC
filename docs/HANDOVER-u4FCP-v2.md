@@ -184,7 +184,7 @@ Typical boot log:
 [   4.760] boot : payload power-up done
 ```
 
-`rtm : RTM detected, 12 V in 3 s` and `rtm : RTM 12 V on (identify in 5 s, handle
+`rtm : RTM detected, 12 V in 1 s` and `rtm : RTM 12 V on (identify in 5 s, handle
 monitor in 10 s)` come from the RTM manager task, in parallel with the clock and
 FPGA states — they no longer delay the payload sequence.
 
@@ -311,18 +311,19 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
    is powered and configured, draws a large current from MP3V3 - enough to trip
    the AMC's MP3V3 over-current protection and shut the RTM down.  The classic
    "management power first" bring-up is therefore abandoned: the RTM gets its
-   12 V `RTM_TURNON_DELAY_MS` (3 s) after RTM_PS# went low and brings up its own
-   management side (the LattePanda carrier's EEPROM/expander are on its 12 V
-   side and answer with the pin low).
-   Delay: `RTM_TURNON_DELAY_MS` = 3 s for every RTM (uRTM inrush protection).
+   12 V `RTM_TURNON_DELAY_MS` (**1 s**) after RTM_PS# went low, and brings up
+   its own management side (the LattePanda carrier's EEPROM/expander are on its
+   12 V side and answer with the pin low).
+   Delay: `RTM_TURNON_DELAY_MS` = 5 s for every RTM (uRTM inrush protection).
    Unplugging cuts the 12 V.  `RTM_RES` (PA2) is held **low** and must stay
    low: the uRTM MCU reads this line to know that it runs in RTM mode (v1.6.3
    left it at the pin table default, also low, and the uRTM v2.3 works that
    way).  The manager drives it low explicitly at init.
 3. **Identification** reads the FRU at 0x55 (uRTM path first, then the bare RTM
    bus), checks the common-header checksum and the product area: product
-   `uRTM`, version `2.3`.  It starts `RTM_FRU_SETTLE_MS` (5 s) after the rail is
-   up, gets `RTM_FRU_PROBE_TRIES` (3) attempts, then a module that stays silent
+   `uRTM`, version `2.3`.  It starts `RTM_FRU_SETTLE_MS` (**5 s**) after the rail
+   is up - the time the module's MCU needs for its I2C configuration - gets
+   `RTM_FRU_PROBE_TRIES` (3) attempts, then a module that stays silent
    is **left unmanaged** (no further RTM bus access) until it is re-plugged.
    The result is logged once (`rtm : FRU 0x55: uRTM v2.3` /
    `other RTM, no FMC monitors` / `no answer, RTM left unmanaged`).
