@@ -317,18 +317,22 @@ sensors (they come from the uRTM's UCD90124A):
 
 | RTM in Zone 3 | identification | RTM SDRs | RTM 12 V |
 |---|---|---|---|
-| uRTM v2.3 | FRU 0x55 behind `0x70 ch5 -> 0x71 ch7`, product `uRTM`, version `2.3` | 9 monitors, entity `0xC0/0x00` | 3 s after RTM_PS# goes low (inrush) |
-| RTM Carrier for LattePanda Mu v1 | FRU 0x55 directly on the RTM bus, another product | none | immediately when RTM_PS# is low |
-| no FRU / blank / unreadable | — | none | 3 s (conservative) |
+| uRTM v2.3 | FRU 0x55 behind `0x70 ch5 -> 0x71 ch7`, product `uRTM`, version `2.3` | 9 monitors, entity `0xC0/0x00` | 3 s after RTM_PS# goes low, then identified |
+| RTM Carrier for LattePanda Mu v1 | FRU 0x55 directly on the RTM bus, another product | none | 3 s after RTM_PS# goes low, then left unmanaged |
+| no FRU / blank / unreadable | — | none | 3 s; 3 probe attempts, then unmanaged |
 
 - A module plugged while the payload is already up is powered on the RTM_PS#
   edge — no payload power cycle needed; unplugging (RTM_PS# high) cuts the
   12 V again.
-- `RTM_INT#` is read as "handle open" only for the uRTM; the LattePanda carrier
-  drives that line from its own TCA9554A, where it is an interrupt.
-- The uRTM exposes its FRU only once its 12 V is on, so the first probe after
-  power-up may be negative; it is retried every 5 s and the answer is cached
-  until the module is unplugged.
+- `RTM_INT#` and the uRTM-only 12 V / MP fault pins act only on a positively
+  identified uRTM v2.3; the LattePanda carrier drives that line from its own
+  TCA9554A, where it is an interrupt.  For every other module RTM_PS# alone
+  decides whether it stays powered.
+- The RTM bus is **never touched while the module is unpowered** — an unpowered
+  module clamps SDA/SCL through its ESD diodes and wedges I2C2 (that also
+  blocked the UCD writes that switch the rail on).  The 12 V therefore comes up
+  from RTM_PS# alone, the identification starts 5 s later, gets 3 attempts, and
+  a module that stays silent is left unmanaged until it is re-plugged.
 
 The boot dump of the monitor readings is a bench option,
 `-DRTM_SENSORS_BOOT_DUMP=ON` (~850 B of flash, off in production); the

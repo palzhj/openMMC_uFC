@@ -165,13 +165,21 @@ interrupt, not a "handle open" indication.
 
 Rules implemented (`rtm_fru.c`, `rtm.c`, `rtm_sensors.c`, `payload.c`):
 
+- **The RTM bus is only touched with the 12 V on.**  An unpowered module
+  clamps SDA/SCL through its ESD diodes and wedges the whole I2C2 bus — that
+  also blocked the UCD writes that switch the RTM rail on, so the module stayed
+  dark and every other bus user (AMC FRU, sensors, MCH polling) saw timeouts.
+  The rail is therefore switched on **from RTM_PS# alone**, after the
+  conservative `RTM_TURNON_DELAY_MS` (3 s) that the uRTM needs for its clock
+  configuration, and the identification only starts `RTM_FRU_SETTLE_MS` (5 s)
+  after that, when the module's own MCU has started.
 - **Identification** comes from the RTM's FRU at 0x55: the product area has to
   say `uRTM` and version `2.3`.  The EEPROM is read through the uRTM path
   (`0x70 ch5 -> 0x71 ch7 -> 0x55`) and, if that NAKs, directly on the RTM bus
-  (`0x70 ch5 -> 0x55`).  The answer is cached; a positive answer is kept until
-  the module is unplugged (RTM_PS# falling edge invalidates it).  A negative
-  answer is retried every 5 s, because the uRTM only exposes its FRU once its
-  12 V is on.
+  (`0x70 ch5 -> 0x55`).  It gets `RTM_FRU_PROBE_TRIES` (3) attempts; a module
+  that stays silent (or answers with another board) is then left **unmanaged**
+  — no further RTM bus access — until it is unplugged and plugged again
+  (RTM_PS# falling edge resets the identification).
 - **No FRU, or a FRU that is not uRTM v2.3, means no RTM SDR records**: the
   nine `0x1B-0x23` monitor records are only created for an identified uRTM
   v2.3.  Records that were inserted and then find `RTM_FRU_OTHER` (module
@@ -181,13 +189,17 @@ Rules implemented (`rtm_fru.c`, `rtm.c`, `rtm_sensors.c`, `payload.c`):
   payload is up is powered from the RTM monitor block on the RTM_PS#
   high→low edge (`rtm_plugged_edge()`), so a hot-plugged RTM no longer has to
   wait for a payload power cycle.  Unplugging (PS# high) cuts the 12 V.
-- **The 3 s inrush delay is a uRTM property**: it is applied when the module is
-  uRTM v2.3 or still unidentified (conservative), and skipped once the FRU says
-  it is another board, so the LattePanda carrier gets its 12 V immediately.
-- **`RTM_INT#` is only read as "handle open" when the module is not identified
-  as another board** (`rtm_handle_trusted()`): the uRTM pulls it low while it
-  boots and while its handle is open, the LattePanda expander drives it on any
-  input change.  The UCD power-fault check runs for every board.
+- **The 3 s inrush delay applies to every RTM** — it is the only thing that
+  can happen before the module's bus may be touched, and it is what protects
+  the uRTM's FPGA inrush.  The LattePanda carrier boots a little later, which
+  is harmless.
+- **`RTM_INT#` (handle) and the uRTM-only 12 V / MP fault pins act only on a
+  positively identified uRTM v2.3** (`rtm_handle_trusted()`): the uRTM pulls
+  the line low while it boots and while its handle is open, the LattePanda
+  expander drives it on any input change, and no other RTM drives the UCD's
+  fault inputs at all.  For anything else — including an unidentified module —
+  RTM_PS# alone decides, so a carrier is not switched off right after its rail
+  came up.
 
 ### Flash budget
 
@@ -203,7 +215,8 @@ margin:
   records anyway and the `rtm : ...` lines of the old boot log are gone from
   the production image.
 
-The image is now 60256 B, i.e. ~670 B of headroom.
+The image is now 60608 B (after the "power from RTM_PS# alone" rework), i.e.
+~320 B of headroom.
 
 `linker/STM32F103CBT6_app.ld` now ends with an `ASSERT` that the `.data` load
 image still ends inside the application region: `.data` is placed at `_sidata`
@@ -212,3 +225,15 @@ and a nearly full image silently spilled the initialised data into the staging
 region (0x08010E00) — the link succeeded, and the first HPM update would have
 corrupted `.data`.  Verified: with the boot dump enabled the link now fails
 with `openMMC: .text + .data overflow the application flash region`.
+
+### Verified on AMC6 + RTM Carrier for LattePanda Mu (2026-11-15)
+
+- the 12 V comes up from RTM_PS# alone (UCD `OPERATION` page 1 = `0x80`,
+  ~1 A on the rail) and the module boots;
+- with the RTM bus only touched once powered, the AMC FRU reads stop failing
+  and the MCH polling no longer times out — the bus wedge seen with the
+  pre-12 V probe is gone;
+- the carrier's FPGA boots and the AMC's 26 sensors all report `ok`;
+- no RTM SDR records are created (the carrier's FRU is not a uRTM v2.3).  The
+  UART shows `rtm : FRU 0x55: other RTM, no FMC monitors`, or
+  `rtm : FRU 0x55: no answer, RTM left unmanaged` if it never answers.
