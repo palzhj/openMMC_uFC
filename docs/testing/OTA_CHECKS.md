@@ -37,12 +37,25 @@ build from `/tmp/...` is systematically smaller than one from
 ## 1. Upload
 
 ```sh
+cd tools/firmware/u4fcp-v2
+./ota.sh --slot 6 --mch 10.19.198.31          # build, upload, activate, verify
+./ota.sh --slot 6 --mch 10.19.198.31 --check  # pre-flight only
+```
+
+`ota.sh` builds the image (unless `--no-build`/`--bin-dir`), refuses images
+larger than 60928 B, warns when the image SHA differs from `HEAD`, uploads via
+`tools/uFC_toolbox/hpm_upload.py`, waits for the MMC and compares the reported
+SHA1 with the image's.  The raw command it wraps:
+
+```sh
 B="-I lan -H <mch> -A none -T 0x82 -B 0 -t <0x70+2*slot> -b 0"
 python3 tools/uFC_toolbox/hpm_upload.py .hw2/u4fcp/out/openMMC.bin \
         --mch <mch> --target <0x70+2*slot> --transit 0x82 --bus 0 --component 1
 ```
 
-AMC6 → `0x7C`, AMC1 → `0x72`, AMC12 → `0x88`.
+AMC6 → slot 6 (`0x7C`), AMC1 → slot 1 (`0x72`), AMC12 → slot 12 (`0x88`).
+Note the MCH address: this crate is `10.19.198.31`, the scripts default to
+`192.168.1.41`.
 
 | stage | expected |
 |---|---|
@@ -87,6 +100,7 @@ the slot (`shutdown <fru>` + `fru_start <fru>`).
 |---|---|
 | `e4ed725` → `ceb7266` (60188 B) | uploaded in 285 s, `finish 00`, `activate 00`, SHA read back `ceb7266`, 26 sensors, FRU and clock store intact |
 | `ceb7266` → `e4ed725` (60284 B) | uploaded in 290 s, `finish 00`, `activate 00`, SHA read back `e4ed725`, 26/26 sensors ok, FRU serial TA8, clock store unchanged, SHA still `e4ed725` after 30 s (no reboot loop) |
+| `e4ed725` → `7e75f57` via `ota.sh` (60284 B) | 260 s, verified automatically: SHA `7e75f57`, 26 sensors, FRU TA8 |
 | RTM after the OTA | manager `UNMANAGED` (carrier), `rtm_12v_on = 1`, MP3V3_EN (pin 69) `0x03`, EN3 (26) `0x08`, `PGb` (78) `0x00` good, `FLTb` (14) high, carrier `0x55` ACK, `RTM_RES` low |
 
 The image really is replaced by the HPM path (SHA changes and comes back), and

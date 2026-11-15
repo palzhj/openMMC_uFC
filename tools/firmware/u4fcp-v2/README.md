@@ -136,6 +136,7 @@ VADJ, so the serial number is the only argument you have to give:
 | `clk_program.sh` | write/capture the clock configuration preset |
 | `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
 | `program.sh --sn <serial>` | build the latest firmware + flash + FRU + clock preset + VADJ |
+| `ota.sh --slot N --mch <mch>` | OTA (HPM.1) update over IPMI: pre-flight, upload, activate, verify the running SHA (`--check` stops before uploading) |
 | `program.sh --rtm --sn <serial>` | the same, plus the **uRTM FRU** (`fru_template_rtm.bin`) with the same serial, written through `0x70 ch5 -> 0x71 ch7` into the uRTM's 24C512 at `0x55` |
 | `rtm_fru.py` | read / verify / write that uRTM FRU (`--dump FILE`, `--write TEMPLATE --serial SN`) |
 
