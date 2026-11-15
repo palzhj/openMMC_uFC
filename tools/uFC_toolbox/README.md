@@ -16,12 +16,32 @@ The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
 
 ## Requirements
 
-Two external programs are **required** and neither is bundled:
-
 | requirement | needed for | install |
 |---|---|---|
+| **Python 3** with **Tkinter** | run from source **and** build — PyInstaller can only bundle the Tcl/Tk of the Python it runs under | Debian/Ubuntu `sudo apt install python3 python3-tk`; Windows: the python.org installer (Tkinter included) |
 | **`ipmitool`** | runtime — **every** action. The FRU and I²C tabs shell out to `ipmitool … raw 0x32 …`; the OTA tab uses `ipmitool … hpm check/upgrade/activate`, and *Upload (bridge)* sends HPM.1 as 20-byte `ipmitool … raw 0x2c …` blocks | Linux `sudo apt install ipmitool`; Windows put `ipmitool.exe` in `PATH` or next to the executable |
-| **PyInstaller** | building the standalone binary (`build-linux.sh` / `build-windows.bat`) — not needed to run from source | `pip install pyinstaller` |
+| **PyInstaller** | building the standalone binary (`build-linux.sh` / `build-windows.bat`); not needed to run from source | `pip install pyinstaller` — see the venv note below |
+
+Nothing else is required: the app imports only the Python standard library and
+`tkinter`, so there are no third-party Python packages to install for the app
+itself.
+
+### Installing PyInstaller on an externally managed Python
+
+Debian 12+, Ubuntu 23.04+ and recent Fedora mark the system Python as
+externally managed, and `pip install pyinstaller` then exits with
+`error: externally-managed-environment`. Build from a virtualenv instead:
+
+```sh
+python3 -m venv ~/.venvs/ufc-build
+~/.venvs/ufc-build/bin/pip install pyinstaller
+
+# build-linux.sh calls `python3 -m PyInstaller`, so put the venv first in PATH
+PATH="$HOME/.venvs/ufc-build/bin:$PATH" tools/uFC_toolbox/build-linux.sh
+```
+
+`pip install --user --break-system-packages pyinstaller` also works, but it
+writes into the system Python.
 
 `ipmitool` stays a runtime dependency of the built binary: `dist/ufc-toolbox`
 is a single file but **not** self-contained. Install it system-wide, or drop
@@ -29,14 +49,18 @@ is a single file but **not** self-contained. Install it system-wide, or drop
 copy, otherwise it uses the one from `PATH`, and without either the FRU, I²C
 and OTA actions fail with `cannot run ipmitool`.
 
-Running from source also needs Python 3 with **Tkinter** (`python3-tk` on
-Debian/Ubuntu; it is included in the python.org Windows installer).
+Optional: **`bin2hpm`** in `PATH` is needed only for OTA uploads of a `.bin` /
+`.hex` image (it wraps the file into an HPM.1 container); `.hpm` uploads do not
+use it.
 
 For HPM updates through the MCH's double bridge (MCH → transit → target),
 `ipmitool` must be at least **1.8.11** (the NAT-MCH manual's requirement).
 Plain `ipmitool hpm upgrade` sizes its blocks from the LAN MTU and does not
 work behind the bridge — that is why the OTA tab carries the separate
 *Upload (bridge)* path.
+
+Checked with Python 3.14.4, Tk 8.6 and PyInstaller 6.22.3: `dist/ufc-toolbox`
+(13.6 MB) builds in a few seconds and reports `--help` from the bundled binary.
 
 ## Look
 
