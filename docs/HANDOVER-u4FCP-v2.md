@@ -360,9 +360,15 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   `LTM4671`.  The LTM4671 `RUN_3V3`/`RUN_3V3SSD`/`RUN_5V0` come from the
   module's own **`POW_EN`** and `RUN_0V9` from **`POW_0V9_EN`** (0 Ω links), so
   the carrier's 3V3 only appears after the module starts.  If the module never
-  starts, nothing on the carrier draws: check the mux output, the OV dividers
-  on `OV1`/`OV2` against the actual rail (this shelf's 12 V reads 13.1 V on the
-  UCD, ~9 % high) and the module's power button.
+  starts, nothing on the carrier draws.  **The mux is the prime suspect**: the
+  carrier's schematic annotates its thresholds as `UV = 2.65 V, OV = 13.3 V`,
+  and this shelf's payload 12 V reads **13.12 V** on the UCD — a 1.4 % margin
+  to the over-voltage trip.  When the mux rejects the input the module never
+  powers, nothing draws, the rail stays unloaded (and high), and the state is
+  stable: exactly what AMC6 shows.  Confirm with a DMM on `12V0_RTM`; if it is
+  at ~13.2-13.4 V the fix is carrier-side (move the `OV1`/`OV2` divider for a
+  ~15 V trip) or crate-side (lower the 12 V).  A lab 12.0 V supply on the
+  carrier's own 12 V jack is the quick A/B test.
 - If EN3 toggles and `PGb` reports good but the rail current stays at 0 A, the
   MMC's job is done: the module is not drawing.  Suspects are then the
   module's own power path (TPS2121 source select, LTM4671 `RUN_3V3` chain,
