@@ -166,7 +166,9 @@ extern enum {
   UCD_GPIO_ID_52, // EN29
   UCD_GPIO_ID_53, // EN30
   UCD_GPIO_ID_54, // EN31
-  UCD_GPIO_ID_55, // EN32
+  /* no EN32: the UCD90320 has 31 enable outputs.  An extra entry here shifted
+   * every LGPO/DMON index by one, so the RTM MP enable (LGPO14) and the FMC
+   * 3V3 aux enables wrote the pin above the intended one. */
   UCD_GPIO_ID_56, // LGPO1
   UCD_GPO_FMC0_3V3AUX_EN_ID, // LGPO2
   UCD_GPO_LED_FMC0_ID, // LGPO3
