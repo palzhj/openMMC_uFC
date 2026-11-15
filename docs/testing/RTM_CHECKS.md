@@ -23,7 +23,7 @@ arm-none-eabi-nm .hw2/u4fcp/out/openMMC.elf | grep -E "rtm_(state|12v_on|blocked
 |---|---|---|
 | manager state | `RTM_OFF` (0), `rtm_12v_on` = 0 | SWD symbols |
 | 12 V rail | never commanded: `OPERATION` page 1 = 0x00, `PGb` (pin 78) = 1 (not good) | `raw 0x32 0x20 … 0x70 0x07 0x11 0x01 0xFA 0x4E 0x00` then `0xFB` |
-| MP3V3 | pin 68 driven low once (`rtm_mp_forced` = 1) | pin read |
+| MP3V3 | LGPO14 (pin index 69) driven low once (`rtm_mp_forced` = 1) | pin read |
 | RTM bus | **no** traffic to 0x70 ch5: no 0x55, no 0x71 | the manager never calls `rtm_fru_probe()` while `plugged == false` |
 | SDRs | 26 records only; **no** 0x1B–0x23, no entity 0xC0 | `ipmitool … sdr list` / `sensor list` |
 | shared bus | AMC FRU read and UCD sensors stay healthy (no wedge) | `raw 0x32 0x15 0x54 0 0 8` repeatedly, `sensor list` |
@@ -42,7 +42,7 @@ arm-none-eabi-nm .hw2/u4fcp/out/openMMC.elf | grep -E "rtm_(state|12v_on|blocked
 | handle open | after the window, 2 consecutive low passes → `rtm : RTM handle open, 12 V off`; stays off until re‑plug or payload cycle; SDRs kept, readings unavailable | open the handle |
 | fault | `MAR15`/`LGPO16` low → `rtm : RTM power fault, 12 V off` | force a fault if possible |
 | unplug | 12 V off, SDRs kept (readings unavailable) | pull the module |
-| MP3V3 | pin 68 low throughout (**never** raised — uRTM v2 `RTM_MODE` would trip the AMC's MP3V3 OC) | pin read |
+| MP3V3 | LGPO14 (pin index 69) low throughout (**never** raised — uRTM v2 `RTM_MODE` would trip the AMC's MP3V3 OC) | pin read |
 | RTM_RES | PA2 low throughout (RTM‑mode indication for the uRTM MCU) | `mem32 0x4001080C` bit 2 |
 
 ## C. LattePanda carrier (blank FRU) — current AMC6 state
