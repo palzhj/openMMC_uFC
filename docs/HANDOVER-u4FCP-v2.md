@@ -354,6 +354,15 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   bit 3 = 1 while `OPERATION` page 1 is 0x00 and **0 (power good) while it is
   0x80** — measured on AMC6, 2026-11-15.  That proves the 12 V reaches the
   connector without a DMM.
+- Carrier power chain (`RTM_Carrier_for_LattePanda_Mu_v1.pdf`, sheets 1/12):
+  `12V0_RTM` -> `U28 TPS2121RUXR` power mux (`IN1`/`IN2` with `OV1`/`OV2`
+  thresholds, `PR1` priority) -> carrier `12V0` -> LattePanda Mu and the
+  `LTM4671`.  The LTM4671 `RUN_3V3`/`RUN_3V3SSD`/`RUN_5V0` come from the
+  module's own **`POW_EN`** and `RUN_0V9` from **`POW_0V9_EN`** (0 Ω links), so
+  the carrier's 3V3 only appears after the module starts.  If the module never
+  starts, nothing on the carrier draws: check the mux output, the OV dividers
+  on `OV1`/`OV2` against the actual rail (this shelf's 12 V reads 13.1 V on the
+  UCD, ~9 % high) and the module's power button.
 - If EN3 toggles and `PGb` reports good but the rail current stays at 0 A, the
   MMC's job is done: the module is not drawing.  Suspects are then the
   module's own power path (TPS2121 source select, LTM4671 `RUN_3V3` chain,
