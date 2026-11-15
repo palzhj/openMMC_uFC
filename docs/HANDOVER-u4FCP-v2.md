@@ -348,8 +348,13 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   `0x80`, low for `0x00`/`0x40`.  UCD pin indices: `0-23` MAR1-24, `24-54`
   EN1-31, `55-70` LGPO1-16, `71-78` DMON1-8.
 - If EN3 toggles but the rail stays at 0 A, the fault is **downstream of the
-  UCD**: U70 (VIN/EN/GATE/OUT, OV divider R360/R365, PROG 1.58 K, TIMER 4.7 nF)
-  or the module's own power path — not the MMC.
+  UCD** — U70 (TPS24750RUV: `EN` pin 33, `GATE` 25, `OV` 1, `FLTb` 30, `IMON` 2,
+  `OUT` 6-13/19/20, sense resistor R254/R82 2 mΩ) or the module's own power
+  path — not the MMC.
+- Remote cross-check that the module really draws nothing: `show_pm` on the MCH
+  console gives the per-slot current.  AMC6 with the LattePanda carrier and
+  AMC1 without any RTM both sit at **4.9 A**, so the RTM contributes ~0 even
+  with EN3 high — the rail is not delivering (measured 2026-11-15, AMC6).
 
 ---
 
