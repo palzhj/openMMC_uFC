@@ -42,7 +42,8 @@ fi
     echo "Build them first:" >&2
     echo "  cmake -S '$REPO' -B '$REPO/.hw2/u4fcp' -DBOARD=u4fcp-v2 \\" >&2
     echo "        -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release" >&2
-    echo "  make -C '$REPO/.hw2/u4fcp' openMMC -j" >&2
+    echo "  make -C '$REPO/.hw2/u4fcp' newboot openMMC -j" >&2
+    echo "  (newboot and openMMC are independent targets)" >&2
     echo "or pass --bin-dir DIR" >&2
     exit 1
 }

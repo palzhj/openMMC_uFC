@@ -1,15 +1,82 @@
 # u4FCP-v2 prebuilt images (STM32F103CBT6, 128 KB flash, 20 KB SRAM)
 
 The images are **build outputs**, not committed files (`.gitignore` excludes
-`*.bin`). Build them with:
+`*.bin`). Configure once **from the repository root**, then build the two
+independent targets — the bootloader is *not* a dependency of the application:
 
 ```bash
 cmake -S . -B .hw2/u4fcp -DBOARD=u4fcp-v2 \
       -DTARGET_CONTROLLER=STM32F103CBT6 -DCMAKE_BUILD_TYPE=Release
-make -C .hw2/u4fcp openMMC -j
-# -> .hw2/u4fcp/out/newboot.bin  (~4.5 KB)
-# -> .hw2/u4fcp/out/openMMC.bin  (~54 KB)
+
+make -C .hw2/u4fcp newboot -j    # bootloader  -> out/newboot.{elf,bin,srec[,hpm]}   4.4 KB
+make -C .hw2/u4fcp openMMC -j    # application -> out/openMMC.{elf,bin,srec}        ~60 KB
+
+make -C .hw2/u4fcp full_binary -j   # both, plus out/openMMC_full.bin (see below)
 ```
+
+`full_binary` depends on both, pads `newboot.bin` to the full 8 KB with `0xFF`
+(`out/newboot_pad.bin`) and concatenates the application, so one
+`loadfile out/openMMC_full.bin 0x08000000` reproduces the whole layout on a
+blank part.
+
+### newboot — the first-stage bootloader
+
+`newboot` is the 8 KB first stage at `0x08000000`: its vector table **is** the
+reset vector (nothing to fix up), it applies a pending staged update — magic
+`0xAAAAAAAA` in the `fw_info` record, firmware type `0x01` application /
+`0x02` bootloader, the flash-write routine running from SRAM — and jumps to the
+application at `0x08002000`. The app/staging/`fw_info` addresses it works with
+come from `port/ucontroller/stm32/stm32f1xx/linker/STM32F103CBT6_boot.ld`.
+
+```bash
+# from the repository root, after the configure step above
+make -C .hw2/u4fcp newboot -j
+
+ls -l .hw2/u4fcp/out/newboot.*                   # .elf .bin .srec [.hpm]
+stat -c '%s bytes' .hw2/u4fcp/out/newboot.bin    # 4472 B = 4.4 KB of the 8 KB window
+```
+
+- The `FLASH` region of that linker script is the 8 KB at `0x08000000`, so a
+  bootloader that outgrows it fails at **link** time; the application must keep
+  linking at `0x08002000`.
+- `newboot.hpm` is written only if `bin2hpm` is on `PATH`
+  (`bin2hpm -c 0 -n -m 0x315A -p 0x00 newboot.bin -o newboot.hpm`). The
+  application's HPM rule is commented out in the top-level `CMakeLists.txt`, so
+  `openMMC.hpm` is made by hand (see the repository README).
+- A bootloader built against a different layout is the dangerous case: it copies
+  staging to the wrong address. Keep `newboot.bin` with the release notes — the
+  image carries no version string of its own.
+
+Flashing it alone over SWD (again from the repository root — adjust the
+`loadfile` path if you run it elsewhere) leaves the application, the FRU and the
+clock store untouched:
+
+```bash
+cat > /tmp/newboot.jlink <<'EOF'
+device STM32F103CB
+si SWD
+speed 1000
+VTREF 3300
+connect
+loadfile .hw2/u4fcp/out/newboot.bin 0x08000000
+r
+g
+q
+EOF
+JLinkExe -NoGui 1 -ExitOnError 1 -CommanderScript /tmp/newboot.jlink
+```
+
+`./jlink_program.sh` already programs `newboot.bin` at `0x08000000` next to the
+application and clears `fw_info`; `--bin-dir ../../../.hw2/u4fcp/out` makes it
+use this build tree instead of `uart-debug/` / `normal/`.
+
+In the crate, newboot can also be updated over IPMB: it is HPM component **0**
+("Bootloader"), so `hpm upgrade` of a `-c 0` image stages the bootloader, sets
+`fw_type = 0x02` in `fw_info`, and the next boot copies it over itself (UART:
+`[BOOTLOADER] New bootloader firmware update found!` / `DO NOT TURN OFF WHILE
+UPDATING!`). The CMake rule passes no `-v`, so that HPM advertises FW version
+0.00 — regenerate it by hand with `-v <major.minor>` when the recorded version
+matters.
 
 > The watchdog is **enabled by default** (`-DDISABLE_WATCHDOG=ON` disables it
 > for debugging). The image enables the IWDG: the STM32F1
