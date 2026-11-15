@@ -315,9 +315,11 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
    management side (the LattePanda carrier's EEPROM/expander are on its 12 V
    side and answer with the pin low).
    Delay: `RTM_TURNON_DELAY_MS` = 3 s for every RTM (uRTM inrush protection).
-   Unplugging cuts the 12 V.  `RTM_RES` (PA2) is asserted while the module is
-   unpowered and released once the rail is up — an RTM that is never released
-   stays in reset and never enables its own supplies.
+   Unplugging cuts the 12 V.  `RTM_RES` (PA2, an input of the RTM controller)
+   is left at the value the pin table gives it (low) and is **not** driven:
+   v1.6.3 behaved the same way and the uRTM v2.3 works with it, while its
+   polarity on the uRTM side is not documented.  Do not "release" it without
+   checking the uRTM first.
 3. **Identification** reads the FRU at 0x55 (uRTM path first, then the bare RTM
    bus), checks the common-header checksum and the product area: product
    `uRTM`, version `2.3`.  It starts `RTM_FRU_SETTLE_MS` (5 s) after the rail is

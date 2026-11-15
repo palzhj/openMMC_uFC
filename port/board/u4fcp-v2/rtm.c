@@ -82,6 +82,7 @@ static uint8_t rtm_handle_confirm;
 static TickType_t rtm_t_power;   /* plug-in delay start */
 static TickType_t rtm_t_probe;   /* next FRU probe / end of the settle window */
 static TickType_t rtm_ready_tick;/* end of the uRTM handle config window */
+static bool rtm_mp_forced;       /* LGPO14 already driven low in this boot */
 
 static bool rtm_ps_low(void)
 {
@@ -120,17 +121,17 @@ void rtm_payload_up(bool up)
   }
 }
 
-/* RTM_RES is a reset line into the module (MMC PA2 -> the RTM controller).
- * It has to be released once the module is powered: an RTM that is never
- * released stays in reset and never enables its own supplies, which looks
- * exactly like "the 12 V is on but nothing draws current". */
-static void rtm_reset_release(bool release)
+/* LGPO14 must never be raised: the uRTM v2 mishandles RTM_MODE and pulls a
+ * large current from MP3V3 before its FPGA is configured, tripping the AMC's
+ * MP3V3 over-current protection.  One write per boot is enough - the UCD keeps
+ * the pin configured and its own default is "not driven". */
+static void rtm_mp_keep_low(void)
 {
-  if (release) {
-    gpio_set_pin_high(PIN_PORT(GPIO_RTM_RES), PIN_NUMBER(GPIO_RTM_RES));
-  } else {
-    gpio_set_pin_low(PIN_PORT(GPIO_RTM_RES), PIN_NUMBER(GPIO_RTM_RES));
+  if (rtm_mp_forced) {
+    return;
   }
+  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
+  rtm_mp_forced = true;
 }
 
 static void rtm_power_on(void)
@@ -146,7 +147,7 @@ static void rtm_power_on(void)
    * went low (RTM_TURNON_DELAY_MS) and brings up its own management side.
    * The LattePanda carrier behaves the same way - its EEPROM/expander are
    * powered from its own 12 V side and answer with this pin low. */
-  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
+  rtm_mp_keep_low();
 
   /* A UCD latches a page off when it declares a fault on it: OPERATION = 0x80
    * alone then leaves it in "soft off" (0x50) and the module never powers up.
@@ -164,23 +165,18 @@ static void rtm_power_on(void)
     }
   }
   rtm_12v_on = true;
-
-  /* let the module controller run (it enables the module's own supplies) */
-  rtm_reset_release(true);
 }
 
 static void rtm_power_off(void)
 {
-  /* RTM_MP3V3_EN stays low at all times, also while no module is powered
-   * (see rtm_power_on(): the uRTM v2 would trip the AMC's MP3V3 over-current
-   * protection).  This runs on every manager pass, so the pin is driven low
-   * from boot. */
-  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
+  /* RTM_MP3V3_EN stays low at all times (see rtm_power_on()); force it once
+   * per boot rather than on every pass, so the shared I2C bus is not loaded
+   * with an unconditional UCD write every second. */
+  rtm_mp_keep_low();
 
   if (!rtm_12v_on) {
     return;
   }
-  rtm_reset_release(false);
   ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 0);
   rtm_12v_on = false;
   rtm_ready_tick = 0;
@@ -335,6 +331,11 @@ static void vTaskRtm(void *Parameters)
 void rtm_init(void)
 {
   rtm_evt = xEventGroupCreate();
+  if (rtm_evt == NULL) {
+    /* without it rtm_payload_up() cannot tell us the payload is up, so the
+     * RTM would simply never be powered - log rather than fail silently */
+    log_printk("rtm", "no heap for the RTM event group, RTM stays off");
+  }
   rtm_state = RTM_OFF;
   rtm_type = RTM_FRU_UNKNOWN;
   rtm_12v_on = false;
@@ -343,9 +344,7 @@ void rtm_init(void)
   rtm_tries = 0;
   rtm_ready_tick = 0;
   rtm_t_probe = 0;
-
-  /* keep the module in reset until its rail is up */
-  rtm_reset_release(false);
+  rtm_mp_forced = false;
 
   /* Sample RTM_PS# now so a module plugged in later is seen as an edge. */
   rtm_plug_known = true;
