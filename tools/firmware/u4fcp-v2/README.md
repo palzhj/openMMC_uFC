@@ -125,13 +125,14 @@ VADJ, so the serial number is the only argument you have to give:
 ./program.sh --slot 3 --template fru_template_TAO_4.9A.bin --sn U4FCP2-0001
 ./program.sh --no-flash --sn U4FCP2-0001           # board already in the crate
 ./program.sh --rtm --sn U4FCP2-0001                # + the uRTM's FRU, same serial
+./program.sh --curr 5.4 --sn U4FCP2-0001           # FRU with a 5.4 A module current
 ./program.sh --dry-run --sn U4FCP2-0001            # prepare the FRU image only
 ```
 
 | script | does |
 |---|---|
 | `jlink_program.sh` | newboot + application over SWD, `fw_info` cleared |
-| `fru_program.sh --sn <serial>` | FRU with the unique serial |
+| `fru_program.sh --sn <serial>` | FRU with the unique serial (`--curr A` sets the module current) |
 | `clk_program.sh` | write/capture the clock configuration preset |
 | `vadj_program.sh` | set/read the FMC0/FMC1 VADJ (TPL0102 digital pot) |
 | `program.sh --sn <serial>` | build the latest firmware + flash + FRU + clock preset + VADJ |
@@ -145,6 +146,7 @@ VADJ, so the serial number is the only argument you have to give:
 # 2. insert the board in the crate, handle latched; write the FRU
 ./fru_program.sh --sn U4FCP2-0001                     # AMC12 by default
 ./fru_program.sh --slot 2 --mch 192.168.1.41 --sn U4FCP2-0001
+./fru_program.sh --curr 4.9 --sn U4FCP2-0001          # 4.9 A in the 0x16 record
 
 # 3. clock configuration preset (clk-preset.bin next to this script)
 ./clk_program.sh --apply --slot 2                # write + apply now
@@ -230,7 +232,8 @@ comment, section names are fixed):
              asset_tag, fru_file_id
 [fru]        mfg_time (minutes since 1996-01-01 or "YYYY-MM-DD HH:MM", 0 =
              unset) and module_current_ma (the PICMG record stores 100 mA
-             steps); the programmer replaces only the serial
+             steps); the programmer replaces only the serial, unless
+             `--curr A` is given
 [multirecord] <record id> = <body hex>   (0x16 module current, 0x2d clock,
              0x19 point-to-point, 0x30 OEM; the 5-byte header, the length and
              both checksums are generated, the last record gets the EOL bit)
@@ -287,7 +290,9 @@ and starts with `pwr : payload restart (MMC uptime N s, no MMC reset)`.
 - FRU written but the MCH still shows the factory values — the MMC reads the
   FRU **once at boot**; reboot it after `fru_program.sh`.
 - MCH power warning `requested power … exceeds backplane limit` — the FRU's
-  module‑current record is wrong (must be 100 mA units, e.g. `8000 mA -> 80`).
+  module‑current record is wrong (it stores 0.1 A steps, e.g. 5.4 A -> 54);
+  re-program with `fru_program.sh --curr <A>` instead of rebuilding the
+  template.
 - Clock preset written but not applied — either `--apply` or reboot (the
   configuration is applied in `PAYLOAD_STATE_CLK_SETUP`).
 - MCH current/voltage display off by a factor — the MCH caches the SDR

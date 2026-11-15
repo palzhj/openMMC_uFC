@@ -23,6 +23,8 @@
 #   --bus B             IPMB-L bus of the MCH bridge               default 0
 #   --template FILE     FRU template image        default fru_template.bin (here)
 #   --mfg-time STR      FRU manufacturing time (default: when the script runs)
+#   --curr A            AMC module current requirement in amps, 0.1 A steps
+#                       (e.g. 5.4; the MCH uses it for power budgeting)
 #   --clk-preset FILE   clock preset image       default clk-preset.bin (here)
 #   --clock-store FILE  restore a clock store (program_clock.py --dump)
 #   --rtm               also program the uRTM FRU, same serial as the AMC
@@ -37,6 +39,7 @@
 #   ./program.sh --slot 3 --mch 10.0.0.5 --sn U4FCP2-0001
 #   ./program.sh --no-flash --sn U4FCP2-0001           # FRU/VADJ only (board in a crate)
 #   ./program.sh --rtm --sn U4FCP2-0001                # + the uRTM's FRU (same SN)
+#   ./program.sh --curr 5.4 --sn U4FCP2-0001           # 5.4 A module current in the FRU
 #   ./program.sh --dry-run --sn U4FCP2-0001            # just build the FRU image
 set -eu
 
@@ -53,6 +56,7 @@ TEMPLATE="$HERE/fru_template.bin"
 RTM_TEMPLATE="$HERE/fru_template_rtm.bin"
 CLK_PRESET="$HERE/clk-preset.bin"
 MFG_TIME=""
+CURR=""
 CLOCK_STORE=""
 VADJ=1.8
 BIN_DIR=""
@@ -76,6 +80,7 @@ while [ $# -gt 0 ]; do
         --rtm-template) RTM_TEMPLATE=$2; DO_RTM=1; shift 2 ;;
         --no-rtm)      DO_RTM=0; shift ;;
         --mfg-time)    MFG_TIME=$2; shift 2 ;;
+        --curr)        CURR=$2; shift 2 ;;
         --clock-store) CLOCK_STORE=$2; shift 2 ;;
         --vadj)        VADJ=$2; shift 2 ;;
         --bin-dir)     BIN_DIR=$2; DO_BUILD=0; shift 2 ;;
@@ -85,7 +90,7 @@ while [ $# -gt 0 ]; do
         --no-fru)      DO_FRU=0; shift ;;
         --no-clk)      DO_CLK=0; shift ;;
         --no-vadj)     DO_VADJ=0; shift ;;
-        -h|--help)     sed -n '2,44p' "$0"; exit 0 ;;
+        -h|--help)     sed -n '2,43p' "$0"; exit 0 ;;
         -*)            echo "unknown option: $1" >&2; exit 1 ;;
         *)             # tolerate the serial as a bare argument, but --sn is the norm
                        [ -z "$SERIAL" ] || { echo "serial given twice: $1" >&2; exit 1; }
@@ -112,6 +117,7 @@ echo "=== u4FCP-v2 programming: serial $SERIAL, AMC$SLOT, MCH $MCH"
 echo "    images       : $OUT"
 [ -n "$FW_VERSION" ] && echo "    firmware     : $FW_VERSION"
 [ "$DO_FRU" = 1 ] && echo "    FRU template : $TEMPLATE"
+[ -n "$CURR" ] && echo "    module curr. : $CURR A"
 [ "$DO_CLK" = 1 ] && echo "    clock preset : $CLK_PRESET"
 [ "$DO_RTM" = 1 ] && echo "    RTM FRU      : $RTM_TEMPLATE (serial $SERIAL)"
 
@@ -124,6 +130,7 @@ if [ "$DO_FRU" = 1 ]; then
     echo "--- writing the FRU (serial $SERIAL)"
     set -- "$SERIAL" --slot "$SLOT" --mch "$MCH" --bus "$BUS" --template "$TEMPLATE"
     [ -n "$MFG_TIME" ] && set -- "$@" --mfg-time "$MFG_TIME"
+    [ -n "$CURR" ] && set -- "$@" --curr "$CURR"
     [ -n "$CLOCK_STORE" ] && set -- "$@" --clock-store "$CLOCK_STORE"
     [ "$DRY_RUN" = 1 ] && set -- "$@" --dry-run
     "$HERE/fru_program.sh" "$@"

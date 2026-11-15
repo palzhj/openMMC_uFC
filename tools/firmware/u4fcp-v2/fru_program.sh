@@ -13,6 +13,8 @@
 #   --bus B             IPMB-L bus of the MCH bridge                default 0
 #   --template FILE     FRU template image (default fru_template.bin)
 #   --mfg-time STR      manufacturing time (default: now)
+#   --curr A            AMC module current requirement in amps, 0.1 A steps
+#                       (e.g. 5.4; the MCH uses it for power budgeting)
 #   --clock-store FILE  clock store image captured with program_clock.py --dump
 #   --dry-run           build the FRU image and print it, do not write it
 #   --no-wait           do not wait for the MMC (assume it answers)
@@ -26,6 +28,7 @@ SLOT=12
 MCH=192.168.1.41
 BUS=0
 MFG_TIME=""
+CURR=""
 CLOCK_STORE=""
 TEMPLATE=""
 DRY_RUN=0
@@ -39,10 +42,11 @@ while [ $# -gt 0 ]; do
         --bus)         BUS=$2; shift 2 ;;
         --template)    TEMPLATE=$2; shift 2 ;;
         --mfg-time)    MFG_TIME=$2; shift 2 ;;
+        --curr)        CURR=$2; shift 2 ;;
         --clock-store) CLOCK_STORE=$2; shift 2 ;;
         --dry-run)     DRY_RUN=1; shift ;;
         --no-wait)     WAIT=0; shift ;;
-        -h|--help)     sed -n '2,24p' "$0"; exit 0 ;;
+        -h|--help)     sed -n '2,21p' "$0"; exit 0 ;;
         -*)            echo "unknown option: $1" >&2; exit 1 ;;
         *)             [ -z "$SERIAL" ] || { echo "serial given twice: $1" >&2; exit 1; }
                        SERIAL=$1; shift ;;
@@ -71,10 +75,12 @@ if [ "$WAIT" = 1 ]; then
 fi
 
 echo "--- writing the FRU"
+[ -n "$CURR" ] && echo "    module current: $CURR A (0.1 A steps)"
 set -- "$SERIAL" --mch "$MCH" --slot "$SLOT" --bus "$BUS"
 [ -n "$TEMPLATE" ] && set -- "$@" --template "$TEMPLATE"
 [ "$DRY_RUN" = 1 ] && set -- "$@" --dry-run
 [ -n "$MFG_TIME" ] && set -- "$@" --mfg-time "$MFG_TIME"
+[ -n "$CURR" ] && set -- "$@" --curr "$CURR"
 python3 "$HERE/program_fru.py" "$@"
 
 if [ -n "$CLOCK_STORE" ]; then
