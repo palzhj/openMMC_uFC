@@ -144,7 +144,7 @@ shelf MP ──3.3 V management──► MMC (always on, independent of payload 
   `FPGA_0V9A`, `FPGA_1V2A`, `DDR_1V2T`, `DDR_1V2B`, `AMC_IO_3V3`.
 - **GPOs used at runtime**: `UCD_GPO_FMC0_3V3AUX_EN_ID` (LGPO2) and
   `UCD_GPO_FMC1_3V3AUX_EN_ID` (LGPO7) enable the FMC 3.3 V aux; the VADJ rails
-  are enabled through their own UCD pages.  `UCD_GPO_RTM_MP_EN_ID` (LGPO14) and
+  are enabled through their own UCD pages.  `UCD_GPO_RTM_MP_EN_ID` (LGPO14, held low on purpose, see §7.1) and
   `UCD_GPO_FMC*_PG_C2M_ID` (LGPO9/LGPO13) are **intentionally not driven**
   (commented out in `payload.c`: the RTM MP comes up with the AMC, PG_C2M is
   unused on this board).
@@ -330,7 +330,10 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
 12V0 ─► U70 TPS24750 (EN ◄ RTM_12V0_EN ◄ UCD EN3)
                        (FLTb ─► UCD MAR15, PGb ─► UCD DMON7, IMON ─► UCD AMON10)
      ─► 12V0_RTM ─► Zone-3 A1/B1
-MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► module EEPROM/expander
+MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► (uRTM management side)
+          NOTE: RTM_MP3V3_EN is kept LOW by the MMC on purpose.  The LattePanda
+          carrier's EEPROM/expander are powered from its own 12 V side, so they
+          answer with `LGPO14` low and stop only when the 12 V goes away.
 ```
 
 - The rail is **UCD Rail #2 = PMBus page 1** (`UCD_RTM_12V_CURR_ID`), per

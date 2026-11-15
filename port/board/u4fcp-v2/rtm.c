@@ -137,11 +137,12 @@ static void rtm_power_on(void)
 {
   uint8_t op = 0;
 
-  /* Management power first: the module's EEPROM and its IO expander are
-   * powered from MP_RTM (FPF2109, enabled by UCD LGPO14), so without this the
-   * identification has nothing to talk to.  The pin is not driven by the UCD
-   * until asked - it is one of the GPOs the MMC owns. */
-  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 1);
+  /* RTM_MP3V3_EN (LGPO14 -> FPF2109 -> MP_RTM) is kept LOW on this board:
+   * the module brings up its own management side from the 12 V it gets here
+   * (measured on the LattePanda carrier: its EEPROM answers with this pin
+   * driven low and stops only when the 12 V goes away), and MP_RTM is not to
+   * be sourced by the AMC. */
+  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
 
   /* A UCD latches a page off when it declares a fault on it: OPERATION = 0x80
    * alone then leaves it in "soft off" (0x50) and the module never powers up.
@@ -166,12 +167,15 @@ static void rtm_power_on(void)
 
 static void rtm_power_off(void)
 {
+  /* RTM_MP3V3_EN stays low at all times, also while no module is powered:
+   * this runs on every manager pass, so the pin is driven low from boot. */
+  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
+
   if (!rtm_12v_on) {
     return;
   }
   rtm_reset_release(false);
   ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 0);
-  ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
   rtm_12v_on = false;
   rtm_ready_tick = 0;
   log_printk("rtm", "RTM 12 V off");
