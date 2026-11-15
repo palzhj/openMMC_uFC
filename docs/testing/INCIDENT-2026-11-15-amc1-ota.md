@@ -43,6 +43,17 @@ two plausible causes:
 The RTM code is unlikely to be the cause: with no module in Zone 3, RTM_PS# is
 high, so the new code never touches the RTM bus and never enables its 12 V.
 
+## Follow-up (2026-11-16)
+
+The 608 B size difference is most likely **not** a build-tree problem: images
+embed `__FILE__` (via `configASSERT`/`PRINT_ERR_LINE`), so a build in
+`/tmp/clean` (28-char paths) is systematically smaller than one in
+`/home/iheper/work/openMMC_uFC` (43-char paths) — ~15 B per embedded path, 7+
+paths.  A fresh `.hw2` rebuild reproduces the long-lived size exactly, and the
+OTA path itself was verified twice on AMC6 (`ceb7266` → `e4ed725` →
+`ceb7266`…), see `docs/testing/OTA_CHECKS.md`.  So the failure is more likely
+the unverified staging copy or the image itself than the build directory.
+
 ## Recovery
 
 The module needs a physical reflash; a payload power cycle does not help and

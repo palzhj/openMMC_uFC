@@ -28,7 +28,11 @@ not speak IPMI — see `docs/testing/INCIDENT-2026-11-15-amc1-ota.md`.
 
 A long‑lived build directory once produced an image 608 B larger than a clean
 build of the same commit, and that image did not boot (AMC1 incident).  Compare
-sizes before every OTA.
+sizes before every OTA — but note the images are **not byte‑reproducible across
+different build paths**: `configASSERT`/`PRINT_ERR_LINE` embed `__FILE__`, so a
+build from `/tmp/...` is systematically smaller than one from
+`/home/iheper/work/openMMC_uFC/...` (~15 B per embedded path).  Compare the
+*symbol sizes* (`arm-none-eabi-nm -S`) or build both in the same path.
 
 ## 1. Upload
 
@@ -45,7 +49,7 @@ AMC6 → `0x7C`, AMC1 → `0x72`, AMC12 → `0x88`.
 | capabilities `0x2E` | non‑empty, bit for the component set |
 | properties `0x2F` | component 1 present, selector 0 |
 | initiate `0x31` | `00` (or `C0` = in progress, continued by the tool) |
-| blocks | ~3000 × 20 B, ≈1–2 min, progress every 200 blocks |
+| blocks | ~3000 × 20 B, **≈5 min** (~95 ms/block), progress every 200 blocks |
 | finish `0x33` | `00` — anything else means the image was rejected (keep the old one) |
 | activate `0x35` | `00`; the MMC reboots into the staged image |
 
@@ -76,6 +80,17 @@ the slot (`shutdown <fru>` + `fru_start <fru>`).
 | payload power lost during upload | staging invalid, old image intact |
 | payload power lost during the bootloader copy | `newboot` retries on the next boot; if it cannot recover, the module stays in the bootloader → **SWD reflash** |
 | MMC reset mid‑upload | staging invalid, old image intact |
+
+## 3a. Result of the first end‑to‑end run (AMC6, 2026‑11‑16)
+
+| step | result |
+|---|---|
+| `e4ed725` → `ceb7266` (60188 B) | uploaded in 285 s, `finish 00`, `activate 00`, SHA read back `ceb7266`, 26 sensors, FRU and clock store intact |
+| `ceb7266` → `e4ed725` (60284 B) | uploaded in 290 s, `finish 00`, `activate 00`, SHA read back `e4ed725`, 26/26 sensors ok, FRU serial TA8, clock store unchanged, SHA still `e4ed725` after 30 s (no reboot loop) |
+| RTM after the OTA | manager `UNMANAGED` (carrier), `rtm_12v_on = 1`, MP3V3_EN (pin 69) `0x03`, EN3 (26) `0x08`, `PGb` (78) `0x00` good, `FLTb` (14) high, carrier `0x55` ACK, `RTM_RES` low |
+
+The image really is replaced by the HPM path (SHA changes and comes back), and
+the module survives two consecutive OTAs.
 
 ## 4. Recovery when the module goes silent
 

@@ -454,10 +454,13 @@ make -C .hw2/u4fcp full_binary -j  # + out/openMMC_full.bin
 Options: `EEPROM_ACCESS`, `I2C_ACCESS`, `CLOCK_PROGRAM`, `CLOCK_STORE`,
 `RTM_SENSORS_BOOT_DUMP`, `DISABLE_WATCHDOG`, `FRU_USE_COMPILED`.
 
-**Always build the image from a clean tree** before flashing/OTA — a
-long-lived build directory once produced an image 608 B larger than a clean
-build of the same commit, and that image did not boot (see
-`docs/testing/INCIDENT-2026-11-15-amc1-ota.md`).
+**Images are not byte‑reproducible across build paths**: `configASSERT` and
+`PRINT_ERR_LINE` embed `__FILE__`, so a build from a short path (`/tmp/clean`)
+is systematically smaller than one from `/home/iheper/work/openMMC_uFC/…` — the
+608 B difference in the AMC1 incident is very likely that artifact, not a stale
+object.  Compare **symbol sizes** (`arm-none-eabi-nm -S`) or build both trees in
+the same path; a fresh `.hw2` reproduces exactly.  Still always build before
+flashing/OTA (`docs/testing/OTA_CHECKS.md`).
 
 ---
 
