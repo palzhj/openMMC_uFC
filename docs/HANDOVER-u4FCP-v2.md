@@ -365,9 +365,13 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   and this shelf's payload 12 V reads **13.12 V** on the UCD — a 1.4 % margin
   to the over-voltage trip.  When the mux rejects the input the module never
   powers, nothing draws, the rail stays unloaded (and high), and the state is
-  stable: exactly what AMC6 shows.  Confirm with a DMM on `12V0_RTM`; if it is
-  at ~13.2-13.4 V the fix is carrier-side (move the `OV1`/`OV2` divider for a
-  ~15 V trip) or crate-side (lower the 12 V).  A lab 12.0 V supply on the
+  stable: exactly what AMC6 shows.  **AMC.0 REQ 4.15b allows 10.8-13.2 V at the module contacts**, so a 13.1 V
+  rail is compliant and the carrier's 13.3 V trip sits only **0.1 V above the
+  legal maximum** - less than the divider tolerance (±1 % = ±0.13 V).  The
+  carrier can therefore reject a fully compliant input, which is exactly the
+  AMC6 signature (rail good at the connector, module unpowered, 0 A).  The fix
+  belongs on the carrier: move the `OV1`/`OV2` divider (U28 pins 4/5,
+  `R85` 5 K and its top resistor) for a ~15 V trip.  A lab 12.0 V supply on the
   carrier's own 12 V jack is the quick A/B test.
 - If EN3 toggles and `PGb` reports good but the rail current stays at 0 A, the
   MMC's job is done: the module is not drawing.  Suspects are then the
