@@ -324,6 +324,33 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
 5. **`RTM_INT#` (handle) and the uRTM-only 12 V/MP fault pins act only on a
    positively identified uRTM v2.3**; for anything else RTM_PS# alone decides.
 
+### 7.1 The RTM 12 V rail (u4FCP-v2 hardware path)
+
+```
+12V0 ─► U70 TPS24750 (EN ◄ RTM_12V0_EN ◄ UCD EN3)
+                       (FLTb ─► UCD MAR15, PGb ─► UCD DMON7, IMON ─► UCD AMON10)
+     ─► 12V0_RTM ─► Zone-3 A1/B1
+MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► module EEPROM/expander
+```
+
+- The rail is **UCD Rail #2 = PMBus page 1** (`UCD_RTM_12V_CURR_ID`), per
+  `u4FCPv2/template/u4FCPv2/POWER/u4FCPv2_with_current_limitation.tifsp`:
+  `ON_OFF_CONFIG` = **CONTROL and OPERATION**, enable pin **L10 EN03**,
+  `IOUT_OC` 4.5 A, all fault responses `Ignore`.  `OPERATION = 0x80` is the
+  correct way to switch it (GPIO_PMBUS_CTRL / the UCD CONTROL pin is only the
+  AMC's own master enable).
+- **The rail has no voltage sense and no PG monitor** (`READ_VOUT` and `DMON7`
+  read nothing useful).  Only the current monitor (AMON10) is real — do not
+  conclude "rail is dead" from `READ_VOUT = 0`.
+- Check EN3 from the host (verified on AMC6): select the pin with
+  `raw 0x32 0x20 0x01 0x01 0x70 0x07 0x11 0x01 0xFA 0x1A 0x00`, then read
+  `0xFB`.  Bit 3 (`0x08`) is the pin level: high while `OPERATION` page 1 is
+  `0x80`, low for `0x00`/`0x40`.  UCD pin indices: `0-23` MAR1-24, `24-54`
+  EN1-31, `55-70` LGPO1-16, `71-78` DMON1-8.
+- If EN3 toggles but the rail stays at 0 A, the fault is **downstream of the
+  UCD**: U70 (VIN/EN/GATE/OUT, OV divider R360/R365, PROG 1.58 K, TIMER 4.7 nF)
+  or the module's own power path — not the MMC.
+
 ---
 
 ## 8. Host access and tooling
