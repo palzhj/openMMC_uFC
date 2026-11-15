@@ -31,7 +31,12 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       are alive (today the feed is unconditional, so a hung task does not
       trip the IWDG).
 - [ ] **[next]** Successful HPM upgrade + activation end-to-end test (only
-      the failure paths are covered: aborted upload, bad finish).
+      the failure paths are covered: aborted upload, bad finish).  Procedure and
+      pass criteria: `docs/testing/OTA_CHECKS.md` — pre-flight clean-build
+      reproducibility, upload/activate, post-checks (SHA, sensors, FRU, clock
+      store, no I²C wedge, no reboot loop), then the injected-failure matrix.
+      Note AMC1 is still down from the 2026-11-15 OTA and needs the SWD recovery
+      first (`docs/testing/INCIDENT-2026-11-15-amc1-ota.md`).
 - [ ] **[opt]** Reduce the 1.2 s clock-store apply (15 records, 1052
       registers) or keep the payload power-up timing as is.
 - [ ] **[opt]** Review the SDR list against the final UCD90320 rail map

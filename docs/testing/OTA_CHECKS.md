@@ -1,0 +1,90 @@
+# OTA (HPM.1) acceptance checklist
+
+Firmware update over IPMI through the MCH.  HPM.1 runs on NetFn **0x2C**
+(PICMG group extension `0x00`), components **0 = bootloader, 1 = MMC (this
+image), 2 = payload** — the payload component is not upgradable here.
+
+The upload writes the **staging** area (`0x08010E00`, 60928 B); `newboot`
+copies it over the application on `activate` and clears `fw_info`.  There is
+**no read‑back verification** of the staged image: `finish` only checks the
+size.  A bad staging copy means the module comes back in `newboot`, which does
+not speak IPMI — see `docs/testing/INCIDENT-2026-11-15-amc1-ota.md`.
+
+---
+
+## 0. Pre‑flight (do not skip)
+
+| check | command | pass |
+|---|---|---|
+| clean tree | `git status --short` | empty |
+| built from a **clean** tree | `rm -rf /tmp/clean && mkdir /tmp/clean && git archive HEAD \| tar -x -C /tmp/clean` then configure/build there | image **byte‑identical** to `.hw2/u4fcp/out/openMMC.bin` |
+| image fits the slot | `arm-none-eabi-size .hw2/u4fcp/out/openMMC.elf` | text+data ≤ 60928 |
+| image under test | `strings out/openMMC.bin \| grep -m1 -E '^[0-9a-f]{40}$'` | matches `git log -1` |
+| module answers | `ipmitool … raw 0x06 0x01` | completion 0x00 |
+| sensors sane | `ipmitool … sensor list` | 26 (AMC only) / 35 (with uRTM) |
+| own FRU readable | `ipmitool … raw 0x32 0x15 0x54 0x00 0x00 0x08` | `01 00 00 01 …` |
+| clock store | `ipmitool … raw 0x32 0x18` | valid, expected record count |
+| backups | `program_clock.py --dump`, FRU image | stored outside the module |
+
+A long‑lived build directory once produced an image 608 B larger than a clean
+build of the same commit, and that image did not boot (AMC1 incident).  Compare
+sizes before every OTA.
+
+## 1. Upload
+
+```sh
+B="-I lan -H <mch> -A none -T 0x82 -B 0 -t <0x70+2*slot> -b 0"
+python3 tools/uFC_toolbox/hpm_upload.py .hw2/u4fcp/out/openMMC.bin \
+        --mch <mch> --target <0x70+2*slot> --transit 0x82 --bus 0 --component 1
+```
+
+AMC6 → `0x7C`, AMC1 → `0x72`, AMC12 → `0x88`.
+
+| stage | expected |
+|---|---|
+| capabilities `0x2E` | non‑empty, bit for the component set |
+| properties `0x2F` | component 1 present, selector 0 |
+| initiate `0x31` | `00` (or `C0` = in progress, continued by the tool) |
+| blocks | ~3000 × 20 B, ≈1–2 min, progress every 200 blocks |
+| finish `0x33` | `00` — anything else means the image was rejected (keep the old one) |
+| activate `0x35` | `00`; the MMC reboots into the staged image |
+
+## 2. Post‑checks (wait ~10 s)
+
+| check | expected |
+|---|---|
+| `raw 0x32 0x02` | the SHA of the image just uploaded |
+| boot | module answers IPMB again, `raw 0x06 0x01` = `00 …` |
+| sensors | the same count as before, all `ok` |
+| FRU | `fru print` shows the same serial/part |
+| clock store | `raw 0x32 0x18` valid, same contents |
+| I²C health | AMC FRU read + UCD sensors stable for ≥1 min (no wedge) |
+| no reboot loop | read `raw 0x32 0x02` again after 30 s; identical, and the MMC uptime implied by the logs keeps growing |
+| RTM | manager in the state matching Zone 3 (no module → `OFF`, carrier → `UNMANAGED`, uRTM → `MANAGED`) |
+
+The MCH caches the module SDR repository: if the sensor set changed, re‑activate
+the slot (`shutdown <fru>` + `fru_start <fru>`).
+
+## 3. Failure paths (must leave a working module)
+
+| injected failure | expected |
+|---|---|
+| upload aborted before `finish` | old image keeps running; staging garbage ignored |
+| `finish` with a wrong length | rejected; old image keeps running |
+| image larger than the staging area | `finish` rejected at initiate/finish |
+| `activate` with no valid staging | module reboots into the old image |
+| payload power lost during upload | staging invalid, old image intact |
+| payload power lost during the bootloader copy | `newboot` retries on the next boot; if it cannot recover, the module stays in the bootloader → **SWD reflash** |
+| MMC reset mid‑upload | staging invalid, old image intact |
+
+## 4. Recovery when the module goes silent
+
+The MMC runs from management power, so a payload power cycle does **not** reset
+it.  Recover over SWD:
+
+```sh
+cd tools/firmware/u4fcp-v2 && ./jlink_program.sh   # newboot + app, fw_info cleared
+```
+
+Keep a clean‑build recovery image outside the tree (`docs/testing/INCIDENT-…`
+used `.hw2/recovery/`).  Prefer SWD for any module you cannot reach physically.
