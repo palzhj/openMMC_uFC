@@ -31,6 +31,7 @@
 #include "i2c.h"
 #include "i2c_mapping.h"
 #include "rtm_fru.h"
+#include "utils.h"
 
 /* 24C512 on the RTM side: 2-byte word address, 0x55 */
 #define RTM_FRU_ADDR            0x55
@@ -191,6 +192,15 @@ rtm_fru_type_t rtm_fru_type(void)
     rtm_fru_next_probe = now + pdMS_TO_TICKS(RTM_FRU_RECHECK_MS);
 
     rtm_fru_urtm = (int8_t)rtm_fru_identify();
+
+    /* one line per resolved answer: this is what tells a remote test which
+     * board the AMC thinks it has (nothing is printed while the FRU is still
+     * silent, the uRTM answers only once its 12 V is on) */
+    if (rtm_fru_urtm == (int8_t)RTM_FRU_URTM_V23) {
+        log_printk("rtm", "FRU 0x55: uRTM v2.3");
+    } else if (rtm_fru_urtm == (int8_t)RTM_FRU_OTHER) {
+        log_printk("rtm", "FRU 0x55: other RTM, no FMC monitors");
+    }
     return (rtm_fru_type_t)rtm_fru_urtm;
 }
 
