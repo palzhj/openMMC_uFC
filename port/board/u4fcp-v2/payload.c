@@ -755,17 +755,42 @@ void vTaskPayload(void *pvParameters)
     if (state == PAYLOAD_STATE_RTM_SETUP || state == PAYLOAD_STATE_CLK_SETUP ||
         state == PAYLOAD_STATE_FPGA_SETUP || state == PAYLOAD_FPGA_ON)
     {
+      /* Consume the RTM_PS# edge on every pass so a module plugged in later
+       * is not missed; it also drops the cached RTM identification. */
+      bool rtm_plugged = rtm_plugged_edge();
+
       if (rtm_12v_is_on())
       {
-        if (rtm_handle_removed())
+        /* The handle line only means "handle open" on the uRTM.  Other RTMs
+         * drive RTM_INT# from their own logic (the LattePanda carrier from
+         * its TCA9554A), where a low level is not a removal request; for
+         * them RTM_PS# alone decides. */
+        if (rtm_handle_trusted() && rtm_handle_removed())
         {
-          log_printk("rtm", "RTM handle pulled, 12 V off until the next power cycle");
+          log_printk("rtm", "RTM handle open, 12 V off");
+          rtm_disable_12v();
+        }
+        else if (!rtm_present())
+        {
+          log_printk("rtm", "RTM unplugged, 12 V off");
           rtm_disable_12v();
         }
         else if (rtm_overcurrent_check() != MMC_OK)
         {
-          log_printk("rtm", "RTM power fault, 12 V off until the next power cycle");
+          log_printk("rtm", "RTM power fault, 12 V off");
           rtm_disable_12v();
+        }
+      }
+      else if (rtm_plugged && rtm_present() && PP_good && !QUIESCED_req)
+      {
+        /* RTM_PS# low = a module is plugged: power its 12 V.  At boot the
+         * state machine does this from PAYLOAD_STATE_RTM_SETUP; this path
+         * covers a module inserted while the payload is already up (and a
+         * re-plug after a removal). */
+        log_printk("rtm", "RTM plugged, 12 V on");
+        if (rtm_enable_12v() != MMC_OK)
+        {
+          log_printk("rtm", "RTM 12 V enable failed");
         }
       }
     }

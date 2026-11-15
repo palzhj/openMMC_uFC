@@ -24,6 +24,7 @@
 #include "port.h"
 #include "payload.h"
 #include "rtm.h"
+#include "rtm_fru.h"
 #include "ucd90xxx.h"
 #include "utils.h"
 
@@ -40,6 +41,8 @@ extern ucd_data_t ucd_data[SDR_CH_COUNT];
 
 static uint8_t rtm_12v_on;
 static TickType_t rtm_ready_tick;
+static uint8_t rtm_ps_known;
+static uint8_t rtm_ps_last;
 
 static bool rtm_ps_low(void)
 {
@@ -57,6 +60,43 @@ void rtm_init(void)
 {
   rtm_12v_on = 0;
   rtm_ready_tick = 0;
+  /* Sample RTM_PS# now so a module plugged in after this point is seen as an
+   * edge by rtm_plugged_edge() and gets its 12 V (the boot sequence powers
+   * the RTM that is already there through PAYLOAD_STATE_RTM_SETUP). */
+  rtm_ps_known = 1;
+  rtm_ps_last = rtm_ps_low() ? 1 : 0;
+}
+
+/* Identify the RTM from its FRU (see rtm_fru.c).  Unknown until the module
+ * answers: the uRTM only exposes its FRU once the 12 V is on. */
+bool rtm_is_urtm_v23(void)
+{
+  return rtm_fru_is_urtm_v23();
+}
+
+bool rtm_handle_trusted(void)
+{
+  return rtm_fru_type() != RTM_FRU_OTHER;
+}
+
+/* RTM_PS# edge detector.  A plugged-in module is a "new" module: drop the
+ * identification so it is read again (an unplug/replug may be another board). */
+bool rtm_plugged_edge(void)
+{
+  bool low = rtm_ps_low();
+  bool edge = false;
+
+  if (!rtm_ps_known) {
+    rtm_ps_known = 1;
+    rtm_ps_last = low ? 1 : 0;
+    return false;
+  }
+  edge = (!rtm_ps_last && low);
+  rtm_ps_last = low ? 1 : 0;
+  if (edge) {
+    rtm_fru_invalidate();
+  }
+  return edge;
 }
 
 bool rtm_present(void)
@@ -100,12 +140,19 @@ mmc_err rtm_enable_12v(void)
   if (rtm_12v_on) {
     return MMC_OK;
   }
-  vTaskDelay(pdMS_TO_TICKS(RTM_TURNON_DELAY_MS));
+  /* The uRTM needs its controller to configure the RTM clocks before the
+   * FPGA draws its inrush; boards that identify as something else (e.g. the
+   * LattePanda carrier) get the 12 V at once.  An unidentified module gets
+   * the conservative delay. */
+  vTaskDelay(pdMS_TO_TICKS(rtm_fru_type() == RTM_FRU_OTHER ? 0
+                                                          : RTM_TURNON_DELAY_MS));
   if (!rtm_present()) {
     return MMC_IO_ERR;   /* the module was removed while waiting */
   }
   ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 1);
   rtm_12v_on = 1;
+  /* the uRTM's FRU answers only now: retry the identification immediately */
+  rtm_fru_invalidate();
   rtm_ready_tick = xTaskGetTickCount() + pdMS_TO_TICKS(RTM_CONFIG_DELAY_MS);
   log_printk("rtm", "RTM 12 V on (handle monitor in %u s)",
              RTM_CONFIG_DELAY_MS / 1000);

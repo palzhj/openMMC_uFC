@@ -136,6 +136,13 @@ SECTIONS
     _edata = .;        /* define a global symbol at data end */
   } >RAM
 
+  /* The .data load image is appended after .text at _sidata, and that LMA is
+   * outside the "> FLASH" region check: a nearly full image can spill the
+   * initialised data into the staging region (0x08010E00) with no diagnostic
+   * at all.  Catch it here instead. */
+  ASSERT(_sidata + SIZEOF(.data) <= __AppFlash_end + 1,
+         "openMMC: .text + .data overflow the application flash region")
+
   /* FreeRTOS heap lives in .noinit_RAM2: keep it out of the load image */
   .noinit_RAM2 (NOLOAD) :
   {

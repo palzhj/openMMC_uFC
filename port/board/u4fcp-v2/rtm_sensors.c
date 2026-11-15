@@ -32,6 +32,7 @@
 #include "i2c.h"
 #include "i2c_mapping.h"
 #include "rtm.h"
+#include "rtm_fru.h"
 #include "rtm_sensors.h"
 #include "task_priorities.h"
 #include "utils.h"
@@ -64,6 +65,15 @@
 /* How long to wait for the RTM 12 V before dumping the monitors anyway
  * (the MP rails of the RTM answer even when the FMC rails are off). */
 #define RTM_SENSORS_DUMP_WAIT_MS  10000
+
+/* The boot dump costs ~850 B of flash (nine readings plus their names) and
+ * only prints; the readings are in the SDR records anyway.  It is therefore
+ * a bench-build option: -DRTM_SENSORS_BOOT_DUMP=ON. */
+#ifdef RTM_SENSORS_BOOT_DUMP
+#define RTM_DUMP_ENABLED 1
+#else
+#define RTM_DUMP_ENABLED 0
+#endif
 
 typedef struct {
   uint8_t page;                 /* PMBus PAGE */
@@ -99,8 +109,10 @@ static uint8_t rtm_fail_step;       /* last failing step, for the log */
 /* IPMI Get Sensor Reading, reading-state byte bit 5: reading/state unavailable */
 #define RTM_SENSOR_STATE_UNAVAILABLE 0x20
 
+#if RTM_DUMP_ENABLED
 static bool rtm_dump_pending;
 static TickType_t rtm_dump_tick;
+#endif
 
 /* The group exists while the uRTM is up: it runs from the 12 V the AMC
  * switches, so RTM_INT_B (attention) is low whenever it is off, booting or
@@ -303,7 +315,7 @@ out:
 
 /* Read the RTM 12 V input rail (page 0, x2^-10, 0.164 divider).  It is not
  * one of the eight SDR sensors, but it tells whether the RTM input is up. */
-static bool rtm_ucd_read_rail_12v(int32_t *milli)
+static bool __attribute__((unused)) rtm_ucd_read_rail_12v(int32_t *milli)
 {
   uint8_t i2c_interface = 0;
   uint8_t i2c_address = 0;
@@ -401,8 +413,10 @@ bool rtm_sensors_insert(void)
 
   rtm_scan_on = false;
   rtm_fail_count = 0;
+#if RTM_DUMP_ENABLED
   rtm_dump_pending = true;
   rtm_dump_tick = xTaskGetTickCount();
+#endif
 
   log_printk("rtm", "%d FMC2/FMC3 monitors added (sensors 0x%02x-0x%02x, entity 0x%02x/%u)",
              RTM_SENSORS_COUNT, first_num, first_num + RTM_SENSORS_COUNT - 1,
@@ -424,7 +438,9 @@ void rtm_sensors_remove(void)
   }
 
   rtm_scan_on = false;
+#if RTM_DUMP_ENABLED
   rtm_dump_pending = false;
+#endif
 
   log_printk("rtm", "RTM %s, FMC2/FMC3 monitors removed from the SDR",
              rtm_present() ? "not running" : "unplugged");
@@ -434,14 +450,17 @@ void rtm_sensors_remove(void)
 /* Boot log dump                                                       */
 /* ------------------------------------------------------------------ */
 
+#if RTM_DUMP_ENABLED
 void rtm_sensors_dump(void)
 {
   int32_t milli[RTM_SENSORS_COUNT] = { 0 };
   int32_t rail_12v = 0;
 
-  if (!rtm_attached()) {
-    log_printk("rtm", "no RTM (%s), no FMC2/FMC3 monitors to read",
-               rtm_present() ? "not running (handle open or off)" : "unplugged");
+  if (!rtm_attached() || !rtm_is_urtm_v23()) {
+    log_printk("rtm", "no uRTM v2.3 (%s), no FMC monitors",
+               !rtm_present() ? "not plugged" :
+               (rtm_fru_type() == RTM_FRU_OTHER) ? "other RTM" :
+               "not running / no FRU");
     return;
   }
 
@@ -450,13 +469,11 @@ void rtm_sensors_dump(void)
     return;
   }
 
-  if (rtm_ucd_read_rail_12v(&rail_12v)) {
-    log_printk("rtm", "UCD 0x5B: RTM 12 V input %d mV, RTM 12 V %s",
-               (int)rail_12v, rtm_12v_is_on() ? "on" : "off");
-  } else {
-    log_printk("rtm", "UCD 0x5B: RTM 12 V input not readable, RTM 12 V %s",
-               rtm_12v_is_on() ? "on" : "off");
+  if (!rtm_ucd_read_rail_12v(&rail_12v)) {
+    rail_12v = -1;                    /* printed as "not readable" */
   }
+  log_printk("rtm", "UCD 0x5B: RTM 12 V input %d mV, RTM 12 V %s",
+             (int)rail_12v, rtm_12v_is_on() ? "on" : "off");
 
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
     if (rtm_monitors[i].sensor_type == SENSOR_TYPE_VOLTAGE) {
@@ -470,6 +487,7 @@ void rtm_sensors_dump(void)
     }
   }
 }
+#endif /* RTM_SENSORS_BOOT_DUMP */
 
 /* ------------------------------------------------------------------ */
 /* Polling task                                                        */
@@ -478,7 +496,7 @@ void rtm_sensors_dump(void)
 /* Have the RTM's own FMC VADJ regulators come up?  (The uRTM UCD sequences
  * its rails after the 12 V is enabled, so the first reading can still be
  * zero.) */
-static bool rtm_rails_up(const int32_t *milli)
+static bool __attribute__((unused)) rtm_rails_up(const int32_t *milli)
 {
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
     if (rtm_monitors[i].sensor_type == SENSOR_TYPE_VOLTAGE && milli[i] > 500) {
@@ -529,12 +547,18 @@ static void vTaskRtmSensors(void *Parameters)
     running = running && rtm_present_selftest();
 #endif
 
-    /* The records are created as soon as the RTM is plugged and then kept for
-     * the whole session: the MCH caches them and a deleted record turns every
-     * of its scans into a "could not read sensor" error.  When the RTM is not
-     * running the sensors report "reading unavailable" instead. */
-    if (plugged && !rtm_sensors_is_inserted()) {
+    /* The records exist only for the board that actually has the monitors:
+     * the RTM must identify itself as uRTM v2.3 through its FRU.  Another
+     * RTM (the LattePanda carrier runs its own MMC), or one whose FRU cannot
+     * be read, gets no RTM SDR entries at all.  Once inserted they are kept
+     * for the whole session unless the module is positively another board:
+     * the MCH caches them and a deleted record turns every scan into a
+     * "could not read sensor" error. */
+    if (plugged && !rtm_sensors_is_inserted() && rtm_is_urtm_v23()) {
       rtm_sensors_insert();
+    }
+    if (rtm_sensors_is_inserted() && rtm_fru_type() == RTM_FRU_OTHER) {
+      rtm_sensors_remove();
     }
 
     if (rtm_sensors_is_inserted()) {
@@ -556,12 +580,14 @@ static void vTaskRtmSensors(void *Parameters)
           }
           rtm_sensors_update(milli);
 
+#if RTM_DUMP_ENABLED
           /* the boot dump waits for the FMC rails to come up, so the log
            * shows real currents and not the zeroes of the power-up ramp */
           if (rtm_dump_pending && rtm_rails_up(milli)) {
             rtm_sensors_dump();
             rtm_dump_pending = false;
           }
+#endif
         } else {
           if (rtm_fail_count < RTM_SENSORS_FAIL_LIMIT) {
             rtm_fail_count++;
@@ -580,12 +606,14 @@ static void vTaskRtmSensors(void *Parameters)
                    plugged ? "not running" : "unplugged");
       }
 
+#if RTM_DUMP_ENABLED
       if (rtm_dump_pending &&
           (xTaskGetTickCount() - rtm_dump_tick) >= pdMS_TO_TICKS(RTM_SENSORS_DUMP_WAIT_MS)) {
         /* the RTM never powered its FMC rails: dump what the MP side shows */
         rtm_sensors_dump();
         rtm_dump_pending = false;
       }
+#endif
     }
 
     vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(RTM_SENSORS_PERIOD_MS));
@@ -599,7 +627,9 @@ void rtm_sensors_init(void)
     rtm_milli[i] = 0;
   }
   rtm_scan_on = false;
+#if RTM_DUMP_ENABLED
   rtm_dump_pending = false;
+#endif
 
   if (xTaskCreate(vTaskRtmSensors, "RTM Sensors", RTM_SENSORS_TASK_STACK,
                   (void *)NULL, tskRTMSENSORS_PRIORITY,
@@ -607,10 +637,10 @@ void rtm_sensors_init(void)
     log_printk("rtm", "no heap for the RTM sensor task");
   }
 
-  /* Insert before the scheduler starts when the RTM is already up, so the
+  /* Insert before the scheduler starts when the uRTM is already up, so the
    * MCH sees the sensors from its first SDR read (the task handles the
    * insert/remove for everything after that). */
-  if (rtm_attached()) {
+  if (rtm_attached() && rtm_is_urtm_v23()) {
     rtm_sensors_insert();
   }
 }

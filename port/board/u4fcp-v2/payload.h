@@ -39,7 +39,11 @@
 
 #include "event_groups.h"
 
-typedef struct
+/* Packed on purpose: the compiled clock defaults are two 526-entry tables in
+ * flash (the fallback when the clock store in the EEPROM is blank).  Without
+ * the packing every entry carries a padding byte, i.e. 1 KB of flash for
+ * nothing.  The tables are only read, one entry at a time. */
+typedef struct __attribute__((packed))
 {
   uint16_t address; /* 16-bit register address */
   uint8_t value; /* 8-bit register data */

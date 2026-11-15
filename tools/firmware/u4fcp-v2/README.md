@@ -309,6 +309,32 @@ Note: the FRU and clock‑store steps need the board reachable through the
 MCH's IPMB‑L — for a bare bench board without an MCH, flash over SWD and
 program the FRU later in the crate (`--no-flash`).
 
+## RTM support (uRTM v2.3 and the LattePanda carrier)
+
+The AMC works with either RTM in Zone 3.  It identifies the module from the
+RTM FRU at 0x55 and only then publishes the nine `0x1B-0x23` FMC2/FMC3 monitor
+sensors (they come from the uRTM's UCD90124A):
+
+| RTM in Zone 3 | identification | RTM SDRs | RTM 12 V |
+|---|---|---|---|
+| uRTM v2.3 | FRU 0x55 behind `0x70 ch5 -> 0x71 ch7`, product `uRTM`, version `2.3` | 9 monitors, entity `0xC0/0x00` | 3 s after RTM_PS# goes low (inrush) |
+| RTM Carrier for LattePanda Mu v1 | FRU 0x55 directly on the RTM bus, another product | none | immediately when RTM_PS# is low |
+| no FRU / blank / unreadable | — | none | 3 s (conservative) |
+
+- A module plugged while the payload is already up is powered on the RTM_PS#
+  edge — no payload power cycle needed; unplugging (RTM_PS# high) cuts the
+  12 V again.
+- `RTM_INT#` is read as "handle open" only for the uRTM; the LattePanda carrier
+  drives that line from its own TCA9554A, where it is an interrupt.
+- The uRTM exposes its FRU only once its 12 V is on, so the first probe after
+  power-up may be negative; it is retried every 5 s and the answer is cached
+  until the module is unplugged.
+
+The boot dump of the monitor readings is a bench option,
+`-DRTM_SENSORS_BOOT_DUMP=ON` (~850 B of flash, off in production); the
+readings are in the SDR records anyway.  Details:
+`docs/RTM_SENSORS_PLAN.md`.
+
 ## Layout (128 KB)
 
 | region | range | size |
