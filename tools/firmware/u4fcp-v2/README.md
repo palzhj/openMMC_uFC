@@ -110,6 +110,9 @@ Prerequisites:
 - the board reachable through the MCH's IPMB bridge for the IPMI steps:
   target address `0x70 + 2*slot` (AMC12 -> `0x88`), transit `0x82`,
   bus `0` — `ipmitool -I lan -H <mch> -A none -T 0x82 -B 0 -t 0x88 -b 0 …`;
+- **`ipmitool`** on the machine that runs the scripts — the FRU, clock-preset
+  and VADJ steps all go through it (`sudo apt install ipmitool`); the double
+  bridge needs at least 1.8.11;
 - the images built (see above).
 
 The bring-up is four steps; `program.sh` runs them in one go.  It **builds the

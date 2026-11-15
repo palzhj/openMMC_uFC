@@ -14,6 +14,30 @@ using the firmware's raw EEPROM commands (custom NetFn `0x32`):
 The firmware must be built with **`-DEEPROM_ACCESS=ON`** (FRU editing) and
 **`-DI2C_ACCESS=ON`** (I²C transfer tab).
 
+## Requirements
+
+Two external programs are **required** and neither is bundled:
+
+| requirement | needed for | install |
+|---|---|---|
+| **`ipmitool`** | runtime — **every** action. The FRU and I²C tabs shell out to `ipmitool … raw 0x32 …`; the OTA tab uses `ipmitool … hpm check/upgrade/activate`, and *Upload (bridge)* sends HPM.1 as 20-byte `ipmitool … raw 0x2c …` blocks | Linux `sudo apt install ipmitool`; Windows put `ipmitool.exe` in `PATH` or next to the executable |
+| **PyInstaller** | building the standalone binary (`build-linux.sh` / `build-windows.bat`) — not needed to run from source | `pip install pyinstaller` |
+
+`ipmitool` stays a runtime dependency of the built binary: `dist/ufc-toolbox`
+is a single file but **not** self-contained. Install it system-wide, or drop
+`ipmitool` / `ipmitool.exe` next to the executable — the app prefers that local
+copy, otherwise it uses the one from `PATH`, and without either the FRU, I²C
+and OTA actions fail with `cannot run ipmitool`.
+
+Running from source also needs Python 3 with **Tkinter** (`python3-tk` on
+Debian/Ubuntu; it is included in the python.org Windows installer).
+
+For HPM updates through the MCH's double bridge (MCH → transit → target),
+`ipmitool` must be at least **1.8.11** (the NAT-MCH manual's requirement).
+Plain `ipmitool hpm upgrade` sizes its blocks from the LAN MTU and does not
+work behind the bridge — that is why the OTA tab carries the separate
+*Upload (bridge)* path.
+
 ## Look
 
 ![uFC Toolbox](docs/ui.png)
@@ -68,8 +92,9 @@ Windows: install Python from python.org (Tkinter is included) and put
 
 ## Build a standalone binary
 
-The app is plain Python + Tkinter; [PyInstaller](https://pyinstaller.org/)
-produces a single-file executable.
+The app is plain Python + Tkinter; [PyInstaller](https://pyinstaller.org/) is
+required for this step (see [Requirements](#requirements)) and produces a
+single-file executable.
 
 ```sh
 pip install pyinstaller
@@ -81,9 +106,10 @@ tools/uFC_toolbox/build-linux.sh        # → tools/uFC_toolbox/dist/ufc-toolbox
 tools\uFC_toolbox\build-windows.bat     # → tools\uFC_toolbox\dist\ufc-toolbox.exe
 ```
 
-`ipmitool` is still an external program: install it system-wide, or place
-`ipmitool` / `ipmitool.exe` next to the built executable — the app prefers the
-local copy when present.
+`ipmitool` is still an external program at runtime (see
+[Requirements](#requirements)): install it system-wide, or place `ipmitool` /
+`ipmitool.exe` next to the built executable — the app prefers the local copy
+when present.
 
 ## What the connection fields mean
 
