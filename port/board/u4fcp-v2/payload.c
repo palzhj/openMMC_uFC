@@ -744,59 +744,6 @@ void vTaskPayload(void *pvParameters)
     DCDC_good = 1;
 #endif
 
-    /* RTM 12 V / RTM_HANDLE monitor, independent of the payload sub-state.
-     * The uRTM has no management power of its own (it runs from this rail)
-     * and pulls RTM_INT_B low while it boots and while its MCU configures
-     * the RTM clocks.  The handle is therefore only judged after
-     * RTM_CONFIG_DELAY_MS (rtm_handle_removed()): if it is still low then,
-     * the handle was opened -> cut the 12 V and leave the RTM unpowered.
-     * Power is only given again on the next payload power cycle, whose
-     * POWER_GOOD_WAIT state checks RTM_PS# before powering the RTM. */
-    if (state == PAYLOAD_STATE_RTM_SETUP || state == PAYLOAD_STATE_CLK_SETUP ||
-        state == PAYLOAD_STATE_FPGA_SETUP || state == PAYLOAD_FPGA_ON)
-    {
-      /* Consume the RTM_PS# edge on every pass so a module plugged in later
-       * is not missed; it also drops the cached RTM identification. */
-      bool rtm_plugged = rtm_plugged_edge();
-
-      if (rtm_12v_is_on())
-      {
-        /* The handle line only means "handle open" on the uRTM.  Other RTMs
-         * drive RTM_INT# from their own logic (the LattePanda carrier from
-         * its TCA9554A), where a low level is not a removal request; for
-         * them RTM_PS# alone decides.  The same holds for the RTM 12 V / MP
-         * fault pins: they only exist on the uRTM, so a module that did not
-         * identify as one is never switched off by them. */
-        if (rtm_handle_trusted() && rtm_handle_removed())
-        {
-          log_printk("rtm", "RTM handle open, 12 V off");
-          rtm_disable_12v();
-        }
-        else if (!rtm_present())
-        {
-          log_printk("rtm", "RTM unplugged, 12 V off");
-          rtm_disable_12v();
-        }
-        else if (rtm_handle_trusted() && rtm_overcurrent_check() != MMC_OK)
-        {
-          log_printk("rtm", "RTM power fault, 12 V off");
-          rtm_disable_12v();
-        }
-      }
-      else if (rtm_plugged && rtm_present() && PP_good && !QUIESCED_req)
-      {
-        /* RTM_PS# low = a module is plugged: power its 12 V.  At boot the
-         * state machine does this from PAYLOAD_STATE_RTM_SETUP; this path
-         * covers a module inserted while the payload is already up (and a
-         * re-plug after a removal). */
-        log_printk("rtm", "RTM plugged, 12 V on");
-        if (rtm_enable_12v() != MMC_OK)
-        {
-          log_printk("rtm", "RTM 12 V enable failed");
-        }
-      }
-    }
-
     switch (state)
     {
 
@@ -845,38 +792,16 @@ void vTaskPayload(void *pvParameters)
                    (int)(1000 * tpl0102_get_amc_voltage(1)));
 #endif
 
-        /* RTM present?  RTM_PS# (PA8) low = handle closed; the 12 V is
-         * enabled from the RTM_SETUP state (rtm.c startup policy). */
-        rtm_init();
-        if (!rtm_present())
-        {
-          log_printk("pwr", "no RTM");
-          new_state = PAYLOAD_STATE_CLK_SETUP;
-        }
-        else
-        {
-          log_printk("rtm", "RTM detected");
-          new_state = PAYLOAD_STATE_RTM_SETUP;
-        }
+        /* The RTM manager owns Zone 3 from here on: it powers and identifies
+         * the module by itself (rtm.c), this just says the AMC rails are up. */
+        rtm_payload_up(true);
+        new_state = PAYLOAD_STATE_CLK_SETUP;
 
         // Turn on the green light
         LEDUpdate( FRU_AMC, LED2, LEDMODE_OVERRIDE, LEDINIT_ON, 0, 0 );
         // config JTAG
         if (config_jtag() != MMC_OK)
           log_printk("jtag", "config failed");
-      }
-      break;
-
-    case PAYLOAD_STATE_RTM_SETUP:
-      if (QUIESCED_req || (PP_good == 0)) { new_state = PAYLOAD_SWITCHING_OFF; break; }
-      if (rtm_enable_12v() == MMC_OK)
-      {
-        new_state = PAYLOAD_STATE_CLK_SETUP;
-      }
-      else if (!rtm_present())
-      {
-        log_printk("rtm", "RTM left before power-up, no 12 V");
-        new_state = PAYLOAD_STATE_CLK_SETUP;
       }
       break;
 
@@ -932,7 +857,7 @@ void vTaskPayload(void *pvParameters)
       /* rails are going down: stop scanning them before they fall out of
        * range, otherwise every sensor sends a lower-non-recoverable event */
       payload_sensors_scan(false);
-      rtm_disable_12v();
+      rtm_payload_up(false);
       // ucd_set_gpio(&ucd_data[0], UCD_GPO_RTM_MP_EN_ID, 0);
 
       // ucd_set_gpio(&ucd_data[0], UCD_GPO_FMC0_PG_C2M_ID, 0);
@@ -968,7 +893,7 @@ void vTaskPayload(void *pvParameters)
     case PAYLOAD_RESET:
       /*Reset DCDC converters*/
       payload_sensors_scan(false);
-      rtm_disable_12v();
+      rtm_payload_up(false);
       setDC_DC_ConvertersON(false);
       new_state = PAYLOAD_NO_POWER;
       break;

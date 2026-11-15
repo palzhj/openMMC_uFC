@@ -47,6 +47,7 @@
 
 #define UCD_REG_PAGE 0x00
 #define UCD_REG_OPERATION 0x01
+#define UCD_REG_CLEAR_FAULTS 0x03
 #define UCD_REG_VOUT_MODE 0x20
 #define UCD_REG_STATUS_BYTE 0x78
 #define UCD_REG_STATUS_VOUT 0x7A
@@ -755,6 +756,64 @@ void ucd_set_gpio(ucd_data_t * data, uint8_t pin_number, uint8_t state)
  * @param page The page number to control (typically corresponds to a specific power rail).
  * @param state The desired power state (1 to enable, 0 to disable).
  */
+/**
+ * @brief Clears the fault registers of one PMBus page (CLEAR_FAULTS, 0x03).
+ *
+ * A UCD latches a rail off when it declares a fault on it: writing
+ * OPERATION = 0x80 afterwards leaves the page in "off" until the fault is
+ * cleared.  Bring-up therefore clears the page before enabling it (see
+ * docs/UCD90320_NOTES.md).
+ *
+ * @return 1 if the command was sent, 0 if the bus never answered
+ */
+uint8_t ucd_clear_faults(ucd_data_t * data, uint8_t page)
+{
+  uint8_t i2c_interf, i2c_addr;
+  uint8_t cmd = UCD_REG_CLEAR_FAULTS;
+  uint8_t len = 0;
+  uint8_t tries = 0;
+
+  while (pdTRUE != xSemaphoreTake(xUCD_busy, pdMS_TO_TICKS(UCD_UPDATE_RATE))) vTaskDelay(pdMS_TO_TICKS(UCD_UPDATE_RATE));
+  ucd_write_byte(data, UCD_REG_PAGE, &page);
+
+  /* CLEAR_FAULTS carries no data byte: a one-byte write, bounded so a dead
+   * bus cannot hang the caller */
+  while (len != 1)
+  {
+    if (i2c_take_by_chipid(data->chipid, &i2c_addr, &i2c_interf, portMAX_DELAY) == pdTRUE)
+    {
+      len = xI2CMasterWrite(i2c_interf, i2c_addr, &cmd, 1);
+      i2c_give(i2c_interf);
+    }
+
+    if (len != 1 && ++tries >= UCD_MAX_READ_TRIES)
+    {
+      xSemaphoreGive(xUCD_busy);
+      return 0;
+    }
+  }
+
+  xSemaphoreGive(xUCD_busy);
+  return 1;
+}
+
+/**
+ * @brief Reads the OPERATION register of one page (PAGE + OPERATION).
+ *
+ * @param[out] operation 0x80 = on, 0x00 = off, 0x40/0x50 = soft off
+ * @return 1 if the register was read, 0 on a bus error
+ */
+uint8_t ucd_get_operation(ucd_data_t * data, uint8_t page, uint8_t * operation)
+{
+  uint8_t ret;
+
+  while (pdTRUE != xSemaphoreTake(xUCD_busy, pdMS_TO_TICKS(UCD_UPDATE_RATE))) vTaskDelay(pdMS_TO_TICKS(UCD_UPDATE_RATE));
+  ucd_write_byte(data, UCD_REG_PAGE, &page);
+  ret = ucd_read_byte(data, UCD_REG_OPERATION, operation);
+  xSemaphoreGive(xUCD_busy);
+  return ret;
+}
+
 void ucd_set_power(ucd_data_t * data, uint8_t page, uint8_t state)
 {
   uint8_t temp;

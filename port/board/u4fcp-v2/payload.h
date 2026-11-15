@@ -55,7 +55,6 @@ typedef struct __attribute__((packed))
 extern enum {
     PAYLOAD_NO_POWER = 0,
     PAYLOAD_POWER_GOOD_WAIT,
-    PAYLOAD_STATE_RTM_SETUP,
     PAYLOAD_STATE_CLK_SETUP,
     PAYLOAD_STATE_FPGA_SETUP,
     PAYLOAD_FPGA_ON,
