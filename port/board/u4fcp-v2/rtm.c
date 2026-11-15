@@ -346,6 +346,12 @@ void rtm_init(void)
   rtm_t_probe = 0;
   rtm_mp_forced = false;
 
+  /* RTM_RES stays LOW: the uRTM MCU reads this line to know that it is
+   * running as an RTM (v1.6.3 left it at the pin table's default, also low,
+   * and the uRTM v2.3 works that way).  Drive it explicitly so the intent is
+   * visible and nothing can raise it later. */
+  gpio_set_pin_low(PIN_PORT(GPIO_RTM_RES), PIN_NUMBER(GPIO_RTM_RES));
+
   /* Sample RTM_PS# now so a module plugged in later is seen as an edge. */
   rtm_plug_known = true;
   rtm_plug_last = rtm_ps_low();
