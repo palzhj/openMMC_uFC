@@ -270,6 +270,11 @@ static void rtm_step(void)
       rtm_state = RTM_MANAGED;
     } else if (rtm_type == RTM_FRU_OTHER) {
       log_printk("rtm", "FRU 0x55: other RTM, no FMC monitors");
+      /* a positively identified other board took the place of a uRTM: its
+       * FMC2/FMC3 records no longer describe anything on Zone 3 */
+      if (rtm_sensors_is_inserted()) {
+        rtm_sensors_remove();
+      }
       rtm_state = RTM_UNMANAGED;
     } else if (++rtm_tries >= RTM_PROBE_TRIES) {
       log_printk("rtm", "FRU 0x55: no answer, RTM left unmanaged");
