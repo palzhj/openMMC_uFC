@@ -120,6 +120,19 @@ void rtm_payload_up(bool up)
   }
 }
 
+/* RTM_RES is a reset line into the module (MMC PA2 -> the RTM controller).
+ * It has to be released once the module is powered: an RTM that is never
+ * released stays in reset and never enables its own supplies, which looks
+ * exactly like "the 12 V is on but nothing draws current". */
+static void rtm_reset_release(bool release)
+{
+  if (release) {
+    gpio_set_pin_high(PIN_PORT(GPIO_RTM_RES), PIN_NUMBER(GPIO_RTM_RES));
+  } else {
+    gpio_set_pin_low(PIN_PORT(GPIO_RTM_RES), PIN_NUMBER(GPIO_RTM_RES));
+  }
+}
+
 static void rtm_power_on(void)
 {
   uint8_t op = 0;
@@ -140,6 +153,9 @@ static void rtm_power_on(void)
     }
   }
   rtm_12v_on = true;
+
+  /* let the module controller run (it enables the module's own supplies) */
+  rtm_reset_release(true);
 }
 
 static void rtm_power_off(void)
@@ -147,6 +163,7 @@ static void rtm_power_off(void)
   if (!rtm_12v_on) {
     return;
   }
+  rtm_reset_release(false);
   ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 0);
   rtm_12v_on = false;
   rtm_ready_tick = 0;
@@ -304,6 +321,9 @@ void rtm_init(void)
   rtm_tries = 0;
   rtm_ready_tick = 0;
   rtm_t_probe = 0;
+
+  /* keep the module in reset until its rail is up */
+  rtm_reset_release(false);
 
   /* Sample RTM_PS# now so a module plugged in later is seen as an edge. */
   rtm_plug_known = true;
