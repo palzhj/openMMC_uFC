@@ -365,14 +365,17 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   and this shelf's payload 12 V reads **13.12 V** on the UCD — a 1.4 % margin
   to the over-voltage trip.  When the mux rejects the input the module never
   powers, nothing draws, the rail stays unloaded (and high), and the state is
-  stable: exactly what AMC6 shows.  **AMC.0 REQ 4.15b allows 10.8-13.2 V at the module contacts**, so a 13.1 V
-  rail is compliant and the carrier's 13.3 V trip sits only **0.1 V above the
-  legal maximum** - less than the divider tolerance (±1 % = ±0.13 V).  The
-  carrier can therefore reject a fully compliant input, which is exactly the
-  AMC6 signature (rail good at the connector, module unpowered, 0 A).  The fix
-  belongs on the carrier: move the `OV1`/`OV2` divider (U28 pins 4/5,
-  `R85` 5 K and its top resistor) for a ~15 V trip.  A lab 12.0 V supply on the
-  carrier's own 12 V jack is the quick A/B test.
+  stable: exactly what AMC6 shows.  The mux is **not** the blocker: measured 2026-11-16 on AMC6, the carrier's
+  EEPROM follows `RTM_12V0_EN` (ACK with the rail on, nack with it off) even
+  while `LGPO14`/`RTM_MP3V3_EN` is driven low, i.e. the carrier is powered from
+  its own side of the mux and the 13.1 V input is passed.  (AMC.0 REQ 4.15b
+  allows 10.8-13.2 V, and the carrier's annotated `OV = 13.3 V` leaves only
+  ~0.1 V margin, so it is worth relaxing on the carrier - but it is not what
+  fails here.)
+- What remains is the **module**: the LattePanda Mu never asserts its `POW_EN`,
+  so the carrier's LTM4671 (`RUN_3V3`/`RUN_5V0`/`RUN_0V9`) never starts, and
+  with no carrier 3V3 nothing draws current.  Check the module's power button
+  (`PWRBTN_B`/`POWBTN_B`) or its auto-start setting, or the module itself.
 - If EN3 toggles and `PGb` reports good but the rail current stays at 0 A, the
   MMC's job is done: the module is not drawing.  Suspects are then the
   module's own power path (TPS2121 source select, LTM4671 `RUN_3V3` chain,
