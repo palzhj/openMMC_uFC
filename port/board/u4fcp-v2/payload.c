@@ -764,7 +764,9 @@ void vTaskPayload(void *pvParameters)
         /* The handle line only means "handle open" on the uRTM.  Other RTMs
          * drive RTM_INT# from their own logic (the LattePanda carrier from
          * its TCA9554A), where a low level is not a removal request; for
-         * them RTM_PS# alone decides. */
+         * them RTM_PS# alone decides.  The same holds for the RTM 12 V / MP
+         * fault pins: they only exist on the uRTM, so a module that did not
+         * identify as one is never switched off by them. */
         if (rtm_handle_trusted() && rtm_handle_removed())
         {
           log_printk("rtm", "RTM handle open, 12 V off");
@@ -775,7 +777,7 @@ void vTaskPayload(void *pvParameters)
           log_printk("rtm", "RTM unplugged, 12 V off");
           rtm_disable_12v();
         }
-        else if (rtm_overcurrent_check() != MMC_OK)
+        else if (rtm_handle_trusted() && rtm_overcurrent_check() != MMC_OK)
         {
           log_printk("rtm", "RTM power fault, 12 V off");
           rtm_disable_12v();

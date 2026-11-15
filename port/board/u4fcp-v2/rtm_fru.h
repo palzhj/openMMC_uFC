@@ -27,8 +27,10 @@ typedef enum {
  * The EEPROM is read twice over the RTM path: first through the uRTM's own
  * switch (0x70 ch5 -> 0x71 ch7, where the uRTM keeps its FRU), then directly
  * on the RTM bus (0x70 ch5 -> 0x55) for boards without that switch.  The
- * uRTM FRU only answers once its 12 V is on, so a "no" answer is re-probed
- * every few seconds instead of being final.
+ * uRTM FRU only answers once its 12 V is on, so probing starts a few seconds
+ * after rtm_fru_powered(); it is tried a bounded number of times and then
+ * given up - the module is left alone (no further RTM bus access) until it is
+ * unplugged and plugged again.
  *
  * @retval true the RTM answered and its FRU identifies it as uRTM v2.3
  */
@@ -47,5 +49,14 @@ rtm_fru_type_t rtm_fru_type(void);
  * @brief Forget the cached identification (module plugged/unplugged).
  */
 void rtm_fru_invalidate(void);
+
+/**
+ * @brief The RTM 12 V was just switched on: restart identification.
+ *
+ * Starts the settle window (RTM_FRU_SETTLE_MS) during which the RTM bus is
+ * left untouched, because the module's own MCU needs a few seconds and an
+ * unpowered I2C slave clamps the shared bus.
+ */
+void rtm_fru_powered(void);
 
 #endif

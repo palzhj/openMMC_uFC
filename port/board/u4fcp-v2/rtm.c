@@ -76,7 +76,13 @@ bool rtm_is_urtm_v23(void)
 
 bool rtm_handle_trusted(void)
 {
-  return rtm_fru_type() != RTM_FRU_OTHER;
+  /* Only the uRTM v2.3 has a meaningful RTM_HANDLE; the same is true of its
+   * RTM 12 V / MP fault pins (UCD GPI MAR15 / LGPO16), which are simply not
+   * driven by any other RTM.  An unidentified module (no FRU, or a FRU that
+   * cannot be read yet) is treated like a foreign one: RTM_PS# alone decides
+   * whether it is powered, so a carrier without the uRTM's lines is not
+   * switched off right after the 12 V came up. */
+  return rtm_fru_type() == RTM_FRU_URTM_V23;
 }
 
 /* RTM_PS# edge detector.  A plugged-in module is a "new" module: drop the
@@ -140,19 +146,21 @@ mmc_err rtm_enable_12v(void)
   if (rtm_12v_on) {
     return MMC_OK;
   }
-  /* The uRTM needs its controller to configure the RTM clocks before the
-   * FPGA draws its inrush; boards that identify as something else (e.g. the
-   * LattePanda carrier) get the 12 V at once.  An unidentified module gets
-   * the conservative delay. */
-  vTaskDelay(pdMS_TO_TICKS(rtm_fru_type() == RTM_FRU_OTHER ? 0
-                                                          : RTM_TURNON_DELAY_MS));
+  /* The RTM bus must not be touched before the rail is up: an unpowered
+   * module clamps SDA/SCL through its ESD diodes, which wedges the whole
+   * I2C2 bus - including the UCD writes needed to switch the rail on.  So
+   * never identify the module here: wait the conservative uRTM delay (its
+   * controller has to configure the RTM clocks before the FPGA draws its
+   * inrush) and identify it from its FRU afterwards, with the 12 V on. */
+  vTaskDelay(pdMS_TO_TICKS(RTM_TURNON_DELAY_MS));
   if (!rtm_present()) {
     return MMC_IO_ERR;   /* the module was removed while waiting */
   }
   ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 1);
   rtm_12v_on = 1;
-  /* the uRTM's FRU answers only now: retry the identification immediately */
-  rtm_fru_invalidate();
+  /* the module now starts its own MCU: restart the identification, which
+   * waits RTM_FRU_SETTLE_MS before its first access to the RTM bus */
+  rtm_fru_powered();
   rtm_ready_tick = xTaskGetTickCount() + pdMS_TO_TICKS(RTM_CONFIG_DELAY_MS);
   log_printk("rtm", "RTM 12 V on (handle monitor in %u s)",
              RTM_CONFIG_DELAY_MS / 1000);

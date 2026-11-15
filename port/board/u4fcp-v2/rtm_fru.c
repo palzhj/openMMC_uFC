@@ -40,9 +40,17 @@
 /* common header (8) + board area + product area of the 512-byte image */
 #define RTM_FRU_IMAGE_LEN       128
 
-/* how often a negative answer is retried (the uRTM FRU needs its 12 V);
- * keep it short: the SDR records should follow the module power-up closely */
-#define RTM_FRU_RECHECK_MS      2000
+/* The RTM is powered from the AMC (12 V switched on when RTM_PS# goes low),
+ * so its own MCU needs a few seconds before the FRU answers.  Probing before
+ * that is not harmless: selecting the RTM bus while the module is still
+ * unpowered clamps SDA/SCL through the module's ESD diodes and wedges the
+ * whole I2C2 bus (the UCD writes that switch the rails on then fail too).
+ * Wait RTM_FRU_SETTLE_MS after the 12 V came up, then try RTM_FRU_PROBE_TRIES
+ * times; a module that never answers is left alone (no more RTM bus access)
+ * until it is unplugged and plugged again. */
+#define RTM_FRU_SETTLE_MS       5000
+#define RTM_FRU_RECHECK_MS      1000
+#define RTM_FRU_PROBE_TRIES     3
 
 /* product-area field numbers (IPMI FRU spec) */
 #define FRU_FIELD_PRODUCT_NAME  1
@@ -52,7 +60,10 @@
 #define FRU_FIELD_END           0xC1
 
 static int8_t rtm_fru_urtm = -1;        /* -1 unknown, else rtm_fru_type_t */
+static uint8_t rtm_fru_tries;           /* probes spent on the current attempt */
+static uint8_t rtm_fru_done;            /* answer is final: never probe again */
 static TickType_t rtm_fru_next_probe;
+static TickType_t rtm_fru_settle_tick;  /* earliest probe after the 12 V came up */
 
 /* One EEPROM read at offset 0; the word address is 2 bytes (24C512). */
 static bool rtm_fru_read_at(uint8_t i2c_interface, uint8_t *buf, size_t len)
@@ -179,13 +190,18 @@ rtm_fru_type_t rtm_fru_type(void)
 {
     TickType_t now;
 
-    /* Only a positive answer is cached: "nothing answered" (UNKNOWN) has to be
-     * retried, the uRTM only exposes its FRU once its 12 V is on. */
-    if (rtm_fru_urtm > 0) {
+    /* Final answer (uRTM, other board, or silent): the RTM bus is not touched
+     * again until the module is unplugged/replugged. */
+    if (rtm_fru_done) {
         return (rtm_fru_type_t)rtm_fru_urtm;
     }
 
+    /* The module has no power of its own: wait for it to start before the
+     * first access to its bus (see RTM_FRU_SETTLE_MS). */
     now = xTaskGetTickCount();
+    if (rtm_fru_settle_tick != 0 && (int32_t)(now - rtm_fru_settle_tick) < 0) {
+        return RTM_FRU_UNKNOWN;
+    }
     if (rtm_fru_next_probe != 0 && (int32_t)(now - rtm_fru_next_probe) < 0) {
         return RTM_FRU_UNKNOWN;
     }
@@ -193,12 +209,24 @@ rtm_fru_type_t rtm_fru_type(void)
 
     rtm_fru_urtm = (int8_t)rtm_fru_identify();
 
+    if (rtm_fru_urtm == (int8_t)RTM_FRU_UNKNOWN) {
+        if (++rtm_fru_tries < RTM_FRU_PROBE_TRIES) {
+            return RTM_FRU_UNKNOWN;
+        }
+        /* no answer at all: leave the module alone, its bus is not ours */
+        rtm_fru_done = 1;
+        rtm_fru_next_probe = 0;
+        log_printk("rtm", "FRU 0x55: no answer, RTM left unmanaged");
+        return RTM_FRU_UNKNOWN;
+    }
+
     /* one line per resolved answer: this is what tells a remote test which
-     * board the AMC thinks it has (nothing is printed while the FRU is still
-     * silent, the uRTM answers only once its 12 V is on) */
+     * board the AMC thinks it has */
+    rtm_fru_done = 1;
+    rtm_fru_next_probe = 0;
     if (rtm_fru_urtm == (int8_t)RTM_FRU_URTM_V23) {
         log_printk("rtm", "FRU 0x55: uRTM v2.3");
-    } else if (rtm_fru_urtm == (int8_t)RTM_FRU_OTHER) {
+    } else {
         log_printk("rtm", "FRU 0x55: other RTM, no FMC monitors");
     }
     return (rtm_fru_type_t)rtm_fru_urtm;
@@ -212,5 +240,17 @@ bool rtm_fru_is_urtm_v23(void)
 void rtm_fru_invalidate(void)
 {
     rtm_fru_urtm = -1;
+    rtm_fru_tries = 0;
+    rtm_fru_done = 0;
     rtm_fru_next_probe = 0;
+    rtm_fru_settle_tick = 0;
+}
+
+void rtm_fru_powered(void)
+{
+    /* The RTM 12 V was just switched on: restart the identification and give
+     * the module RTM_FRU_SETTLE_MS to bring up its own MCU before the first
+     * access to its bus. */
+    rtm_fru_invalidate();
+    rtm_fru_settle_tick = xTaskGetTickCount() + pdMS_TO_TICKS(RTM_FRU_SETTLE_MS);
 }

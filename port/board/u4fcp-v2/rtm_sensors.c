@@ -554,10 +554,12 @@ static void vTaskRtmSensors(void *Parameters)
      * for the whole session unless the module is positively another board:
      * the MCH caches them and a deleted record turns every scan into a
      * "could not read sensor" error. */
-    if (plugged && !rtm_sensors_is_inserted() && rtm_is_urtm_v23()) {
+    if (plugged && !rtm_sensors_is_inserted() &&
+        rtm_12v_is_on() && rtm_is_urtm_v23()) {
       rtm_sensors_insert();
     }
-    if (rtm_sensors_is_inserted() && rtm_fru_type() == RTM_FRU_OTHER) {
+    if (rtm_sensors_is_inserted() && rtm_12v_is_on() &&
+        rtm_fru_type() == RTM_FRU_OTHER) {
       rtm_sensors_remove();
     }
 
@@ -639,8 +641,9 @@ void rtm_sensors_init(void)
 
   /* Insert before the scheduler starts when the uRTM is already up, so the
    * MCH sees the sensors from its first SDR read (the task handles the
-   * insert/remove for everything after that). */
-  if (rtm_attached() && rtm_is_urtm_v23()) {
+   * insert/remove for everything after that).  The rail must already be on:
+   * probing the FRU of an unpowered module clamps the I2C2 bus. */
+  if (rtm_attached() && rtm_12v_is_on() && rtm_is_urtm_v23()) {
     rtm_sensors_insert();
   }
 }

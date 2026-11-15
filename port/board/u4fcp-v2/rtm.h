@@ -24,10 +24,11 @@ bool rtm_is_urtm_v23(void);
 /**
  * @brief May RTM_INT_B be read as "handle opened"?
  *
- * Yes for the uRTM, and also while the module is still unidentified (the
- * conservative assumption: it may be a uRTM whose FRU needs the 12 V).  No
- * once the FRU says it is another board, whose RTM_INT# carries its own
- * logic (the LattePanda carrier drives it from its TCA9554A).
+ * Only for a module that identified itself as the uRTM v2.3.  RTM_INT# and
+ * the RTM 12 V / MP fault pins are uRTM signals; other RTMs drive RTM_INT#
+ * from their own logic (the LattePanda carrier from its TCA9554A) and leave
+ * the fault pins undriven, and an unidentified module must not be switched
+ * off by either - RTM_PS# alone decides whether it is powered.
  */
 bool rtm_handle_trusted(void);
 /**
