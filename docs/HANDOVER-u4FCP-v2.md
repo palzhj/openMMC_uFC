@@ -94,20 +94,21 @@ Board port files (`port/board/u4fcp-v2/`):
 
 | file | responsibility |
 |---|---|
-| `board_config.c` | `board_init()` (NVIC grouping!) and `board_config()` which starts `rtm_sensors_init()` |
+| `board_config.c` | `board_init()` (NVIC grouping!) and `board_config()` which starts `rtm_init()` |
 | `payload.c` | the payload power state machine, clock apply, JTAG config, LEDs |
 | `pin_mapping.c/.h` | STM32 pin table (`GPIO_RTM_PS_B` = PA8, `GPIO_RTM_INT_B` = PA3, …) |
 | `i2c_mapping.c/.h` | bus/mux/chip tables and `i2c_rtm_mux_select()` |
 | `sdr_list.c` | the AMC SDR records (`SDR_type_01h_t`), sensor numbers/names |
-| `rtm.c/.h` | AMC-side RTM presence, 12 V policy, handle logic |
-| `rtm_sensors.c/.h` | uRTM FMC2/FMC3 monitor task and dynamic SDR insert/remove |
-| `rtm_fru.c/.h` | RTM identification from its FRU at 0x55 |
+| `rtm.c/.h` | the **RTM manager task**: 12 V switch, identification, monitors, handle/fault policy, `RTM_RES` |
+| `rtm_sensors.c/.h` | uRTM FMC2/FMC3 monitor access and dynamic SDR insert/remove (a library, no task) |
+| `rtm_fru.c/.h` | one FRU read + classification (stateless; the manager owns timing and caching) |
 | `ipmi_oem.c/.h` | board OEM IPMI commands (I²C transfer, GPIO) |
 | `user_amc_fru.h` | compiled FRU fallback (used only if the EEPROM is invalid) |
 
 Tasks: IPMB (IPMI request/response), payload (1 s state machine), sensors (UCD
-poll every **5 s**, 40 ms access timeout), RTM sensors (1 s), HPM, watchdog
-feed (666 ms).
+poll every **5 s**, 40 ms access timeout), **RTM manager (1 s)**, HPM, watchdog
+feed (666 ms).  The RTM manager is the only task that touches Zone 3 — the
+payload task just publishes `rtm_payload_up()`.
 
 Watchdog: IWDG from LSI /64, reload 1250 → **2 s** timeout.  `-DDISABLE_WATCHDOG=ON`
 only for debugging (it cannot be stopped once started).
@@ -166,11 +167,10 @@ shelf MP ──3.3 V management──► MMC (always on, independent of payload 
 | # | state | condition to advance | action | elapsed |
 |---|---|---|---|---|
 | 1 | `PAYLOAD_NO_POWER` | `PP_good` = AMC +12 V sensor inside critical thresholds (MCH switched the payload) | `setDC_DC_ConvertersON(true)` (CONTROL high), clear hotswap backend-power bits, enable sensor scanning | t0 |
-| 2 | `PAYLOAD_POWER_GOOD_WAIT` | `DCDC_good` = IO +3.3 V inside thresholds | FMC0: `3V3AUX_EN` + `FMC0_VADJ` on, wait **1 s**; FMC1 same, wait **1 s**; log the VADJ actually programmed; then `rtm_init()` + `rtm_present()` choose `RTM_SETUP` or `CLK_SETUP`; green LED; `config_jtag()` | t0 + 2 s |
-| 3 | `PAYLOAD_STATE_RTM_SETUP` | always (skipped when no RTM) | `rtm_enable_12v()`: waits **3 s** (`RTM_TURNON_DELAY_MS`), re-checks RTM_PS#, sets `UCD_RTM_12V_CURR_ID` | + 3 s |
-| 4 | `PAYLOAD_STATE_CLK_SETUP` | `payload_clock_configure()` OK | apply the EEPROM clock store (15 records, 1052 registers, ~1.2 s) or the compiled defaults, +100 ms PLL lock; on failure stays here | + ~1.3 s |
-| 5 | `PAYLOAD_STATE_FPGA_SETUP` | `FPGA_DONE` high (timeout **100 s** → warn + red LED blink) | `fpga_soft_reset()` (pulse `FPGA_RESET_B`, blue blink) | — |
-| 6 | `PAYLOAD_FPGA_ON` | — | monitors `PP_good`/`DCDC_good`; RTM handle/fault policy runs here; payload is "up" | — |
+| 2 | `PAYLOAD_POWER_GOOD_WAIT` | `DCDC_good` = IO +3.3 V inside thresholds | FMC0: `3V3AUX_EN` + `FMC0_VADJ` on, wait **1 s**; FMC1 same, wait **1 s**; log the VADJ actually programmed; `rtm_payload_up(true)` (the RTM manager powers/identifies Zone 3 in parallel); green LED; `config_jtag()` | t0 + 2 s |
+| 3 | `PAYLOAD_STATE_CLK_SETUP` | `payload_clock_configure()` OK | apply the EEPROM clock store (15 records, 1052 registers, ~1.2 s) or the compiled defaults, +100 ms PLL lock; on failure stays here | + ~1.3 s |
+| 4 | `PAYLOAD_STATE_FPGA_SETUP` | `FPGA_DONE` high (timeout **100 s** → warn + red LED blink) | `fpga_soft_reset()` (pulse `FPGA_RESET_B`, blue blink) | — |
+| 5 | `PAYLOAD_FPGA_ON` | — | monitors `PP_good`/`DCDC_good`; payload is "up" | — |
 
 Typical boot log:
 
@@ -184,8 +184,9 @@ Typical boot log:
 [   4.760] boot : payload power-up done
 ```
 
-`rtm : RTM 12 V on (handle monitor in 10 s)` appears between FMC1 and the
-clock lines when an RTM is plugged (adds the 3 s).
+`rtm : RTM detected, 12 V in 3 s` and `rtm : RTM 12 V on (identify in 5 s, handle
+monitor in 10 s)` come from the RTM manager task, in parallel with the clock and
+FPGA states — they no longer delay the payload sequence.
 
 ### 4.3 Power-down, quiesce and reset
 
@@ -193,10 +194,10 @@ clock lines when an RTM is plugged (adds the 3 s).
   payload task receives `PAYLOAD_MESSAGE_QUIESCE`, disables sensor scanning
   immediately (otherwise every rail produces a lower-critical event), and goes
   to `PAYLOAD_SWITCHING_OFF`.
-- `PAYLOAD_SWITCHING_OFF`: RTM 12 V off → FMC VADJ off → FMC 3.3 V aux off →
-  `setDC_DC_ConvertersON(false)` (CONTROL low) → hotswap QUIESCED event →
-  `PAYLOAD_QUIESCED`; when `PP_good` drops (MCH removed the 12 V) it returns to
-  `PAYLOAD_NO_POWER`.
+- `PAYLOAD_SWITCHING_OFF`: `rtm_payload_up(false)` (the RTM manager cuts its
+  rail) → FMC VADJ off → FMC 3.3 V aux off → `setDC_DC_ConvertersON(false)`
+  (CONTROL low) → hotswap QUIESCED event → `PAYLOAD_QUIESCED`; when `PP_good`
+  drops (MCH removed the 12 V) it returns to `PAYLOAD_NO_POWER`.
 - `PAYLOAD_RESET` (payload reset request): same rails-off path, straight to
   `PAYLOAD_NO_POWER`.
 - A **payload-only power cycle** (MCH `shutdown` + `fru_start`) keeps the MMC
@@ -216,9 +217,9 @@ clock lines when an RTM is plugged (adds the 3 s).
   thresholds.
 - `payload_sensors_scan(false/true)` disables/enables all non-hotswap sensors
   while rails are down — keep it that way when adding sensors.
-- UCD fault inputs are surfaced by `rtm_overcurrent_check()`
-  (`RTM_12V0_FLT_B`, `RTM_MP_FLT_B`) and the FMC fault GPIs; the RTM 12 V is
-  cut when a fault is seen (uRTM only, see §7).
+- The uRTM-only UCD fault inputs (`RTM_12V0_FLT_B`, `RTM_MP_FLT_B`) are checked
+  by the RTM manager and cut its 12 V (uRTM only, see §7); the FMC fault GPIs
+  are not acted on by the MMC.
 - The **hotswap sensor** reports the AMC M-state to the MCH; handle events and
   MCH commands arrive as payload messages.  The MMC never powers the shelf.
 - Watchdog (2 s) is fed unconditionally today; a hung task does not trip it
@@ -295,17 +296,20 @@ Zone 3 may carry either the **uRTM v2.3** (UCD90124A monitor, own MMC, FRU
 0x55 behind `0x71 ch7`) or the **RTM Carrier for LattePanda Mu v1** (x86
 carrier, own MMC on the RTM bus, FRU 0x55 directly on `0x70 ch5`, no UCD).
 
-Rules (implemented in `rtm.c`, `rtm_fru.c`, `rtm_sensors.c`, `payload.c`):
+Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
+`rtm_sensors.c`; `payload.c` only signals that the AMC rails are up):
 
 1. **The RTM bus is never touched while the module is unpowered** — an
    unpowered module clamps SDA/SCL through its ESD diodes and wedges I2C2
    (including the UCD writes that switch the rail on).  This was a real failure
    mode; see the commit `5336217` message.
-2. **The 12 V follows RTM_PS#** (PA8, low = plugged).  The boot state machine
-   powers it from `PAYLOAD_STATE_RTM_SETUP`; a module plugged while the payload
-   is up is powered on the RTM_PS# high→low edge (`rtm_plugged_edge()`).
+2. **The 12 V follows RTM_PS#** (PA8, low = plugged).  The RTM manager powers
+   it as soon as the payload rails are up (`rtm_payload_up(true)`) and on every
+   RTM_PS# high→low edge; the payload state machine has no RTM state.
    Delay: `RTM_TURNON_DELAY_MS` = 3 s for every RTM (uRTM inrush protection).
-   Unplugging cuts the 12 V.
+   Unplugging cuts the 12 V.  `RTM_RES` (PA2) is asserted while the module is
+   unpowered and released once the rail is up — an RTM that is never released
+   stays in reset and never enables its own supplies.
 3. **Identification** reads the FRU at 0x55 (uRTM path first, then the bare RTM
    bus), checks the common-header checksum and the product area: product
    `uRTM`, version `2.3`.  It starts `RTM_FRU_SETTLE_MS` (5 s) after the rail is
@@ -406,8 +410,10 @@ PLL monitor).
 
 ## 10. Current state (2026-11-15, end of session)
 
-- `origin/master` = `45d0cfa` (incident docs); firmware feature tip =
-  `5336217` ("power the module from RTM_PS# alone").
+- Firmware feature tip: the RTM manager series on top of `5336217` ("power the
+  module from RTM_PS# alone") — one task for Zone 3, `RTM_RES`, the SDR removal
+  for a swapped module.  `git log --oneline origin/master..HEAD` is the
+  authoritative list; rebuild and check `raw 0x32 0x02` against it.
 - **AMC1 (SL03) is down**: an OTA of `c7d774f` built from a long-lived tree was
   activated and the MMC never answered again; a chassis power cycle did not
   help (the MMC runs from management power).  It needs a SWD reflash of a clean
