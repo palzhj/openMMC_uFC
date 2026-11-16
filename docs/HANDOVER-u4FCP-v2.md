@@ -385,10 +385,13 @@ MP_3V3 ─► FPF2109 (ON ◄ RTM_MP3V3_EN ◄ UCD LGPO14) ─► MP_RTM ─► 
   allows 10.8-13.2 V, and the carrier's annotated `OV = 13.3 V` leaves only
   ~0.1 V margin, so it is worth relaxing on the carrier - but it is not what
   fails here.)
-- What remains is the **module**: the LattePanda Mu never asserts its `POW_EN`,
-  so the carrier's LTM4671 (`RUN_3V3`/`RUN_5V0`/`RUN_0V9`) never starts, and
-  with no carrier 3V3 nothing draws current.  Check the module's power button
-  (`PWRBTN_B`/`POWBTN_B`) or its auto-start setting, or the module itself.
+- **Resolved 2026-11-16**: the LattePanda Mu only starts on a power-button
+  press, so `POW_EN` never came up and the carrier's LTM4671
+  (`RUN_3V3`/`RUN_5V0`/`RUN_0V9`) stayed off.  With the module's BIOS set to
+  "boot on power loss / auto power on", the chain works end to end: RTM_PS# low
+  → 12 V after 1 s → carrier powered → Mu boots → **`RTM +12V Curr` ≈ 1.5–1.7 A**
+  (measured on AMC6).  Nothing was wrong on the AMC side: rail good, MP3V3 held
+  low, `RTM_RES` low, blank FRU → managed as "other RTM".
 - If EN3 toggles and `PGb` reports good but the rail current stays at 0 A, the
   MMC's job is done: the module is not drawing.  Suspects are then the
   module's own power path (TPS2121 source select, LTM4671 `RUN_3V3` chain,

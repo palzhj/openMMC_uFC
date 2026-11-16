@@ -124,13 +124,10 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
 - [ ] **Bench matrix** (`docs/testing/RTM_CHECKS.md`): run the “no RTM” and
       “uRTM v2.3” scenarios - both need the module physically swapped - and the
       carrier power-button check below.
-- [ ] **[next, bench 2026-11-16]** LattePanda carrier: decide whether the Mu
-      needs a power-button press.  With `12V0_RTM` up (hotswap PG good), MP3V3
-      held low and the carrier's EEPROM/expander answering, the carrier still
-      draws 0 A and its LTM4671 never runs - its `RUN_3V3`/`RUN_5V0`/`RUN_0V9`
-      come from the module's `POW_EN`/`POW_0V9_EN`.  Measure `POW_EN` (or short
-      `PWRBTN_B`/`POWBTN_B`) with the rail on; if the module starts, record the
-      auto-start setting in `docs/HANDOVER-u4FCP-v2.md` §7.1.
+- [x] **LattePanda carrier boots** (2026-11-16): the Mu needed a power-button
+      press; with the module's BIOS set to auto power-on it starts from the
+      RTM 12 V and draws ~1.5-1.7 A (`RTM +12V Curr`).  Recorded in
+      `docs/HANDOVER-u4FCP-v2.md` §7.1.
 
 ## Toolbox
 
