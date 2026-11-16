@@ -44,10 +44,16 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       is already set, so a boot-time failure on I2C1 left AMC6 answering 0xFF
       (MCH: `msg invalid CRC from ipmiDev 6`).  Recovered by reflashing
       `e9c714c`.
-      *Safe plan* - recover only on master-only buses: from the `modules/i2c.c`
-      wrappers and/or the UCD transfer helper (interface I2C2 here), never
-      blindly on I2C1; and gate the UCD poll on "payload up" so a powering-down
-      device is not addressed at all.
+      *Done (d9ae770)* - every UCD retry loop is bounded and a failed transfer
+      runs `vI2CBusRecover()` before retrying, for I2C2 only (never the IPMB
+      interface).  Verified: 35 sensors and the managed uRTM before, during and
+      after two payload power cycles.
+      *Still open* - gate the UCD poll on "payload up" so a powering-down device
+      is not addressed at all.  That needs `payload_state` to be actually
+      exported: `payload.h` declares it `extern` but `payload.c` keeps the
+      state in a local variable, so the UCD task cannot read it yet (adding a
+      definition is a small, separate change).  The same recovery could also be
+      added to the `modules/i2c.c` wrapper for the other master-bus users.
       Evidence: 2026-11-16 mount/remove run, `docs/testing/RTM_CHECKS.md` §D.
 
 - [ ] **[next]** Watchdog supervisor: the IPMI, sensor and payload tasks
