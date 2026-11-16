@@ -85,6 +85,11 @@ unavailable with a 0 readout by `rtm_sensors_unavailable()`; the MCH renders
 that as `0.0 C` with a `>=unr` state for the temperature.  With the module
 powered the same record reads ~24-26 C `ok`.  Do not "fix" the zero.
 
+The same is true **at the beginning of the power-off**: the pass that cuts the
+rail also marks the nine records unavailable, so they drop to `0 / >=unr`
+immediately (and the hotswap row is unaffected) - that is the designed
+reporting, not a fault.
+
 The same `0 / >=unr` window appears **right after the RTM is powered on**:
 the records survive a payload cycle, and until the first successful poll
 (rail up + `RTM_FRU_SETTLE_MS` + identification, ~7 s in total) they still hold
