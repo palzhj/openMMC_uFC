@@ -174,6 +174,13 @@ a payload cycle (or a PS# edge) clears it; the SDR set stayed at 34 records
 throughout and the MCH never needed an activation because the row count did
 not change.
 
+**One failure seen during the run (open bug):** while the payload was being
+switched off with the MMC polling, I2C2 got stuck (`SR2 = 0x03`, MSL|BUSY) and
+every `0x32 0x20` call returned `0xff` - all sensors `na` until an MMC reset.
+The payload cycle afterwards brought everything back (35 sensors, 1.28 A,
+`MANAGED`).  Tracked in `docs/TODO-u4fcp-v2.md` (bounded waits + bus recovery +
+gate the UCD poll on "payload up").
+
 ## Cleanup after a session
 
 - Re‑flash the production image; `raw 0x32 0x02` matches `git log -1`.

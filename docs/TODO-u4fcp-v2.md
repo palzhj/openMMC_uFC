@@ -28,6 +28,16 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
 
 ## Firmware / platform
 
+- [ ] **[next]** **I2C2 wedge when a device disappears mid-transaction**: with
+      the payload being switched off while the MMC was polling, I2C2 SR2 read
+      `0x03` (MSL|BUSY), every `0x32 0x20` bridge call returned `0xff` and all
+      sensors went `na` until an MMC reset.  The master was stuck waiting for a
+      transfer that the powering-down UCD never finished.  Needs (a) a bounded
+      wait in the I2C driver, (b) bus recovery (peripheral reset + 9 clock
+      pulses on SCL when BUSY sticks), and (c) gating the UCD poll on
+      "payload up" so it is not reading a device that is being powered off.
+      Evidence: 2026-11-16 mount/remove run, `docs/testing/RTM_CHECKS.md` §D.
+
 - [ ] **[next]** Watchdog supervisor: the IPMI, sensor and payload tasks
       should set heartbeats and the WatchdogTask should feed only when all
       are alive (today the feed is unconditional, so a hung task does not
