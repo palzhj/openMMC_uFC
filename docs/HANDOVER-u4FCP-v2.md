@@ -333,6 +333,10 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
    be another board.
 5. **`RTM_INT#` (handle) and the uRTM-only 12 V/MP fault pins act only on a
    positively identified uRTM v2.3**; for anything else RTM_PS# alone decides.
+6. **JTAG**: `config_jtag()` selects the AMC/FMC0/FMC1/RTM targets through the
+   TCA9554 at `0x39` (I2C2 ch4, `JTAG_RTM_EN_B`); the RTM target is only
+   enabled while RTM_PS# says a module is plugged.  Verified on hardware
+   2026-11-16 with the uRTM v2.3 plugged - nothing to change.
 
 ### 7.1 The RTM 12 V rail (u4FCP-v2 hardware path)
 

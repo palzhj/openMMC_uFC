@@ -130,9 +130,9 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       whether the AMC or the RTM's own MMC owns the RTM FRU.
 - [ ] **[opt]** Add the remaining RTM rail monitors if needed (`12V0_RTM`, the RTM
       temperatures) — the FMC2/FMC3 group covers pages 2-7 only.
-- [ ] **[next]** Verify the RTM JTAG path (`RTM_EN_B`, TCA9554 on ch4) with
-      the RTM plugged.  The RTM FRU read itself is already proven - it is how
-      the uRTM v2.3 is identified (`0x70 ch5 -> 0x71 ch7 -> 0x55`).
+- [x] **RTM JTAG path** verified on hardware with the uRTM v2.3 plugged
+      (2026-11-16, no change needed).  The RTM FRU read was already proven -
+      it is how the uRTM v2.3 is identified (`0x70 ch5 -> 0x71 ch7 -> 0x55`).
 - [x] **Bench matrix** (`docs/testing/RTM_CHECKS.md`), all three scenarios
       verified on AMC6 (2026-11-16): **no RTM** (manager OFF, no rail, no
       probes, no SDRs, bus healthy), **uRTM v2.3** (MANAGED, 35 SDRs, RTM
