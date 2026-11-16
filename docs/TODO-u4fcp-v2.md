@@ -127,9 +127,10 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       temperatures) — the FMC2/FMC3 group covers pages 2-7 only.
 - [ ] Verify the RTM FRU read over I2C2 ch5 and the RTM JTAG (`RTM_EN_B`)
       with the RTM plugged.
-- [ ] **[next]** **Bench matrix** (`docs/testing/RTM_CHECKS.md`): the “no RTM”
-      and “uRTM v2.3” scenarios - both need the module physically swapped.  The
-      carrier scenario has been running since 2026-11-16 (see below).
+- [ ] **[next]** **Bench matrix** (`docs/testing/RTM_CHECKS.md`): “no RTM” is
+      **verified** (2026-11-16: manager OFF, no rail, no probes, no SDRs, bus
+      healthy) and the carrier scenario has been running since the same day;
+      only the **uRTM v2.3** scenario still needs the module plugged.
 - [x] **LattePanda carrier boots** (2026-11-16): the Mu needed a power-button
       press; with the module's BIOS set to auto power-on it starts from the
       RTM 12 V and draws ~1.5-1.7 A (`RTM +12V Curr`).  Recorded in

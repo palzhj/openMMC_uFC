@@ -55,6 +55,19 @@ arm-none-eabi-nm .hw2/u4fcp/out/openMMC.elf | grep -E "rtm_(state|12v_on|blocked
 | bus | carrier `0x55`/`0x3C` answer, no wedge | ✔ |
 | load | 0 A — the Mu never asserts `POW_EN`, so the carrier's LTM4671 stays off | open (power‑button check) |
 
+### Result: scenario A on AMC6 (2026‑11‑16, carrier removed)
+
+| check | measured |
+|---|---|
+| `RTM_PS#` (PA8) | **high** — reads high with nothing plugged (the module was what pulled it low) |
+| manager | `rtm_state = 0` (OFF), `rtm_12v_on = 0`, `rtm_blocked = 0`, `rtm_mp_forced = 1` |
+| 12 V rail | `PGb` (pin 78) = `0x08` **not good**, `OPERATION` page 1 stays off; no `rtm : RTM 12 V on` in the log |
+| MP3V3_EN | pin 69 `0x03` — driven low once at boot |
+| `RTM_RES` | PA2 low (`ODR = 0xA002`) |
+| SDRs | 26 AMC records; no 0x1B–0x23, no FMC2/FMC3 rows; MCH shows 27 rows incl. the hotswap |
+| shared bus | AMC FRU read 3/3 identical, UCD sensors updating, no wedge |
+| stability | state and pins unchanged over a 10 s watch (no spurious power) |
+
 ## Notes from the first run (AMC6, 2026‑11‑16)
 
 - **“No RTM” cannot be simulated electrically**: driving `RTM_PS#` (PA8) high as
