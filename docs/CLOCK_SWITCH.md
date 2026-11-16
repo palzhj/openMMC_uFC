@@ -176,8 +176,12 @@ The clock store's switch record (and the compiled `clock_config_default[]`)
 uses the same compact byte model as before: **bit7 = output enable, bits 3:0 =
 input select**. `clock_configuration()` translates it into:
 
-1. `0xF0 = 0x0F` — all terminations off (only correct if the far end
-   terminates; see `docs/USER_MANUAL.md`, Clock tab);
+1. `0xF0 = 0x0F` — **all four 50 Ω groups off**, which is the intended
+   configuration: every ADN4604 link on this board is AC-coupled and the far
+   end (AMC/FMC/FPGA/RTM) provides the differential termination, so the switch
+   must not add a 50 Ω to ground on its side.  Verified by read-back on AMC6
+   (2026-11-16: `0xF0 = 0x0F`, `0xFF = 0x04` device ID, `0xFE = 0x02`); a
+   scope check of one live link is the only thing left, see the TODO;
 2. the map bytes into `0x90–0x97` (map 0);
 3. `0x20+n = (enabled ? 3 : 0) << 4` for every output;
 4. `0x81 = 0` (map 0 active) and `0x80 = 1` (update).

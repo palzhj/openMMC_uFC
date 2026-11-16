@@ -10,10 +10,12 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       OUT0..OUT15) with package pins and nets, the PLL input/fb links
       (`PLL0_OUT`→IN9, `PLL1_OUT`→IN8, OUT6→PLL0, OUT7→PLL1), U85@0x68 and
       U61@0x69. The validator reports 36 points / 4 links / 0 errors.
-- [ ] **[next]** Confirm the ADN4604 termination by measurement: the firmware
-      writes `0xF0 = 0x0F` (all four 50 Ω quadrants disabled). The schematic
-      is AC-coupled everywhere with the far end (AMC/FMC/FPGA) providing the
-      differential termination; check one link with a scope before changing.
+- [x] **ADN4604 termination stays off** (2026-11-16): the firmware writes
+      `0xF0 = 0x0F` and the part reads back `0x0F` (all four 50 Ω groups
+      disabled, `0xFF = 0x04`, `0xFE = 0x02`).  Correct by design - every link
+      is AC-coupled with the far end (AMC/FMC/FPGA/RTM) terminating; documented
+      in `docs/CLOCK_SWITCH.md`.  A scope check of one live link is still
+      worth doing before enabling outputs, but there is nothing to change.
 - [ ] **[next]** Decide and capture the **real routing**. The stored preset
       (`tools/firmware/u4fcp-v2/clk-preset.bin`) and the compiled default
       are all outputs disabled (`0x08 ×16`, i.e. every output ← input 8,
