@@ -28,14 +28,26 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
 
 ## Firmware / platform
 
-- [ ] **[next]** **I2C2 wedge when a device disappears mid-transaction**: with
-      the payload being switched off while the MMC was polling, I2C2 SR2 read
-      `0x03` (MSL|BUSY), every `0x32 0x20` bridge call returned `0xff` and all
-      sensors went `na` until an MMC reset.  The master was stuck waiting for a
-      transfer that the powering-down UCD never finished.  Needs (a) a bounded
-      wait in the I2C driver, (b) bus recovery (peripheral reset + 9 clock
-      pulses on SCL when BUSY sticks), and (c) gating the UCD poll on
-      "payload up" so it is not reading a device that is being powered off.
+- [ ] **[next]** **I2C2 wedge when a device disappears mid-transaction**
+      (investigated 2026-11-16):
+      *Symptom* - with the payload being switched off while the MMC was
+      polling, I2C2 `SR2 = 0x03` (MSL|BUSY), every `0x32 0x20` call returned
+      `0xff` and all sensors went `na` until an MMC reset.
+      *Cause* - each wait in `stm32_i2c.c` already has a short timeout
+      (`I2C_TIMEOUT` = 1000 loops) and generates STOP on failure, but with SCL
+      held low the STOP never completes and **`vI2CBusRecover()` is never
+      called from the driver**, so `BUSY` stays set and every later transfer
+      fails the same way - for ever.
+      *Attempted fix, reverted* - calling `vI2CBusRecover()` from the driver's
+      error paths breaks the **IPMB slave**: the recovery reconfigures the
+      interface as a master and only restores the slave when `slave_addr_cfg`
+      is already set, so a boot-time failure on I2C1 left AMC6 answering 0xFF
+      (MCH: `msg invalid CRC from ipmiDev 6`).  Recovered by reflashing
+      `e9c714c`.
+      *Safe plan* - recover only on master-only buses: from the `modules/i2c.c`
+      wrappers and/or the UCD transfer helper (interface I2C2 here), never
+      blindly on I2C1; and gate the UCD poll on "payload up" so a powering-down
+      device is not addressed at all.
       Evidence: 2026-11-16 mount/remove run, `docs/testing/RTM_CHECKS.md` §D.
 
 - [ ] **[next]** Watchdog supervisor: the IPMI, sensor and payload tasks
