@@ -154,6 +154,26 @@ equivalent), 27 for the carrier.
 so the handle is ignored for the first 10 s after the rail comes up — opening
 the handle during that window does nothing.
 
+### Result: physical mount/remove (AMC6 + uRTM v2.3, 2026‑11‑16)
+
+Watcher log (`tools/testing/rtm_watch.py`, `/tmp/rtm-mount-test.log`):
+
+| step | observed |
+|---|---|
+| baseline | `SDRs=34  RTM +12V Curr=1.280  RTM rows=9 (9 live)` |
+| **D1 handle open** | 116.8 s `9 → 0 live`, 118.7 s `0.000 A`; `state=0`, `blocked=1` |
+| (handle closed again) | no re‑power — as designed, the latch holds |
+| **D2 payload cycle** | 12 V off during shutdown; back at 220.6 s (`0.704 → 1.152 A`), `9 live` at 226.2 s, steady `1.280 A` |
+| **handle opened again** | 255.6 s `0 live`, 259.5 s `0.000 A`, `blocked=1` (expected, latch) |
+| **D2 again** | 12 V back at 359.3 s, `9 live` at 364.9 s, steady `1.216–1.280 A` |
+| final | `rtm_state = 5` (MANAGED), `rtm_12v_on = 1`, `blocked = 0`, PS# low |
+
+Everything matched the design: 12 V one second after the payload is up, 5 s
+settle, identification, nine live monitors; the handle cut is latched and only
+a payload cycle (or a PS# edge) clears it; the SDR set stayed at 34 records
+throughout and the MCH never needed an activation because the row count did
+not change.
+
 ## Cleanup after a session
 
 - Re‑flash the production image; `raw 0x32 0x02` matches `git log -1`.

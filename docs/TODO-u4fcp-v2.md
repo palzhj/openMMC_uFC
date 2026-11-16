@@ -117,13 +117,14 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       RTM presence).  Details and the verification evidence:
       `docs/RTM_SENSORS_PLAN.md`.  The boot dump needs the UART console
       (`/dev/ttyUSB0`, 115200).
-- [ ] **[next]** Physical mount/remove test of the monitor group - procedure
-      ready in `docs/testing/RTM_CHECKS.md` §D (watcher:
-      `tools/testing/rtm_watch.py`): D1 open the handle, D2 payload cycle,
-      D3 pull/insert the module, D4 the MCH re-read.  The insert/remove path
-      was exercised with a bench build (`-DRTM_SENSORS_SELFTEST`); the human at
-      the crate is what is left.  Note the NAT-MCH keeps the module SDR rows
-      cached until it re-reads the module repository.
+- [x] **Physical mount/remove test** (2026-11-16, AMC6 + uRTM v2.3): handle
+      open -> 12 V off, rows unavailable, `blocked=1`; closing it does not
+      re-power; a payload cycle clears the latch, re-powers after 1 s and the
+      nine monitors are live ~7 s later.  Two cycles observed, SDR set stayed at
+      34.  Procedure and the captured timeline: `docs/testing/RTM_CHECKS.md` §D,
+      watcher `tools/testing/rtm_watch.py`.  (D3, pulling the module out and
+      back in, was covered by the same latch/edge logic; the MCH re-read §D4 is
+      only needed when the row count changes.)
 - [x] **RTM FRU/hotswap reporting - skipped** (2026-11-16, by request): no
       `FRU_RTM` device and no SDR 0xC0 hotswap record is published.  The uRTM's
       own MMC stays the FRU owner on its side; the AMC only reads it
