@@ -16,12 +16,11 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       is AC-coupled with the far end (AMC/FMC/FPGA/RTM) terminating; documented
       in `docs/CLOCK_SWITCH.md`.  A scope check of one live link is still
       worth doing before enabling outputs, but there is nothing to change.
-- [ ] **[next]** Decide and capture the **real routing**. The stored preset
-      (`tools/firmware/u4fcp-v2/clk-preset.bin`) and the compiled default
-      are all outputs disabled (every output from input 8, disabled) -
-      confirmed on AMC6: `0x90-0x97` read back `88 88 88 88 88 88 88 88`. Once
-      the FPGA/FMC/LEMO/RTM clock consumers are known, load the matrix in the
-      Clock tab and `Write to flash` (slot auto).
+- [x] **Real routing preset - skipped** (2026-11-16, by request): the stored
+      preset and the compiled default stay "all outputs disabled, every output
+      from input 8", confirmed on AMC6 (`0x90-0x97` = `88 x8`).  The Clock tab
+      and `clk_program.sh` can capture a real matrix later if the FPGA/FMC/
+      LEMO/RTM consumers ever need one.
 - [ ] **[opt]** ADN4604 equalizer (0x10/0x11, 0/12 dB) and map 1 / broadcast
       (0x81/0x82) controls in the Clock tab.
 - [ ] **[opt]** Periodic runtime PLL-lock monitor (the lock is checked at
