@@ -38,6 +38,26 @@
 #include "math.h"
 #include "payload.h"
 
+/* vI2CBusRecover() lives in the STM32 port (stm32_i2c.c). */
+extern void vI2CBusRecover(I2C_ID_T id);
+
+/* Bus recovery after a failed UCD transfer.  A slave that loses power in the
+ * middle of a transfer (the UCDs are fed from the payload rails) clamps
+ * SDA/SCL: the STOP never completes, BUSY stays set and every later transfer
+ * fails for ever.  vI2CBusRecover() clocks the bus free.
+ *
+ * Only for I2C2: that routine reconfigures the peripheral as a master and only
+ * restores a slave when one was set up, so calling it on the IPMB interface
+ * (I2C1, the MMC's own slave port) leaves the module answering 0xFF to the MCH
+ * until it is reset.  Keep the guard. */
+static void ucd_bus_recover(uint8_t i2c_interf)
+{
+  if (i2c_interf != I2C2_ID) {
+    return;
+  }
+  vI2CBusRecover(i2c_interf);
+}
+
 /**
  * @defgroup UCD90xxx_REGS UCD90xxx Registers
  * @ingroup UCD90xxx
@@ -135,6 +155,7 @@ uint8_t ucd_read_byte(ucd_data_t *data, uint8_t reg_addr, uint8_t *read)
 
     if (rx_len != 1)
     {
+      ucd_bus_recover(i2c_interf);
       if (++tries >= UCD_MAX_READ_TRIES)
       {
         *read = 0xFF;   /* defined value for the caller */
@@ -175,8 +196,9 @@ uint8_t ucd_read_word(ucd_data_t *data, uint8_t reg_addr, uint16_t *read)
   uint8_t val[2] = {0};
   uint8_t rx_len = 0;
 
-  /* Retry until two bytes are successfully read */
-  while (rx_len != 2)
+  /* Retry until two bytes are successfully read (bounded: a powered-off UCD
+   * must not spin here for ever) */
+  for (uint8_t tries = 0; rx_len != 2; )
   {
     /* Acquire I2C interface and address using the chip ID */
     if (i2c_take_by_chipid(data->chipid, &i2c_addr, &i2c_interf, portMAX_DELAY) == pdTRUE)
@@ -189,6 +211,12 @@ uint8_t ucd_read_word(ucd_data_t *data, uint8_t reg_addr, uint16_t *read)
     /* If the read operation fails, log the error and retry after a delay */
     if (rx_len != 2)
     {
+      ucd_bus_recover(i2c_interf);
+      if (++tries >= UCD_MAX_READ_TRIES)
+      {
+        *read = 0xFFFF;
+        return 0;
+      }
 #ifdef DEBUG
       printf("UCD read error @ 0x%x\n", reg_addr);
 #endif
@@ -222,8 +250,8 @@ uint8_t ucd_read_block(ucd_data_t *data, uint8_t reg_addr, uint8_t *read, uint8_
   uint8_t i2c_interf, i2c_addr;
   uint8_t rx_len = 0;
 
-  /* Retry until the specified number of bytes are successfully read */
-  while (rx_len != length)
+  /* Retry until the specified number of bytes are successfully read (bounded) */
+  for (uint8_t tries = 0; rx_len != length; )
   {
     /* Acquire I2C interface and address using the chip ID */
     if (i2c_take_by_chipid(data->chipid, &i2c_addr, &i2c_interf, portMAX_DELAY) == pdTRUE)
@@ -236,6 +264,11 @@ uint8_t ucd_read_block(ucd_data_t *data, uint8_t reg_addr, uint8_t *read, uint8_
     /* If the read operation fails, log the error and retry after a delay */
     if (rx_len != length)
     {
+      ucd_bus_recover(i2c_interf);
+      if (++tries >= UCD_MAX_READ_TRIES)
+      {
+        return rx_len;
+      }
 #ifdef DEBUG
       printf("UCD read error @ 0x%x\n", reg_addr);
 #endif
@@ -266,8 +299,8 @@ uint8_t ucd_write_byte(ucd_data_t *data, uint8_t reg_addr, uint8_t *written)
   uint8_t val[2] = {reg_addr, *written};
   uint8_t len = 0;
 
-  /* Retry until two bytes are successfully written */
-  while (len != 2)
+  /* Retry until two bytes are successfully written (bounded) */
+  for (uint8_t tries = 0; len != 2; )
   {
     /* Acquire I2C interface and address using the chip ID */
     if (i2c_take_by_chipid(data->chipid, &i2c_addr, &i2c_interf, portMAX_DELAY) == pdTRUE)
@@ -280,6 +313,11 @@ uint8_t ucd_write_byte(ucd_data_t *data, uint8_t reg_addr, uint8_t *written)
     /* If the write operation fails, log the error and retry after a delay */
     if (len != 2)
     {
+      ucd_bus_recover(i2c_interf);
+      if (++tries >= UCD_MAX_READ_TRIES)
+      {
+        return 0;
+      }
 #ifdef DEBUG
       printf("UCD write error @ 0x%x\n", reg_addr);
 #endif
@@ -311,8 +349,8 @@ uint8_t ucd_write_word(ucd_data_t *data, uint8_t reg_addr, uint16_t *written)
   uint8_t val[3] = {reg_addr, (*written) & 0xFF, ((*written) >> 8) & 0xFF};
   uint8_t tx_len = 0;
 
-  /* Retry until three bytes are successfully written */
-  while (tx_len != 3)
+  /* Retry until three bytes are successfully written (bounded) */
+  for (uint8_t tries = 0; tx_len != 3; )
   {
     /* Acquire I2C interface and address using the chip ID */
     if (i2c_take_by_chipid(data->chipid, &i2c_addr, &i2c_interf, portMAX_DELAY) == pdTRUE)
@@ -325,6 +363,11 @@ uint8_t ucd_write_word(ucd_data_t *data, uint8_t reg_addr, uint16_t *written)
     /* If the write operation fails, log the error and retry after a delay */
     if (tx_len != 3)
     {
+      ucd_bus_recover(i2c_interf);
+      if (++tries >= UCD_MAX_READ_TRIES)
+      {
+        return 0;
+      }
 #ifdef DEBUG
       printf("UCD write error @ 0x%x\n", reg_addr);
 #endif
