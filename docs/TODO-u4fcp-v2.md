@@ -18,9 +18,10 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       worth doing before enabling outputs, but there is nothing to change.
 - [ ] **[next]** Decide and capture the **real routing**. The stored preset
       (`tools/firmware/u4fcp-v2/clk-preset.bin`) and the compiled default
-      are all outputs disabled (`0x08 ×16`, i.e. every output ← input 8,
-      disabled). Once the FPGA/FMC/LEMO/RTM clock consumers are known, load
-      the matrix in the Clock tab and `Write to flash` (slot auto).
+      are all outputs disabled (every output from input 8, disabled) -
+      confirmed on AMC6: `0x90-0x97` read back `88 88 88 88 88 88 88 88`. Once
+      the FPGA/FMC/LEMO/RTM clock consumers are known, load the matrix in the
+      Clock tab and `Write to flash` (slot auto).
 - [ ] **[opt]** ADN4604 equalizer (0x10/0x11, 0/12 dB) and map 1 / broadcast
       (0x81/0x82) controls in the Clock tab.
 - [ ] **[opt]** Periodic runtime PLL-lock monitor (the lock is checked at
@@ -37,11 +38,13 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       verified after each, sensors/FRU/clock store intact, no reboot loop.
       `tools/firmware/u4fcp-v2/ota.sh` automates it (pre-flight, upload,
       activate, SHA check); pass criteria in `docs/testing/OTA_CHECKS.md`.
-- [ ] **[next]** OTA **failure** paths with deliberate injection: aborted
-      upload, wrong `finish` length, oversized image, `activate` without
-      staging (`docs/testing/OTA_CHECKS.md` §3).  AMC1 is still down from the
-      2026-11-15 OTA and needs the SWD recovery
-      (`docs/testing/INCIDENT-2026-11-15-amc1-ota.md`).
+- [ ] **[next]** OTA **failure** paths with deliberate injection
+      (`docs/testing/OTA_CHECKS.md` §3).  Already covered: a wrong `finish`
+      length (the board self-test does it - rejected with `0x81`, board alive)
+      and the interrupted clock-store write.  Still to inject: aborted upload
+      (initiate + blocks, no finish), oversized image, `activate` without
+      staging.  AMC1 is still down from the 2026-11-15 OTA and needs the SWD
+      recovery (`docs/testing/INCIDENT-2026-11-15-amc1-ota.md`).
 - [ ] **[opt]** Reduce the 1.2 s clock-store apply (15 records, 1052
       registers) or keep the payload power-up timing as is.
 - [ ] **[opt]** Review the SDR list against the final UCD90320 rail map
@@ -82,7 +85,7 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       there is no rescan command (`sdrrep_dbg` only sets log levels).
       Verified: RTM off -> `show_sensorinfo 16` shows all 10 RTM rows with
       **0 error lines** and 0 values; RTM back -> live values again.
-- [ ] The yellow **FMC VADJ PG LEDs** (`LED_VADJ_PG0/1`, UCD90320
+- [ ] **[opt]** The yellow **FMC VADJ PG LEDs** (`LED_VADJ_PG0/1`, UCD90320
       LGPO10/LGPO11, Pin_ID 65/66, balls M1/M2) are driven by the **UCD's own
       logic** (Logic GPO), not by the MMC - wiring is net -> 330R -> LED ->
       GND (pin high = lit).  The MMC must not configure those pins with
@@ -125,10 +128,11 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
 - [ ] **[next]** RTM FRU/hotswap reporting to the MCH (the uRTM's FRU EEPROM
       on I2C2 ch5, FRU_RTM + SDR 0xC0 hotswap record) — requires deciding
       whether the AMC or the RTM's own MMC owns the RTM FRU.
-- [ ] Add the remaining RTM rail monitors if needed (`12V0_RTM`, the RTM
+- [ ] **[opt]** Add the remaining RTM rail monitors if needed (`12V0_RTM`, the RTM
       temperatures) — the FMC2/FMC3 group covers pages 2-7 only.
-- [ ] Verify the RTM FRU read over I2C2 ch5 and the RTM JTAG (`RTM_EN_B`)
-      with the RTM plugged.
+- [ ] **[next]** Verify the RTM JTAG path (`RTM_EN_B`, TCA9554 on ch4) with
+      the RTM plugged.  The RTM FRU read itself is already proven - it is how
+      the uRTM v2.3 is identified (`0x70 ch5 -> 0x71 ch7 -> 0x55`).
 - [x] **Bench matrix** (`docs/testing/RTM_CHECKS.md`), all three scenarios
       verified on AMC6 (2026-11-16): **no RTM** (manager OFF, no rail, no
       probes, no SDRs, bus healthy), **uRTM v2.3** (MANAGED, 35 SDRs, RTM
@@ -150,6 +154,10 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
 
 ## Process
 
-- [ ] Run `tools/testing/board_selftest.py` + the manual checklist
-      (`docs/testing/REGRESSION.md`) after every major revision; keep the
-      generated report with the release notes.
+- [x] **Board self-test** (`tools/testing/board_selftest.py`): **36/36** on
+      AMC6 with the uRTM v2.3 plugged (2026-11-16), report kept in
+      `docs/testing/TEST_REPORT-20261116-1010.md`.
+- [ ] **[next]** Manual part of `docs/testing/REGRESSION.md`: T1.4/T1.5
+      (watchdog `PR=4`, `RLR=0x4E2`; a no-feed build must reset every ~2 s),
+      T1.6 (>= 30 s stable), T3.6 (lost link) and T4.1 (payload cut mid-boot,
+      the next `fru_start` completes with FRU + clock store intact).
