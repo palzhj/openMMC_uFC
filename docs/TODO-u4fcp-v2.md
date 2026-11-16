@@ -30,13 +30,16 @@ Status legend: **[blocked]** needs a document/hardware we do not have yet,
       should set heartbeats and the WatchdogTask should feed only when all
       are alive (today the feed is unconditional, so a hung task does not
       trip the IWDG).
-- [ ] **[next]** Successful HPM upgrade + activation end-to-end test (only
-      the failure paths are covered: aborted upload, bad finish).  Procedure and
-      pass criteria: `docs/testing/OTA_CHECKS.md` — pre-flight clean-build
-      reproducibility, upload/activate, post-checks (SHA, sensors, FRU, clock
-      store, no I²C wedge, no reboot loop), then the injected-failure matrix.
-      Note AMC1 is still down from the 2026-11-15 OTA and needs the SWD recovery
-      first (`docs/testing/INCIDENT-2026-11-15-amc1-ota.md`).
+- [x] **HPM upgrade + activation end-to-end** (2026-11-16): two consecutive
+      OTAs on AMC6 (`e4ed725` → `ceb7266` → `e4ed725`, then `7e75f57`), SHA
+      verified after each, sensors/FRU/clock store intact, no reboot loop.
+      `tools/firmware/u4fcp-v2/ota.sh` automates it (pre-flight, upload,
+      activate, SHA check); pass criteria in `docs/testing/OTA_CHECKS.md`.
+- [ ] **[next]** OTA **failure** paths with deliberate injection: aborted
+      upload, wrong `finish` length, oversized image, `activate` without
+      staging (`docs/testing/OTA_CHECKS.md` §3).  AMC1 is still down from the
+      2026-11-15 OTA and needs the SWD recovery
+      (`docs/testing/INCIDENT-2026-11-15-amc1-ota.md`).
 - [ ] **[opt]** Reduce the 1.2 s clock-store apply (15 records, 1052
       registers) or keep the payload power-up timing as is.
 - [ ] **[opt]** Review the SDR list against the final UCD90320 rail map
@@ -53,18 +56,21 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
   rtm_check_presence, rtm_enable/disable_payload_power) is never compiled —
   its SDR dev-locator/hotswap path does not fit the uRTM, which has its own
   MMC; the board-level `rtm.c` implements the presence/12 V policy instead;
-- the RTM management-power enable (`UCD_GPO_RTM_MP_EN_ID`) is still commented
-  in `payload.c` (the uRTM MP comes up with the AMC);
+- `RTM_MP3V3_EN` (`UCD_GPO_RTM_MP_EN_ID`, LGPO14) is **deliberately held low**
+  by the RTM manager: the uRTM v2 mishandles `RTM_MODE` and would pull a large
+  current from MP3V3 before its FPGA is configured, tripping the AMC's MP3V3
+  over-current protection (see `docs/HANDOVER-u4FCP-v2.md` §7.1);
 - the JTAG side is wired (`JTAG_RTM_EN_B`, `UCD_GPI_RTM_PS_B_ID`) and the
   RTM EEPROM bus exists (`I2C_BUS_RTM_ID` = I2C2 ch5, now enabled for the
   two-level mux path to the uRTM UCD90124A).
 
-- [x] AMC-side RTM control in `port/board/u4fcp-v2/rtm.c`: presence from
-      RTM_PS# (PA8), 12 V after `RTM_TURNON_DELAY_MS` (3 s), 12 V cut on
-      handle removal / RTM fault / payload shutdown or reset.  The startup
-      deliberately ignores the RTM handle until the module is up, because the
-      uRTM's MCU pulls a large current from MP3V3 through the FPGA before it
-      is configured (the AMC shuts the RTM's MP3V3 down on overcurrent).
+- [x] AMC-side RTM control in one manager task (`port/board/u4fcp-v2/rtm.c`,
+      state machine OFF → WAIT_AMC → POWER → SETTLE → IDENTIFY →
+      MANAGED/UNMANAGED): presence from RTM_PS# (PA8), 12 V after
+      `RTM_TURNON_DELAY_MS` (1 s), FRU probed 5 s later, 12 V cut on unplug /
+      handle removal / RTM fault / payload shutdown.  The handle is only judged
+      after a 10 s configuration window (the uRTM drives RTM_INT# low while it
+      boots).
 - [x] The nine FMC2/FMC3 SDR records are **kept for the whole session** once
       the RTM has been seen plugged; when it is not running they report
       "reading unavailable" (scanning disabled, reading 0) instead of being
@@ -121,9 +127,9 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       temperatures) — the FMC2/FMC3 group covers pages 2-7 only.
 - [ ] Verify the RTM FRU read over I2C2 ch5 and the RTM JTAG (`RTM_EN_B`)
       with the RTM plugged.
-- [ ] **Bench matrix** (`docs/testing/RTM_CHECKS.md`): run the “no RTM” and
-      “uRTM v2.3” scenarios - both need the module physically swapped - and the
-      carrier power-button check below.
+- [ ] **[next]** **Bench matrix** (`docs/testing/RTM_CHECKS.md`): the “no RTM”
+      and “uRTM v2.3” scenarios - both need the module physically swapped.  The
+      carrier scenario has been running since 2026-11-16 (see below).
 - [x] **LattePanda carrier boots** (2026-11-16): the Mu needed a power-button
       press; with the module's BIOS set to auto power-on it starts from the
       RTM 12 V and draws ~1.5-1.7 A (`RTM +12V Curr`).  Recorded in
