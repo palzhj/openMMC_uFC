@@ -117,13 +117,13 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       RTM presence).  Details and the verification evidence:
       `docs/RTM_SENSORS_PLAN.md`.  The boot dump needs the UART console
       (`/dev/ttyUSB0`, 115200).
-- [ ] **[next]** Physical mount/remove test of the monitor group: the SDR
-      insert/remove path was exercised with a bench build
-      (`-DMODULES_FLAGS="-DRTM_SENSORS_SELFTEST"`, pretends the handle was
-      opened for 30 s), but pulling the uRTM with a human at the crate is
-      still open.  Note the NAT-MCH keeps the module SDR rows cached until it
-      re-reads the module repository, so after an unplug it shows the eight
-      names with a read error.
+- [ ] **[next]** Physical mount/remove test of the monitor group - procedure
+      ready in `docs/testing/RTM_CHECKS.md` §D (watcher:
+      `tools/testing/rtm_watch.py`): D1 open the handle, D2 payload cycle,
+      D3 pull/insert the module, D4 the MCH re-read.  The insert/remove path
+      was exercised with a bench build (`-DRTM_SENSORS_SELFTEST`); the human at
+      the crate is what is left.  Note the NAT-MCH keeps the module SDR rows
+      cached until it re-reads the module repository.
 - [ ] **[next]** RTM FRU/hotswap reporting to the MCH (the uRTM's FRU EEPROM
       on I2C2 ch5, FRU_RTM + SDR 0xC0 hotswap record) — requires deciding
       whether the AMC or the RTM's own MMC owns the RTM FRU.

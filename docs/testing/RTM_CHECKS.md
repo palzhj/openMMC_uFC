@@ -98,6 +98,62 @@ slow — the table fills in over ~1–2 min, so a count taken immediately after
 - Scenario C ran clean: 12 V on with `PGb` good, carrier `0x55` answering,
   manager `UNMANAGED`, no bus wedge.
 
+## D. Physical mount/remove (bench, with the uRTM v2.3)
+
+Start the watcher in one terminal — it prints a line whenever the SDR count, the
+RTM 12 V current or the number of live RTM rows changes:
+
+```sh
+python3 tools/testing/rtm_watch.py --mch 10.19.198.31 --target 0x7c --seconds 600
+```
+
+Baseline with the module in and managed: `SDRs=34`, `RTM +12V Curr≈1.2 A`,
+`RTM rows=9 (9 live)`.
+
+### D1. Open the handle (RTM_INT# low, PS# still low)
+
+| when | expected |
+|---|---|
+| immediately | `rtm : RTM handle open, 12 V off` in the log |
+| +1 s (tick) + 1 s (confirm) | `RTM +12V Curr` → **0.000 A**, hotswap `PGb` not good |
+| same pass | manager `rtm_state = 0` (OFF), `rtm_blocked = 1` |
+| same pass | the 9 RTM rows stay in the SDR list but go **not available** (`RTM rows=9 (0 live)`) |
+
+The module is **not** re-powered when the handle is closed again: `RTM_PS#` did
+not change and no payload cycle happened, so `rtm_blocked` stays set.  Re-power
+with a payload cycle (`shutdown 10` + `fru_start 10`) or by pulling the module
+out and back in.
+
+### D2. Payload cycle with the module in
+
+`shutdown 10` + `fru_start 10` → the manager goes OFF while the payload is down,
+then on `PAYLOAD_POWER_GOOD_WAIT` it sees PS# low, waits **1 s**, switches the
+12 V, waits **5 s**, probes the FRU (≤3 tries) and is `MANAGED` again about 7 s
+after the rail.  Current and the nine rows come back on the next 1 s poll.
+
+### D3. Pull the module completely (RTM_PS# high)
+
+| when | expected |
+|---|---|
+| +1 s | `rtm : RTM unplugged`, `RTM +12V Curr` → 0.000 A, `rtm_state = 0` |
+| same pass | no RTM bus traffic at all (the manager never probes while PS# is high) |
+| same pass | 9 rows still listed, readings **not available** |
+
+Push it back in: PS# low → `rtm : RTM plugged` → 1 s → 12 V → 5 s → identify →
+`MANAGED`, readings back.  The SDR set does not change (34 → 34), so no MCH
+activation is needed unless the *number* of rows changes.
+
+### D4. MCH side after the test
+
+The NAT-MCH keeps the cached repository: after a real change (module gone, or a
+carrier instead of the uRTM) run `shutdown 10` + `fru_start 10`, wait 1–2 min,
+then `show_sensorinfo 10` — 36 rows with the uRTM in, 27 without (26 + hotswap
+equivalent), 27 for the carrier.
+
+**Watch out:** `RTM_INT#` is also low while the module is unpowered or booting,
+so the handle is ignored for the first 10 s after the rail comes up — opening
+the handle during that window does nothing.
+
 ## Cleanup after a session
 
 - Re‑flash the production image; `raw 0x32 0x02` matches `git log -1`.
