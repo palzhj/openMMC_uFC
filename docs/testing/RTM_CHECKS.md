@@ -85,6 +85,12 @@ unavailable with a 0 readout by `rtm_sensors_unavailable()`; the MCH renders
 that as `0.0 C` with a `>=unr` state for the temperature.  With the module
 powered the same record reads ~24-26 C `ok`.  Do not "fix" the zero.
 
+The same `0 / >=unr` window appears **right after the RTM is powered on**:
+the records survive a payload cycle, and until the first successful poll
+(rail up + `RTM_FRU_SETTLE_MS` + identification, ~7 s in total) they still hold
+the "unavailable" state with a 0 readout.  Values then come in on the next 1 s
+poll (`rtm_sensors_poll()` re-enables them).
+
 **The MCH keeps a cached copy of the module's SDR repository.** When the RTM
 group appears (or disappears) the MCH shows the old set until a FRU activation:
 `shutdown <fru>` + `fru_start <fru>` (or an MCH cold reset).  The re‑read is
