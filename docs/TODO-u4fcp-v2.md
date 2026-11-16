@@ -124,9 +124,11 @@ The board port owns the RTM control (`port/board/u4fcp-v2/rtm.c` +
       was exercised with a bench build (`-DRTM_SENSORS_SELFTEST`); the human at
       the crate is what is left.  Note the NAT-MCH keeps the module SDR rows
       cached until it re-reads the module repository.
-- [ ] **[next]** RTM FRU/hotswap reporting to the MCH (the uRTM's FRU EEPROM
-      on I2C2 ch5, FRU_RTM + SDR 0xC0 hotswap record) — requires deciding
-      whether the AMC or the RTM's own MMC owns the RTM FRU.
+- [x] **RTM FRU/hotswap reporting - skipped** (2026-11-16, by request): no
+      `FRU_RTM` device and no SDR 0xC0 hotswap record is published.  The uRTM's
+      own MMC stays the FRU owner on its side; the AMC only reads it
+      (`0x70 ch5 -> 0x71 ch7 -> 0x55`) to identify the module, and reports the
+      nine monitors under its own entity.
 - [ ] **[opt]** Add the remaining RTM rail monitors if needed (`12V0_RTM`, the RTM
       temperatures) — the FMC2/FMC3 group covers pages 2-7 only.
 - [x] **RTM JTAG path** verified on hardware with the uRTM v2.3 plugged
