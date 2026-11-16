@@ -68,6 +68,23 @@ arm-none-eabi-nm .hw2/u4fcp/out/openMMC.elf | grep -E "rtm_(state|12v_on|blocked
 | shared bus | AMC FRU read 3/3 identical, UCD sensors updating, no wedge |
 | stability | state and pins unchanged over a 10 s watch (no spurious power) |
 
+### Result: scenario B on AMC6 + uRTM v2.3 (2026‑11‑16)
+
+| check | measured |
+|---|---|
+| 12 V | on after 1 s, `PGb` (pin 78) = `0x00` good, `FLTb` clear, `RTM +12V Curr` ≈ 1.2–1.3 A |
+| identification | manager `rtm_state = 5` (**MANAGED**), `rtm_12v_on = 1` |
+| SDRs | 35 records in the MMC (26 AMC + 9 RTM, 0x1B–0x23, entity 0xC0/0x00) |
+| RTM readings | `RTM TEMP UCD` 25.0 °C, `FMC2/FMC3 +12V` 0.45/0.26 A, `+3.3V` 0.00/0.19 A, `VADJ` 1.79/1.81 V — all `ok` |
+| MCH view | after `shutdown 10` + `fru_start 10` it re‑read the repository and lists **36 rows** (1–26 AMC, 27–35 RTM, 36 hotswap) |
+| MP3V3 / RTM_RES | low throughout |
+
+**The MCH keeps a cached copy of the module's SDR repository.** When the RTM
+group appears (or disappears) the MCH shows the old set until a FRU activation:
+`shutdown <fru>` + `fru_start <fru>` (or an MCH cold reset).  The re‑read is
+slow — the table fills in over ~1–2 min, so a count taken immediately after
+`fru_start` is short (31 of 36 in one run) and is not a fault.
+
 ## Notes from the first run (AMC6, 2026‑11‑16)
 
 - **“No RTM” cannot be simulated electrically**: driving `RTM_PS#` (PA8) high as
