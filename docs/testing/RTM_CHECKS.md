@@ -79,6 +79,12 @@ arm-none-eabi-nm .hw2/u4fcp/out/openMMC.elf | grep -E "rtm_(state|12v_on|blocked
 | MCH view | after `shutdown 10` + `fru_start 10` it re‑read the repository and lists **36 rows** (1–26 AMC, 27–35 RTM, 36 hotswap) |
 | MP3V3 / RTM_RES | low throughout |
 
+**Unpowered RTM reads 0, and that is not a fault.**  When the RTM rail is off
+the nine records are kept (MCH cache, see below) but deliberately marked
+unavailable with a 0 readout by `rtm_sensors_unavailable()`; the MCH renders
+that as `0.0 C` with a `>=unr` state for the temperature.  With the module
+powered the same record reads ~24-26 C `ok`.  Do not "fix" the zero.
+
 **The MCH keeps a cached copy of the module's SDR repository.** When the RTM
 group appears (or disappears) the MCH shows the old set until a FRU activation:
 `shutdown <fru>` + `fru_start <fru>` (or an MCH cold reset).  The re‑read is
