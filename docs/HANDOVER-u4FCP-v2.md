@@ -333,6 +333,13 @@ Rules (all of them in the RTM manager task, `rtm.c` + `rtm_fru.c` +
    be another board.
 5. **`RTM_INT#` (handle) and the uRTM-only 12 V/MP fault pins act only on a
    positively identified uRTM v2.3**; for anything else RTM_PS# alone decides.
+   **The RTM I2C bus is only touched while the 12 V is on and confirmed**: the
+   rail switch is read back, and if it cannot be confirmed the module is parked
+   without a single probe (`rtm_power_on()` returns false, three attempts, then
+   `UNMANAGED`).  The FRU probe and the monitor poll are gated on that flag, and
+   `rtm_sensors_poll()` latches the bus off after `RTM_SENSORS_FAIL_LIMIT`
+   failed polls (`rtm_ucd_dead`) until the next identification - an unpowered
+   uRTM clamps SDA/SCL through its ESD diodes and would wedge I2C2.
 6. **JTAG**: `config_jtag()` selects the AMC/FMC0/FMC1/RTM targets through the
    TCA9554 at `0x39` (I2C2 ch4, `JTAG_RTM_EN_B`); the RTM target is only
    enabled while RTM_PS# says a module is plugged.  Verified on hardware

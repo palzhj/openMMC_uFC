@@ -8,6 +8,10 @@
  *   - a module plugged in (RTM_PS#, PA8, low) gets its 12 V as soon as the
  *     AMC payload rails are up, no matter what the module is;
  *   - the rail comes up RTM_TURNON_DELAY_MS (1 s) after RTM_PS# went low;
+ *   - the RTM bus (I2C2 ch5) is only ever touched while rtm_12v_on is true and
+ *     the rail switch was confirmed - an unpowered RTM clamps SDA/SCL through
+ *     its ESD diodes and wedges the whole I2C2 bus.  When the rail cannot be
+ *     switched, the module is parked without a single probe;
  *   - the RTM bus is not touched during RTM_FRU_SETTLE_MS (5 s) after the rail
  *     came up: that is the time the module's own MCU needs to finish its I2C
  *     configuration (and an unpowered I2C slave would clamp SDA/SCL through its
@@ -52,6 +56,7 @@ extern ucd_data_t ucd_data[SDR_CH_COUNT];
 #define RTM_PROBE_TRIES          3       /* tries before the module is left alone */
 #define RTM_CONFIG_DELAY_MS      10000   /* uRTM clock configuration window */
 #define RTM_HANDLE_CONFIRM       2       /* low RTM_INT_B passes before "open" */
+#define RTM_POWER_TRIES          3       /* rail switch attempts before parking */
 
 #define RTM_TASK_STACK           192     /* words */
 #define RTM_TASK_PRIORITY        tskRTMSENSORS_PRIORITY
@@ -136,7 +141,9 @@ static void rtm_mp_keep_low(void)
   rtm_mp_forced = true;
 }
 
-static void rtm_power_on(void)
+/* Returns true only when the UCD confirms the rail is on: the caller must not
+ * touch the RTM bus otherwise. */
+static bool rtm_power_on(void)
 {
   uint8_t op = 0;
 
@@ -164,9 +171,12 @@ static void rtm_power_on(void)
     ucd_set_power(&ucd_data[0], UCD_RTM_12V_CURR_ID, 1);
     if (ucd_get_operation(&ucd_data[0], UCD_RTM_12V_CURR_ID, &op) && op != 0x80) {
       log_printk("rtm", "RTM 12 V still off (OPERATION 0x%02x)", op);
+      rtm_12v_on = false;
+      return false;
     }
   }
   rtm_12v_on = true;
+  return true;
 }
 
 static void rtm_power_off(void)
@@ -255,7 +265,18 @@ static void rtm_step(void)
   switch (rtm_state) {
   case RTM_POWER:
     if ((int32_t)(now - rtm_t_power) >= (int32_t)pdMS_TO_TICKS(RTM_TURNON_DELAY_MS)) {
-      rtm_power_on();
+      if (!rtm_power_on()) {
+        /* no confirmed rail: do NOT probe.  Retry, then park the module
+         * unpowered - an unpowered RTM would wedge I2C2 on the first access. */
+        if (++rtm_tries >= RTM_POWER_TRIES) {
+          log_printk("rtm", "RTM 12 V could not be switched, module left unpowered");
+          rtm_state = RTM_UNMANAGED;
+          rtm_12v_on = false;
+        } else {
+          rtm_t_power = now;
+        }
+        break;
+      }
       rtm_tries = 0;
       rtm_handle_confirm = 0;
       rtm_t_probe = now + pdMS_TO_TICKS(RTM_SETTLE_MS);
@@ -276,6 +297,12 @@ static void rtm_step(void)
 
   case RTM_IDENTIFY:
     if ((int32_t)(now - rtm_t_probe) < 0) {
+      break;
+    }
+    if (!rtm_12v_on) {
+      /* defensive: never touch the RTM bus with the rail off */
+      log_printk("rtm", "no RTM probe while the 12 V is off");
+      rtm_state = RTM_UNMANAGED;
       break;
     }
     rtm_type = rtm_fru_probe();
@@ -306,7 +333,7 @@ static void rtm_step(void)
     } else if (rtm_faulted()) {
       rtm_switch_off("power fault", RTM_OFF);
       rtm_blocked = true;
-    } else {
+    } else if (rtm_12v_on) {
       rtm_sensors_poll();
     }
     break;

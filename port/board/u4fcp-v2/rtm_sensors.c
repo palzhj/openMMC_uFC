@@ -99,6 +99,10 @@ static int32_t rtm_milli[RTM_SENSORS_COUNT];  /* last reading: mV / mA / mC */
 static int8_t rtm_monitor_exp[RTM_SENSORS_COUNT];  /* VOUT_MODE used per monitor */
 
 static bool rtm_scan_on;
+static bool rtm_ucd_dead;           /* the uRTM's UCD stopped answering: no more
+                                     * RTM bus access until the module is
+                                     * identified again (it is powered off, and
+                                     * an unpowered slave clamps I2C2) */
 static uint8_t rtm_fail_count;      /* consecutive failed poll cycles */
 static uint8_t rtm_fail_step;       /* last failing step, for the log */
 /* IPMI Get Sensor Reading, reading-state byte bit 5: reading/state unavailable */
@@ -407,6 +411,7 @@ bool rtm_sensors_insert(TaskHandle_t *owner)
   }
 
   rtm_scan_on = false;
+  rtm_ucd_dead = false;
   rtm_fail_count = 0;
 #if RTM_DUMP_ENABLED
   rtm_dump_pending = true;
@@ -513,6 +518,10 @@ void rtm_sensors_poll(void)
   if (!rtm_sensors_is_inserted()) {
     return;
   }
+  /* the uRTM is off: do not touch its bus at all (see rtm_ucd_dead) */
+  if (rtm_ucd_dead) {
+    return;
+  }
 
   /* one immediate retry: a single NACK on the shared I2C2 bus (the AMC UCD
    * is polled from another task) must not hide the monitors */
@@ -539,10 +548,13 @@ void rtm_sensors_poll(void)
       rtm_fail_count++;
     }
     /* the UCD keeps NACKing: report the monitors as not available instead of
-     * leaving stale readings in the MCH */
-    if (rtm_fail_count >= RTM_SENSORS_FAIL_LIMIT && rtm_scan_on) {
+     * leaving stale readings in the MCH, and stop talking to the bus - the
+     * module is powered off and every further access risks wedging I2C2.
+     * The latch is cleared by rtm_sensors_insert() on the next identification. */
+    if (rtm_fail_count >= RTM_SENSORS_FAIL_LIMIT && !rtm_ucd_dead) {
+      rtm_ucd_dead = true;
       rtm_sensors_unavailable();
-      log_printk("rtm", "UCD 0x5B not answering (step %u), monitors unavailable",
+      log_printk("rtm", "UCD 0x5B not answering (step %u), RTM bus left alone",
                  rtm_fail_step);
     }
   }
