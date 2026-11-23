@@ -78,17 +78,35 @@ static inline uint32_t fw_info_addr(void)
 }
 
 /* Erase only the pages of the staging area that are not blank */
+/* Erase at most this many pages per IPMI call.  A whole staging erase inside
+ * one "initiate" blocked the IPMI task for ~2.4 s and the MCH's bridge gave up
+ * (rsp 0xC3 timeout) before the response came back; the HPM initiators retry
+ * the command on 0xC0, so the erase resumes where it stopped. */
+#define HPM_ERASE_CHUNK_PAGES 8
+
+static uint32_t hpm_erase_cursor;
+static uint8_t  hpm_erase_active;
+
 static uint8_t hpm_erase_staging(void)
 {
-    uint8_t ret = IPMI_CC_OK;
     const uint32_t start = staging_start();
     const uint32_t end = (uint32_t)&__FWUpdateFlash_end;
+
+    if (!hpm_erase_active) {
+        hpm_erase_cursor = start;
+        hpm_erase_active = 1;
+    }
 
     FLASH_Unlock();
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
 
-    for (uint32_t page = start; page <= end; page += STM32_FLASH_PAGE_SIZE) {
+    for (uint8_t budget = HPM_ERASE_CHUNK_PAGES;
+         budget > 0 && hpm_erase_cursor <= end;
+         budget--) {
+        uint32_t page = hpm_erase_cursor;
         bool dirty = false;
+
+        hpm_erase_cursor += STM32_FLASH_PAGE_SIZE;
 
         for (uint32_t addr = page; addr < (page + STM32_FLASH_PAGE_SIZE); addr += 4) {
             if (*(volatile uint32_t *)addr != 0xFFFFFFFFu) {
@@ -103,14 +121,22 @@ static uint8_t hpm_erase_staging(void)
             portENABLE_INTERRUPTS();
 
             if (status != FLASH_COMPLETE) {
-                ret = IPMI_CC_UNSPECIFIED_ERROR;
-                break;
+                FLASH_Lock();
+                hpm_erase_active = 0;
+                return IPMI_CC_UNSPECIFIED_ERROR;
             }
         }
     }
 
     FLASH_Lock();
-    return ret;
+
+    if (hpm_erase_cursor <= end) {
+        /* more pages to go: the initiator retries and we continue */
+        return IPMI_CC_NODE_BUSY;
+    }
+
+    hpm_erase_active = 0;
+    return IPMI_CC_OK;
 }
 
 /* Program `size` bytes at an absolute flash address */
@@ -233,8 +259,10 @@ static uint8_t hpm_upload_block(uint8_t *block, uint16_t size)
 
 static uint8_t hpm_finish_upload(uint32_t image_size)
 {
-    /* The staged image must fit the firmware update region */
-    if (image_size == 0u || image_size > ((uint32_t)&__FWUpdateFlash_end - staging_start() + 1u)) {
+    /* The staged image must fit the application region (the bootloader copies
+     * exactly that many bytes; the staging itself is slightly larger). */
+    if (image_size == 0u ||
+        image_size > ((uint32_t)&__AppFlash_end - (uint32_t)&__AppFlash_start + 1u)) {
         return 0x81;
     }
 

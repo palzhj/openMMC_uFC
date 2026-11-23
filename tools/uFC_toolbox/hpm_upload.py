@@ -61,8 +61,17 @@ def main():
     props = ipmitool(bridge, ["0x2c", "0x2f", "0x00", "0x%02x" % a.component, "0x00"])
     print("component properties:", props.hex())
 
-    print("initiate (prepare):", ipmitool(bridge, ["0x2c", "0x31", "0x00",
-                                                   "0x%02x" % mask, "0x01"]).hex())
+    # The prepare erases the staging in chunks and answers 0xC0 "node busy"
+    # while more pages remain; repeat until it reports success.
+    prepare = b""
+    for _ in range(64):
+        try:
+            prepare = ipmitool(bridge, ["0x2c", "0x31", "0x00", "0x%02x" % mask, "0x01"])
+            break
+        except RuntimeError as exc:
+            if "rsp=0xc0" not in str(exc):
+                raise
+    print("initiate (prepare):", prepare.hex())
     blk = 0
     pos = 0
     t0 = time.time()

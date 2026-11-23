@@ -48,7 +48,7 @@ MEMORY
 __BootFlash_start     = 0x08000000;   /* newboot (first stage), 8 KB */
 __BootFlash_end       = 0x08001FFF;
 __AppFlash_start      = 0x08002000;   /* Application start address (vector table) */
-__AppFlash_end        = 0x08010DFF;   /* 59.5 KB application end address (last byte) */
+__AppFlash_end        = 0x080107FF;   /* 58 KB application end (0x08010800..0x08010DFF unused) */
 __FWUpdateFlash_start = 0x08010E00;   /* Firmware update (staging) region */
 __FWUpdateFlash_end   = 0x0801FBFF;   /* 59.5 KB staging end address (last byte) */
 __FWInfo_addr         = 0x0801FC00;   /* Last 1 KB page, 256 B fw_info record */

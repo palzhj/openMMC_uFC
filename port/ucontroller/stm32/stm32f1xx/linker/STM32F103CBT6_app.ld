@@ -41,17 +41,27 @@ _Min_Stack_Size = 512;    /* required amount of stack */
 /* Specify the memory areas */
 MEMORY
 {
-  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 0xEE00
+  FLASH (rx)      : ORIGIN = 0x08002000, LENGTH = 0xE800
   RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 20K
 }
 
 __BootFlash_start     = 0x08000000;   /* newboot (first stage), 8 KB */
 __BootFlash_end       = 0x08001FFF;
 __AppFlash_start      = 0x08002000;   /* Application start address (vector table) */
-__AppFlash_end        = 0x08010DFF;   /* 59.5 KB application end address (last byte) */
+/* The application stops 1.5 KB below the staging region: an erase of the
+ * staging's first page is done in hardware-page units (2 KB on this part in
+ * practice), so an application that reached 0x08010DFF would lose its last
+ * page whenever the staging is erased - which happened during a field OTA.
+ * 0x08010800..0x08010DFF stays unused. */
+__AppFlash_end        = 0x080107FF;   /* 58 KB application end address (last byte) */
 __FWUpdateFlash_start = 0x08010E00;   /* Firmware update (staging) region */
 __FWUpdateFlash_end   = 0x0801FBFF;   /* 59.5 KB staging end address (last byte) */
 __FWInfo_addr         = 0x0801FC00;   /* Last 1 KB page, 256 B fw_info record */
+
+/* The application must not share a 2 KB flash page with the staging region,
+ * otherwise the OTA's staging erase takes the application's tail with it. */
+ASSERT((__AppFlash_end >> 11) < (__FWUpdateFlash_start >> 11),
+       "application and staging share a 2 KB flash page")
 
 /* Define output sections */
 SECTIONS
