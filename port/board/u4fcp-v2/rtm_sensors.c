@@ -31,10 +31,7 @@
 #include "sdr.h"
 #include "i2c.h"
 #include "i2c_mapping.h"
-#include "rtm.h"
-#include "rtm_fru.h"
 #include "rtm_sensors.h"
-#include "task_priorities.h"
 #include "utils.h"
 
 /* UCD90124A PMBus registers */
@@ -54,7 +51,6 @@
 
 #define RTM_UCD_TIMEOUT_TICKS   20      /* 20 ms to win the bus */
 #define RTM_SENSORS_PERIOD_MS   1000
-#define RTM_SENSORS_TASK_STACK  192     /* words: only the boot dump uses printf */
 
 /* An opened handle bounces: the group is only dropped after the RTM stayed
  * absent for this many polls. */
@@ -98,12 +94,15 @@ static const rtm_monitor_t rtm_monitors[RTM_SENSORS_COUNT] = {
   { 6, RTM_UCD_REG_READ_VOUT, SENSOR_TYPE_VOLTAGE, "FMC3 VADJ V" }
 };
 
-static TaskHandle_t vTaskRtmSensors_Handle;
 static sensor_t *rtm_sensor[RTM_SENSORS_COUNT];
 static int32_t rtm_milli[RTM_SENSORS_COUNT];  /* last reading: mV / mA / mC */
 static int8_t rtm_monitor_exp[RTM_SENSORS_COUNT];  /* VOUT_MODE used per monitor */
 
 static bool rtm_scan_on;
+static bool rtm_ucd_dead;           /* the uRTM's UCD stopped answering: no more
+                                     * RTM bus access until the module is
+                                     * identified again (it is powered off, and
+                                     * an unpowered slave clamps I2C2) */
 static uint8_t rtm_fail_count;      /* consecutive failed poll cycles */
 static uint8_t rtm_fail_step;       /* last failing step, for the log */
 /* IPMI Get Sensor Reading, reading-state byte bit 5: reading/state unavailable */
@@ -114,21 +113,21 @@ static bool rtm_dump_pending;
 static TickType_t rtm_dump_tick;
 #endif
 
-/* The group exists while the uRTM is up: it runs from the 12 V the AMC
- * switches, so RTM_INT_B (attention) is low whenever it is off, booting or
- * has its handle open. */
-static bool rtm_attached(void)
-{
-  return rtm_alive();
-}
-
 /* Keep the SDR records and report the sensors as "reading unavailable".
  * Deleting the records is what made the MCH print "could not read sensor!":
  * the MCH caches the module SDRs and only re-reads them on a hotswap/device
  * activation, so a disappeared record is a 0xC9 on every one of its scans. */
-static void rtm_sensors_set_unavailable(void)
+void rtm_sensors_unavailable(void)
 {
+  /* the manager calls this on every pass while the RTM is down, so it must
+   * be a no-op until the records exist (the sensor array is empty then) */
+  if (!rtm_sensors_is_inserted()) {
+    return;
+  }
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
+    if (rtm_sensor[i] == NULL) {
+      continue;
+    }
     sensor_disable(rtm_sensor[i]);
     rtm_sensor[i]->readout_value = 0;
     rtm_sensor[i]->state = RTM_SENSOR_STATE_UNAVAILABLE;
@@ -389,7 +388,7 @@ static uint8_t rtm_sensors_first_free_number(void)
   return base;
 }
 
-bool rtm_sensors_insert(void)
+bool rtm_sensors_insert(TaskHandle_t *owner)
 {
   uint8_t first_num;
 
@@ -402,7 +401,7 @@ bool rtm_sensors_insert(void)
   for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
     rtm_sensor[i] = sdr_insert_entry_full(TYPE_01,
                                           (void *)SDR_RTM_UCD[i],
-                                          &vTaskRtmSensors_Handle, 0,
+                                          owner, 0,
                                           CHIP_ID_RTM_UCD,
                                           (uint8_t)(first_num + i),
                                           RTM_SENSORS_INSTANCE);
@@ -412,6 +411,7 @@ bool rtm_sensors_insert(void)
   }
 
   rtm_scan_on = false;
+  rtm_ucd_dead = false;
   rtm_fail_count = 0;
 #if RTM_DUMP_ENABLED
   rtm_dump_pending = true;
@@ -442,8 +442,7 @@ void rtm_sensors_remove(void)
   rtm_dump_pending = false;
 #endif
 
-  log_printk("rtm", "RTM %s, FMC2/FMC3 monitors removed from the SDR",
-             rtm_present() ? "not running" : "unplugged");
+  log_printk("rtm", "FMC2/FMC3 monitors removed from the SDR");
 }
 
 /* ------------------------------------------------------------------ */
@@ -455,14 +454,6 @@ void rtm_sensors_dump(void)
 {
   int32_t milli[RTM_SENSORS_COUNT] = { 0 };
   int32_t rail_12v = 0;
-
-  if (!rtm_attached() || !rtm_is_urtm_v23()) {
-    log_printk("rtm", "no uRTM v2.3 (%s), no FMC monitors",
-               !rtm_present() ? "not plugged" :
-               (rtm_fru_type() == RTM_FRU_OTHER) ? "other RTM" :
-               "not running / no FRU");
-    return;
-  }
 
   if (!rtm_ucd_read_monitors(milli)) {
     log_printk("rtm", "UCD 0x5B not answering (0x70 ch5 -> 0x71 ch7)");
@@ -520,106 +511,62 @@ static void rtm_sensors_update(const int32_t *milli)
   }
 }
 
-#ifdef RTM_SENSORS_SELFTEST
-/* Bench self-test of the dynamic removal/insert path (not built into the
- * production image): pretend the uRTM handle was opened between 60 s and
- * 90 s after the scheduler started, so the SDR removal and re-insert can be
- * exercised without a human at the crate. */
-static bool rtm_present_selftest(void)
+void rtm_sensors_poll(void)
 {
-  uint32_t uptime = (uint32_t)(xTaskGetTickCount() / configTICK_RATE_HZ);
+  int32_t milli[RTM_SENSORS_COUNT];
 
-  return !(uptime >= 60u && uptime < 90u);
-}
-#endif
-
-static void vTaskRtmSensors(void *Parameters)
-{
-  TickType_t xLastWakeTime = xTaskGetTickCount();
-
-  (void)Parameters;
-
-  for (;;) {
-    bool plugged = rtm_present();
-    bool running = rtm_attached();
-
-#ifdef RTM_SENSORS_SELFTEST
-    running = running && rtm_present_selftest();
-#endif
-
-    /* The records exist only for the board that actually has the monitors:
-     * the RTM must identify itself as uRTM v2.3 through its FRU.  Another
-     * RTM (the LattePanda carrier runs its own MMC), or one whose FRU cannot
-     * be read, gets no RTM SDR entries at all.  Once inserted they are kept
-     * for the whole session unless the module is positively another board:
-     * the MCH caches them and a deleted record turns every scan into a
-     * "could not read sensor" error. */
-    if (plugged && !rtm_sensors_is_inserted() &&
-        rtm_12v_is_on() && rtm_is_urtm_v23()) {
-      rtm_sensors_insert();
-    }
-    if (rtm_sensors_is_inserted() && rtm_12v_is_on() &&
-        rtm_fru_type() == RTM_FRU_OTHER) {
-      rtm_sensors_remove();
-    }
-
-    if (rtm_sensors_is_inserted()) {
-      if (running && rtm_12v_is_on()) {
-        int32_t milli[RTM_SENSORS_COUNT];
-        bool ok;
-
-        /* one immediate retry: a single NACK on the shared I2C2 bus (the AMC
-         * UCD is polled from another task) must not hide the monitors */
-        ok = rtm_ucd_read_monitors(milli) || rtm_ucd_read_monitors(milli);
-
-        if (ok) {
-          rtm_fail_count = 0;
-          if (!rtm_scan_on) {
-            for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
-              sensor_enable(rtm_sensor[i]);
-            }
-            rtm_scan_on = true;
-          }
-          rtm_sensors_update(milli);
-
-#if RTM_DUMP_ENABLED
-          /* the boot dump waits for the FMC rails to come up, so the log
-           * shows real currents and not the zeroes of the power-up ramp */
-          if (rtm_dump_pending && rtm_rails_up(milli)) {
-            rtm_sensors_dump();
-            rtm_dump_pending = false;
-          }
-#endif
-        } else {
-          if (rtm_fail_count < RTM_SENSORS_FAIL_LIMIT) {
-            rtm_fail_count++;
-          }
-          /* the UCD keeps NACKing: report the monitors as not available
-           * instead of leaving stale readings in the MCH */
-          if (rtm_fail_count >= RTM_SENSORS_FAIL_LIMIT && rtm_scan_on) {
-            rtm_sensors_set_unavailable();
-            log_printk("rtm", "UCD 0x5B not answering (step %u), monitors unavailable",
-                       rtm_fail_step);
-          }
-        }
-      } else if (rtm_scan_on) {
-        rtm_sensors_set_unavailable();
-        log_printk("rtm", "RTM %s, monitors unavailable (SDRs kept)",
-                   plugged ? "not running" : "unplugged");
-      }
-
-#if RTM_DUMP_ENABLED
-      if (rtm_dump_pending &&
-          (xTaskGetTickCount() - rtm_dump_tick) >= pdMS_TO_TICKS(RTM_SENSORS_DUMP_WAIT_MS)) {
-        /* the RTM never powered its FMC rails: dump what the MP side shows */
-        rtm_sensors_dump();
-        rtm_dump_pending = false;
-      }
-#endif
-    }
-
-    vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(RTM_SENSORS_PERIOD_MS));
+  if (!rtm_sensors_is_inserted()) {
+    return;
   }
+  /* the uRTM is off: do not touch its bus at all (see rtm_ucd_dead) */
+  if (rtm_ucd_dead) {
+    return;
+  }
+
+  /* one immediate retry: a single NACK on the shared I2C2 bus (the AMC UCD
+   * is polled from another task) must not hide the monitors */
+  if (rtm_ucd_read_monitors(milli) || rtm_ucd_read_monitors(milli)) {
+    rtm_fail_count = 0;
+    if (!rtm_scan_on) {
+      for (uint8_t i = 0; i < RTM_SENSORS_COUNT; i++) {
+        sensor_enable(rtm_sensor[i]);
+      }
+      rtm_scan_on = true;
+    }
+    rtm_sensors_update(milli);
+
+#if RTM_DUMP_ENABLED
+    /* the boot dump waits for the FMC rails to come up, so the log shows
+     * real currents and not the zeroes of the power-up ramp */
+    if (rtm_dump_pending && rtm_rails_up(milli)) {
+      rtm_sensors_dump();
+      rtm_dump_pending = false;
+    }
+#endif
+  } else {
+    if (rtm_fail_count < RTM_SENSORS_FAIL_LIMIT) {
+      rtm_fail_count++;
+    }
+    /* the UCD keeps NACKing: report the monitors as not available instead of
+     * leaving stale readings in the MCH, and stop talking to the bus - the
+     * module is powered off and every further access risks wedging I2C2.
+     * The latch is cleared by rtm_sensors_insert() on the next identification. */
+    if (rtm_fail_count >= RTM_SENSORS_FAIL_LIMIT && !rtm_ucd_dead) {
+      rtm_ucd_dead = true;
+      rtm_sensors_unavailable();
+      log_printk("rtm", "UCD 0x5B not answering (step %u), RTM bus left alone",
+                 rtm_fail_step);
+    }
+  }
+
+#if RTM_DUMP_ENABLED
+  if (rtm_dump_pending &&
+      (xTaskGetTickCount() - rtm_dump_tick) >= pdMS_TO_TICKS(RTM_SENSORS_DUMP_WAIT_MS)) {
+    /* the RTM never powered its FMC rails: dump what the MP side shows */
+    rtm_sensors_dump();
+    rtm_dump_pending = false;
+  }
+#endif
 }
 
 void rtm_sensors_init(void)
@@ -632,21 +579,4 @@ void rtm_sensors_init(void)
 #if RTM_DUMP_ENABLED
   rtm_dump_pending = false;
 #endif
-
-  if (xTaskCreate(vTaskRtmSensors, "RTM Sensors", RTM_SENSORS_TASK_STACK,
-                  (void *)NULL, tskRTMSENSORS_PRIORITY,
-                  &vTaskRtmSensors_Handle) != pdPASS) {
-    log_printk("rtm", "no heap for the RTM sensor task");
-  }
-
-  /* Create the records whenever an RTM is plugged, before the MCH reads the
-   * module's SDR repository.  The MCH fills that cache when the AMC activates
-   * (a few seconds after power-on), which is well before the RTM is powered
-   * (12 V + settle) and identified - creating the records only after the
-   * identification made them invisible to the MCH for the whole session.
-   * Until the UCD answers they report "reading unavailable"; if the module
-   * turns out to be another board the task removes them again. */
-  if (rtm_present()) {
-    rtm_sensors_insert();
-  }
 }

@@ -1,62 +1,33 @@
 #ifndef RTM_FRU_H_
 #define RTM_FRU_H_
 
-#include <stdbool.h>
-
-/** Result of the RTM identification (see rtm_fru_type()). */
+/** Result of one RTM identification attempt (see rtm_fru_probe()). */
 typedef enum {
-    RTM_FRU_UNKNOWN = 0,   /**< no FRU, blank FRU, or no answer (yet) */
-    RTM_FRU_URTM_V23,      /**< uRTM v2.3 (the UCD90124A monitor board) */
+    RTM_FRU_UNKNOWN = 0,   /**< no answer / blank FRU */
+    RTM_FRU_URTM_V23,      /**< the uRTM v2.3 (the UCD90124A monitor board) */
     RTM_FRU_OTHER,         /**< a FRU answered but it is another board */
 } rtm_fru_type_t;
 
 /**
- * @brief Identify the module plugged into Zone 3 from its FRU EEPROM.
+ * @brief Read the RTM FRU at 0x55 once and say what board it is.
  *
- * The AMC publishes the uRTM v2.3 FMC2/FMC3 monitor sensors, which only exist
- * on that board (UCD90124A at 0x5B).  Another RTM - e.g. the RTM Carrier for
- * LattePanda Mu, which carries its own MMC and no UCD - must not get those
- * SDR records, and a blank / unreadable FRU means the AMC has no evidence
- * that the RTM wants to be managed at all.
+ * This is a single bus transaction set, with no caching and no timing: the
+ * caller (the RTM manager task) owns the policy - it must only call this once
+ * the RTM 12 V has been on long enough for the module's own MCU to start, and
+ * it decides how many attempts are worth making.  Nothing here should ever be
+ * called while the module may be unpowered: selecting the RTM bus with an
+ * unpowered slave on it clamps SDA/SCL and wedges the whole I2C2 bus.
  *
- * The answer comes from the RTM's FRU at I2C 0x55: the product-area fields
- * must say "uRTM" and version "2.3".  The check is cached; it is dropped when
- * a module is plugged in (RTM_PS# falling edge) or on an explicit
- * rtm_fru_invalidate().
+ * The EEPROM is looked for twice over the RTM path: first through the uRTM's
+ * own switch (0x70 ch5 -> 0x71 ch7, where the uRTM keeps its FRU), then
+ * directly on the RTM bus (0x70 ch5 -> 0x55) for boards without that switch.
+ * The module identifies as the uRTM only if its product area says "uRTM" and
+ * version "2.3".
  *
- * The EEPROM is read twice over the RTM path: first through the uRTM's own
- * switch (0x70 ch5 -> 0x71 ch7, where the uRTM keeps its FRU), then directly
- * on the RTM bus (0x70 ch5 -> 0x55) for boards without that switch.  The
- * uRTM FRU only answers once its 12 V is on, so probing starts a few seconds
- * after rtm_fru_powered(); it is tried a bounded number of times and then
- * given up - the module is left alone (no further RTM bus access) until it is
- * unplugged and plugged again.
- *
- * @retval true the RTM answered and its FRU identifies it as uRTM v2.3
+ * @retval RTM_FRU_UNKNOWN nothing answered
+ * @retval RTM_FRU_URTM_V23 the uRTM v2.3
+ * @retval RTM_FRU_OTHER another board
  */
-bool rtm_fru_is_urtm_v23(void);
-
-/**
- * @brief What the RTM's FRU says it is.
- *
- * RTM_FRU_UNKNOWN means "no answer" (no RTM, blank EEPROM, or the uRTM whose
- * FRU needs the 12 V that is not on yet), so the caller must stay
- * conservative: no RTM SDR records, and the slower power-up sequence.
- */
-rtm_fru_type_t rtm_fru_type(void);
-
-/**
- * @brief Forget the cached identification (module plugged/unplugged).
- */
-void rtm_fru_invalidate(void);
-
-/**
- * @brief The RTM 12 V was just switched on: restart identification.
- *
- * Starts the settle window (RTM_FRU_SETTLE_MS) during which the RTM bus is
- * left untouched, because the module's own MCU needs a few seconds and an
- * unpowered I2C slave clamps the shared bus.
- */
-void rtm_fru_powered(void);
+rtm_fru_type_t rtm_fru_probe(void);
 
 #endif

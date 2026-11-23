@@ -48,7 +48,10 @@
 extern const SDR_type_01h_t * const SDR_RTM_UCD[RTM_SENSORS_COUNT];
 
 /**
- * @brief Create the RTM monitor task (board bring-up, before the scheduler)
+ * @brief Create the sensor objects of the group (called by the RTM manager)
+ *
+ * No task is started and no bus access happens here: rtm.c owns the RTM task
+ * and calls the functions below when its state machine reaches the module.
  */
 void rtm_sensors_init( void );
 
@@ -63,10 +66,28 @@ void rtm_sensors_dump( void );
 /**
  * @brief Insert the eight RTM sensors into the SDR repository
  *
+ * @param owner task that polls the readings (the RTM manager)
  * @retval true  the sensors are now in the repository
  * @retval false the RTM monitor group was already present
  */
-bool rtm_sensors_insert( void );
+bool rtm_sensors_insert( TaskHandle_t *owner );
+
+/**
+ * @brief Read the eight monitors once and update the sensors
+ *
+ * Marks the readings unavailable after RTM_SENSORS_FAIL_LIMIT consecutive
+ * failed reads instead of leaving stale values in the MCH.  Called by the RTM
+ * manager once per second while the module is identified as a uRTM v2.3.
+ */
+void rtm_sensors_poll( void );
+
+/**
+ * @brief Report the readings as unavailable (monitors off, or RTM not ours)
+ *
+ * The SDR records are kept: the MCH caches them and a disappeared record
+ * turns every one of its scans into a "could not read sensor" error.
+ */
+void rtm_sensors_unavailable( void );
 
 /**
  * @brief Remove the RTM sensors from the SDR repository (no-op when absent)

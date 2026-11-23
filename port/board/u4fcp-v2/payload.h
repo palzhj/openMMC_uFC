@@ -55,7 +55,6 @@ typedef struct __attribute__((packed))
 extern enum {
     PAYLOAD_NO_POWER = 0,
     PAYLOAD_POWER_GOOD_WAIT,
-    PAYLOAD_STATE_RTM_SETUP,
     PAYLOAD_STATE_CLK_SETUP,
     PAYLOAD_STATE_FPGA_SETUP,
     PAYLOAD_FPGA_ON,
@@ -168,6 +167,10 @@ extern enum {
   UCD_GPIO_ID_53, // EN30
   UCD_GPIO_ID_54, // EN31
   UCD_GPIO_ID_55, // EN32
+  /* Pin index map (UCD90320 datasheet: "24 AMON, 8 DMON, 32 EN, 24 MARGIN"):
+   * 0-23 MAR1-24, 24-55 EN1-32, 56-71 LGPO1-16, 72-79 DMON1-8.
+   * Do not "fix" EN32 away - it exists, and removing it shifts every later
+   * entry by one pin. */
   UCD_GPIO_ID_56, // LGPO1
   UCD_GPO_FMC0_3V3AUX_EN_ID, // LGPO2
   UCD_GPO_LED_FMC0_ID, // LGPO3
