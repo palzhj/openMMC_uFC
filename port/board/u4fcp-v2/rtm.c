@@ -391,4 +391,17 @@ void rtm_init(void)
                   &rtm_task) != pdPASS) {
     log_printk("rtm", "no heap for the RTM task");
   }
+
+  /* Create the RTM SDR records as soon as a module is plugged, i.e. before
+   * the MCH reads this module's SDR repository.  The MCH fills that cache
+   * when the AMC activates (a few seconds after power-on), which is well
+   * before the RTM is powered (12 V after RTM_TURNON_DELAY_MS) and identified
+   * through its FRU, and it only re-reads on a FRU activation - records
+   * created at identification time therefore stayed invisible for the whole
+   * session.  Until the UCD90124A answers they report "reading unavailable";
+   * the manager removes them again if the module turns out to be another
+   * board (RTM_IDENTIFY -> RTM_FRU_OTHER). */
+  if (rtm_present()) {
+    rtm_sensors_insert(&rtm_task);
+  }
 }
