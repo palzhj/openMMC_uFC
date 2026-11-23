@@ -52,7 +52,15 @@ set(CMAKE_ERROR_FLAGS "-Wall -Wextra -Wpointer-arith -Wno-packed-bitfield-compat
 # Build specific flags
 set(CMAKE_C_FLAGS           "${CMAKE_C_FLAGS} ${CMAKE_ERROR_FLAGS}")
 set(CMAKE_C_FLAGS_DEBUG     "-Og -g3 -DDEBUG")
-option(OPTIMIZE_SIZE "Compile with -Os instead of -O3 (small flash parts)" OFF)
+# The u4FCP-v2 application region is 0xEE00 (60928 B) and a -O3 image lands
+# within 4 bytes of it; -Os brings it to ~50972 B (~9.9 KB headroom) with no
+# behavioural change on the I2C/sensor paths.  Default to -Os for that board.
+if (BOARD STREQUAL "u4fcp-v2")
+  set(OPTIMIZE_SIZE_DEFAULT ON)
+else()
+  set(OPTIMIZE_SIZE_DEFAULT OFF)
+endif()
+option(OPTIMIZE_SIZE "Compile with -Os instead of -O3 (small flash parts)" ${OPTIMIZE_SIZE_DEFAULT})
 if (OPTIMIZE_SIZE)
   set(CMAKE_C_FLAGS_RELEASE   "-Os")
 else()
