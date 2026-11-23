@@ -251,6 +251,14 @@ static void rtm_step(void)
   if (!plugged || !up || rtm_blocked) {
     rtm_power_off();
     rtm_sensors_unavailable();
+    if (!plugged && rtm_sensors_is_inserted()) {
+      /* Module gone (or never really there - RTM_PS# floats low on an empty
+       * slot): the FMC2/FMC3 records describe nothing, drop them so an AMC
+       * without an RTM does not advertise nine permanently unavailable
+       * monitors.  A module plugged later gets them back at identification. */
+      rtm_sensors_remove();
+      log_printk("rtm", "no module present, RTM SDR records removed");
+    }
     rtm_state = (!plugged || rtm_blocked) ? RTM_OFF : RTM_WAIT_AMC;
     return;
   }
@@ -320,6 +328,16 @@ static void rtm_step(void)
       rtm_state = RTM_UNMANAGED;
     } else if (++rtm_tries >= RTM_PROBE_TRIES) {
       log_printk("rtm", "FRU 0x55: no answer, RTM left unmanaged");
+      /* The records are created at boot whenever RTM_PS# looks plugged, but
+       * that pin floats low on an empty slot: without this removal an AMC
+       * with no RTM keeps advertising the nine FMC2/FMC3 monitors, forever
+       * "reading unavailable" (seen as 35 instead of 26 sensors, and as nine
+       * "ns" rows in dcs).  A real uRTM identifies itself above and keeps
+       * them; one that is plugged later gets them back on its identification. */
+      if (rtm_sensors_is_inserted()) {
+        rtm_sensors_remove();
+        log_printk("rtm", "no module identified, RTM SDR records removed");
+      }
       rtm_state = RTM_UNMANAGED;
     } else {
       rtm_t_probe = now + pdMS_TO_TICKS(RTM_PROBE_INTERVAL_MS);
