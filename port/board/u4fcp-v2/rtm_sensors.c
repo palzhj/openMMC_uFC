@@ -639,11 +639,14 @@ void rtm_sensors_init(void)
     log_printk("rtm", "no heap for the RTM sensor task");
   }
 
-  /* Insert before the scheduler starts when the uRTM is already up, so the
-   * MCH sees the sensors from its first SDR read (the task handles the
-   * insert/remove for everything after that).  The rail must already be on:
-   * probing the FRU of an unpowered module clamps the I2C2 bus. */
-  if (rtm_attached() && rtm_12v_is_on() && rtm_is_urtm_v23()) {
+  /* Create the records whenever an RTM is plugged, before the MCH reads the
+   * module's SDR repository.  The MCH fills that cache when the AMC activates
+   * (a few seconds after power-on), which is well before the RTM is powered
+   * (12 V + settle) and identified - creating the records only after the
+   * identification made them invisible to the MCH for the whole session.
+   * Until the UCD answers they report "reading unavailable"; if the module
+   * turns out to be another board the task removes them again. */
+  if (rtm_present()) {
     rtm_sensors_insert();
   }
 }
