@@ -42,6 +42,28 @@ sensor_t *sdr_head = NULL;
 sensor_t *sdr_tail = NULL;
 
 static uint16_t reservationID;
+
+/* A new reservation used to invalidate every other walker's: the dcs sweep,
+ * an ipmitool run and the MCH's own walk overlap on one MMC, the second
+ * client reserved again and the first one's Get SDR was rejected with 0xC7 -
+ * its sensor list truncated, which reads as "lost SDR records" on the host.
+ * Every request arrives through the same IPMB-L controller, so requesters
+ * cannot be told apart; keep the most recent reservations valid instead and a
+ * walker survives as long as it is not overtaken by SDR_RESERVATION_SLOTS new
+ * reservations (it would be dead by then anyway). */
+#define SDR_RESERVATION_SLOTS 8
+static uint16_t reservation_ring[SDR_RESERVATION_SLOTS];
+static uint8_t reservation_next;
+
+static bool sdr_reservation_valid(uint16_t id)
+{
+    for (uint8_t i = 0; i < SDR_RESERVATION_SLOTS; i++) {
+        if (reservation_ring[i] == id) {
+            return true;
+        }
+    }
+    return false;
+}
 static uint32_t sdr_change_count;
 
 uint8_t compare_val(uint8_t val1, uint8_t val2, uint8_t comp, uint8_t sign)
@@ -379,8 +401,8 @@ IPMI_HANDLER(ipmi_se_get_sdr, NETFN_SE, IPMI_GET_DEVICE_SDR_CMD, ipmi_msg *req, 
 
     rsp->completion_code = IPMI_CC_OK;
 
-    /* Reservation ID check */
-    if (reservationID != recv_reserv_id) {
+    /* Reservation ID check (any recent reservation is accepted) */
+    if (!sdr_reservation_valid(recv_reserv_id)) {
         rsp->data_len = 0;
         rsp->completion_code = IPMI_CC_INV_DATA_FIELD_IN_REQ;
         return;
@@ -444,6 +466,9 @@ IPMI_HANDLER(ipmi_se_reserve_device_sdr, NETFN_SE, IPMI_RESERVE_DEVICE_SDR_REPOS
     if (reservationID == 0) {
         reservationID = 1;
     }
+    reservation_ring[reservation_next] = reservationID;
+    reservation_next = (uint8_t)((reservation_next + 1) % SDR_RESERVATION_SLOTS);
+
     rsp->data[len++] = reservationID & 0xff;
     rsp->data[len++] = reservationID >> 8;
 
