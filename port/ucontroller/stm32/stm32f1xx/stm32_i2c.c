@@ -61,9 +61,20 @@
 static TaskHandle_t slave_task_id;
 // I2C_XFER_T slave_cfg;
 // I2C_XFER_T slave_dummy;
-uint8_t recv_msg[i2cMAX_MSG_LENGTH];
-// uint8_t recv_msg_dummy[i2cMAX_MSG_LENGTH];
-uint8_t recv_bytes;
+
+/* The I2C interrupt receives one message while the RX task copies another, so
+ * two messages can be in flight.  With a single buffer the second request
+ * overwrote the first before the task copied it and the first was answered
+ * with the second one's payload - visible from the host as a sensor read
+ * returning another sensor's value (e.g. a 0 A current sensor's answer shown
+ * as "0 Volts" on a voltage sensor) when two requesters talk to the MMC. */
+#define SLAVE_RX_SLOTS 2
+static uint8_t recv_msg[SLAVE_RX_SLOTS][i2cMAX_MSG_LENGTH];
+static uint8_t recv_len[SLAVE_RX_SLOTS];
+static volatile uint8_t rx_fill;        /* slot the interrupt is filling */
+static volatile uint8_t rx_take;        /* oldest completed slot */
+static volatile uint8_t rx_ready;       /* completed slots (0..SLAVE_RX_SLOTS) */
+uint8_t recv_bytes;                     /* bytes in the fill slot */
 static uint8_t slave_addr_cfg = 0;              /* configured 7-bit slave address */
 
 uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32_t timeout)
@@ -71,24 +82,27 @@ uint8_t xI2CSlaveReceive(I2C_ID_T id, uint8_t *rx_buff, uint8_t buff_len, uint32
   uint8_t bytes_to_copy = 0;
   slave_task_id = xTaskGetCurrentTaskHandle();
 
-  if (ulTaskNotifyTake(pdTRUE, timeout) == pdTRUE)
-  {
-    if (recv_bytes > buff_len)
-    {
-      bytes_to_copy = buff_len;
-    }
-    else
-    {
-      bytes_to_copy = recv_bytes;
-    }
-    /* Copy the rx buffer to the pointer given */
-    memcpy(rx_buff, &recv_msg[0], bytes_to_copy);
-    return bytes_to_copy;
-  }
-  else
+  if (ulTaskNotifyTake(pdTRUE, timeout) != pdTRUE)
   {
     return 0;
   }
+
+  /* Take the oldest completed message; the interrupt only ever touches the
+   * other slot, so this copy cannot be overwritten half way. */
+  taskENTER_CRITICAL();
+  if (rx_ready > 0)
+  {
+    bytes_to_copy = recv_len[rx_take];
+    if (bytes_to_copy > buff_len)
+    {
+      bytes_to_copy = buff_len;
+    }
+    memcpy(rx_buff, &recv_msg[rx_take][0], bytes_to_copy);
+    rx_take = (uint8_t)((rx_take + 1) % SLAVE_RX_SLOTS);
+    rx_ready--;
+  }
+  taskEXIT_CRITICAL();
+  return bytes_to_copy;
 }
 
 void I2C1_EV_IRQHandler(void)
@@ -99,14 +113,20 @@ void I2C1_EV_IRQHandler(void)
   /* Flag-based handling: the event-value switch misses the combined
    * RXNE+BTF state and leaves the data register unread. */
   if (sr1 & I2C_SR1_ADDR) {
+    if (rx_ready >= SLAVE_RX_SLOTS) {
+      /* the task has not drained anything yet: recycle the oldest slot */
+      rx_take = (uint8_t)((rx_take + 1) % SLAVE_RX_SLOTS);
+      rx_ready--;
+    }
     recv_bytes = 0;
     (void)I2C1->SR2;                     /* clear ADDR */
     return;
   }
   if (sr1 & I2C_SR1_RXNE) {
-    recv_msg[recv_bytes++] = I2C1->DR;   /* also clears BTF */
-    if (recv_bytes >= i2cMAX_MSG_LENGTH) {
-      recv_bytes = i2cMAX_MSG_LENGTH - 1;
+    if (recv_bytes < i2cMAX_MSG_LENGTH) {
+      recv_msg[rx_fill][recv_bytes++] = I2C1->DR;   /* also clears BTF */
+    } else {
+      (void)I2C1->DR;                    /* keep the peripheral drained */
     }
   }
   if (sr1 & I2C_SR1_STOPF) {
@@ -115,9 +135,15 @@ void I2C1_EV_IRQHandler(void)
      * addressed to us, and a notification per phantom STOP floods the RX
      * task. */
     I2C_Cmd(I2C1, ENABLE);
-    if (recv_bytes > 0 && slave_task_id) {
-      vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
-      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    if (recv_bytes > 0) {
+      uint8_t slot = rx_fill;
+      recv_len[slot] = recv_bytes;
+      rx_fill = (uint8_t)((rx_fill + 1) % SLAVE_RX_SLOTS);
+      rx_ready++;
+      if (slave_task_id) {
+        vTaskNotifyGiveFromISR(slave_task_id, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+      }
     }
   }
 }
