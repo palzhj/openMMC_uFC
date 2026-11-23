@@ -37,6 +37,7 @@
 #include "task_priorities.h"
 #include "math.h"
 #include "payload.h"
+#include "utils.h"
 
 /* vI2CBusRecover() lives in the STM32 port (stm32_i2c.c). */
 extern void vI2CBusRecover(I2C_ID_T id);
@@ -115,6 +116,7 @@ static void ucd_bus_recover(uint8_t i2c_interf)
 
 #define UCD_UPDATE_RATE 5000
 #define UCD_MAX_READ_TRIES 10   /* 10 x 40 ms, bounded retry */
+#define UCD_FAIL_LIMIT     6    /* cycles before a sensor is called unavailable */
 
 #define UCD_REG_DEVICE_ID_LENGTH 32
 
@@ -325,7 +327,7 @@ uint8_t ucd_write_byte(ucd_data_t *data, uint8_t reg_addr, uint8_t *written)
     }
   }
 
-  return 1; /* Return the number of bytes written (1) */
+  return len; /* 2 = register + value transferred, 0 = the device did not take it */
 }
 
 /**
@@ -449,7 +451,7 @@ uint16_t pmbus2sdr_convert(ucd_data_t *data, float value)
  *
  * @param data Pointer to the UCD90xxx data structure containing the sensor and chip ID information.
  */
-void ucd_read_voltages(ucd_data_t *data)
+bool ucd_read_voltages(ucd_data_t *data)
 {
   SDR_type_01h_t *sdr = (SDR_type_01h_t *)data->sensor->sdr;
   uint8_t page = sdr->OEM;
@@ -459,30 +461,30 @@ void ucd_read_voltages(ucd_data_t *data)
   int16_t adc;
 
   /* Set the page to the appropriate value */
-  ucd_write_byte(data, UCD_REG_PAGE, &page);
+  if (ucd_write_byte(data, UCD_REG_PAGE, &page) != 2) {
+    return false;
+  }
 
   /* Read the voltage mode */
-  ucd_read_byte(data, UCD_REG_VOUT_MODE, &mode);
+  if (ucd_read_byte(data, UCD_REG_VOUT_MODE, &mode) != 1) {
+    return false;
+  }
   /* mode is two's complement for a 5-bit value */
   M_exp = (mode > 0xF) ? (mode - 0x20) : mode;
 
   /* Read the voltage value */
-  ucd_read_word(data, UCD_REG_READ_VOUT, &raw);
+  if (ucd_read_word(data, UCD_REG_READ_VOUT, &raw) != 2) {
+    return false;
+  }
   adc = raw;
 
   /* Calculate the actual voltage value based on the mode */
   /* Nominal reading Voltage = adc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
   data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(adc, M_exp));
-
-  /* Optionally, print debug information */
-  // #ifdef DEBUG
-  //   printf("ucd read mode: 0x%x\n", mode);
-  //   printf("ucd read vout: 0x%x\n", raw);
-  //   printf("ucd calculated voltage: %d\n", data->sensor->readout_value);
-  // #endif
+  return true;
 }
 
-void ucd_read_current(ucd_data_t *data)
+bool ucd_read_current(ucd_data_t *data)
 {
   SDR_type_01h_t *sdr = (SDR_type_01h_t *)data->sensor->sdr;
   uint8_t page = sdr->OEM;
@@ -493,32 +495,34 @@ void ucd_read_current(ucd_data_t *data)
   int16_t iadc;
 
   /* Read the status */
-  ucd_read_word(data, UCD_REG_STATUS_BYTE, &raw);
-  if (raw & UCD_STATUS_OFF) data->sensor->readout_value = pmbus2sdr_convert(data, 0);
-  else
-  {
-    /* Set the page to the appropriate value */
-    ucd_write_byte(data, UCD_REG_PAGE, &page);
-
-    /* Read the current value */
-    ucd_read_word(data, UCD_REG_READ_IOUT, &raw);
-
-    mode = (raw >> 11) & 0x1F;
-    M_exp = (mode > 0xF) ? (mode - 0x20) : mode;
-
-    adc = raw & 0x7FF;
-    iadc = (adc > 0x3FF) ? (adc - 0x800) : adc;
-
-    /* Calculate the actual current value based on the mode */
-    /* Nominal reading current = iadc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
-    data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(iadc, M_exp));
-
-    /* Optionally, print debug information */
-    // #ifdef DEBUG
-    //   printf("ucd read Iout: 0x%x\n", raw);
-    //   printf("ucd calculated current: %d\n", data->sensor->readout_value);
-    // #endif
+  if (ucd_read_word(data, UCD_REG_STATUS_BYTE, &raw) != 2) {
+    return false;
   }
+  if (raw & UCD_STATUS_OFF) {
+    data->sensor->readout_value = pmbus2sdr_convert(data, 0);
+    return true;
+  }
+
+  /* Set the page to the appropriate value */
+  if (ucd_write_byte(data, UCD_REG_PAGE, &page) != 2) {
+    return false;
+  }
+
+  /* Read the current value */
+  if (ucd_read_word(data, UCD_REG_READ_IOUT, &raw) != 2) {
+    return false;
+  }
+
+  mode = (raw >> 11) & 0x1F;
+  M_exp = (mode > 0xF) ? (mode - 0x20) : mode;
+
+  adc = raw & 0x7FF;
+  iadc = (adc > 0x3FF) ? (adc - 0x800) : adc;
+
+  /* Calculate the actual current value based on the mode */
+  /* Nominal reading current = iadc * 2^(M_exp) = [(M * x + B * 10^(B_exp)) * 10^(R_exp)] */
+  data->sensor->readout_value = pmbus2sdr_convert(data, ucd_scale_pow2(iadc, M_exp));
+  return true;
 }
 
 /**
@@ -550,7 +554,7 @@ void ucd_read_current(ucd_data_t *data)
  *
  * @param data Pointer to the UCD90xxx data structure containing the sensor and chip ID information.
  */
-void ucd_read_temperature(ucd_data_t *data)
+bool ucd_read_temperature(ucd_data_t *data)
 {
   SDR_type_01h_t *sdr = (SDR_type_01h_t *)data->sensor->sdr;
   uint8_t page = sdr->OEM;
@@ -561,10 +565,14 @@ void ucd_read_temperature(ucd_data_t *data)
   int16_t iadc;
 
   /* Set the page to the appropriate value */
-  ucd_write_byte(data, UCD_REG_PAGE, &page);
+  if (ucd_write_byte(data, UCD_REG_PAGE, &page) != 2) {
+    return false;
+  }
 
   /* Read the temperature value */
-  ucd_read_word(data, UCD_REG_READ_TEMPERATURE_1, &raw);
+  if (ucd_read_word(data, UCD_REG_READ_TEMPERATURE_1, &raw) != 2) {
+    return false;
+  }
 
   /* Extract the mode and exponent from the read value */
   mode = (raw >> 11) & 0x1F;
@@ -591,6 +599,7 @@ void ucd_read_temperature(ucd_data_t *data)
   //   printf("ucd read temperature: 0x%x\n", raw);
   //   printf("ucd calculated temperature: %d\n", data->sensor->readout_value);
   // #endif
+  return true;
 }
 
 /**
@@ -642,23 +651,52 @@ void vTaskUCD(void *Parameters)
         data_ptr = &ucd_data[ch_num];
 
         /* Handle different sensor types */
+        bool ok = false;
         switch (GET_SENSOR_TYPE(ucd_sensor))
         {
         case SENSOR_TYPE_VOLTAGE:
-          ucd_read_voltages(data_ptr);
+          ok = ucd_read_voltages(data_ptr);
           break;
 
         case SENSOR_TYPE_CURRENT:
-          ucd_read_current(data_ptr);
+          ok = ucd_read_current(data_ptr);
           break;
 
         case SENSOR_TYPE_TEMPERATURE:
-          ucd_read_temperature(data_ptr);
+          ok = ucd_read_temperature(data_ptr);
           break;
 
         default:
+          ok = true;      /* nothing to read */
           break;
         }
+
+        if (!ok)
+        {
+          /* A failed transfer is not "0 V / 0 A": keep the previous reading
+           * and only declare the sensor unavailable after several cycles
+           * (a bus contention with the host tools clears up by itself). */
+          if (data_ptr->fail_count < UCD_FAIL_LIMIT)
+          {
+            data_ptr->fail_count++;
+          }
+          if (data_ptr->fail_count >= UCD_FAIL_LIMIT &&
+              (ucd_sensor->event_scan != 0))
+          {
+            sensor_disable(ucd_sensor);
+            ucd_sensor->state = 0x20;      /* IPMI: reading unavailable */
+            log_printk("ucd", "UCD 0x%02x not answering, sensor #%u unavailable",
+                       data_ptr->chipid,
+                       (unsigned)((SDR_type_01h_t *)ucd_sensor->sdr)->sensornum);
+          }
+          continue;       /* no state/event evaluation on a stale value */
+        }
+
+        if (data_ptr->fail_count >= UCD_FAIL_LIMIT)
+        {
+          sensor_enable(ucd_sensor);
+        }
+        data_ptr->fail_count = 0;
 
         /* Check for threshold events */
         sensor_state_check(ucd_sensor);

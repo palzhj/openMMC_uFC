@@ -44,6 +44,7 @@
 typedef struct {
     uint8_t chipid;
     sensor_t * sensor;
+    uint8_t fail_count;   /* consecutive failed read cycles */
 } ucd_data_t;
 
 // void ucd_read_voltages( ucd_data_t * data );
@@ -56,6 +57,12 @@ void ucd_set_gpio(ucd_data_t * data, uint8_t pin_number, uint8_t status);
 void ucd_set_power(ucd_data_t * data, uint8_t page, uint8_t state);
 uint8_t ucd_clear_faults(ucd_data_t * data, uint8_t page);
 uint8_t ucd_get_operation(ucd_data_t * data, uint8_t page, uint8_t * operation);
+
+/* Each returns false when the device did not answer: the caller must then
+ * keep the previous reading instead of publishing a zero. */
+bool ucd_read_voltages(ucd_data_t * data);
+bool ucd_read_current(ucd_data_t * data);
+bool ucd_read_temperature(ucd_data_t * data);
 
 void ucd_init( void );
 void vTaskUCD( void* Parameters );
